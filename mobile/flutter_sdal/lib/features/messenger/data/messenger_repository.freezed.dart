@@ -302,7 +302,7 @@ as bool,
 /// @nodoc
 mixin _$MessengerMessage implements DiagnosticableTreeMixin {
 
-@JsonKey(fromJson: readRequiredInt) int get id;@JsonKey(fromJson: readRequiredInt) int get threadId;@JsonKey(fromJson: readRequiredInt) int get senderId;@JsonKey(fromJson: readRequiredInt) int get receiverId;@JsonKey(fromJson: readRequiredText) String get body;@JsonKey(fromJson: readRequiredText) String get createdAt;@JsonKey(fromJson: readRequiredText) String get clientWrittenAt;@JsonKey(fromJson: readRequiredText) String get serverReceivedAt;@JsonKey(fromJson: readRequiredText) String get deliveredAt;@JsonKey(fromJson: readRequiredText) String get readAt;@JsonKey(fromJson: readRequiredBool) bool get isMine;@JsonKey(fromJson: readRequiredText) String get senderName;
+@JsonKey(fromJson: readRequiredInt) int get id;@JsonKey(fromJson: readRequiredInt) int get threadId;@JsonKey(fromJson: readRequiredInt) int get senderId;@JsonKey(fromJson: readRequiredInt) int get receiverId;@JsonKey(fromJson: readRequiredText) String get body;@JsonKey(fromJson: readOptionalText) String? get imageUrl;@JsonKey(fromJson: readOptionalText) String? get imageExpiresAt;@JsonKey(fromJson: readRequiredText) String get createdAt;@JsonKey(fromJson: readRequiredText) String get clientWrittenAt;@JsonKey(fromJson: readRequiredText) String get serverReceivedAt;@JsonKey(fromJson: readRequiredText) String get deliveredAt;@JsonKey(fromJson: readRequiredText) String get readAt;@JsonKey(fromJson: readRequiredBool) bool get isMine;@JsonKey(fromJson: readRequiredText) String get senderName;
 /// Create a copy of MessengerMessage
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -316,21 +316,21 @@ $MessengerMessageCopyWith<MessengerMessage> get copyWith => _$MessengerMessageCo
 void debugFillProperties(DiagnosticPropertiesBuilder properties) {
   properties
     ..add(DiagnosticsProperty('type', 'MessengerMessage'))
-    ..add(DiagnosticsProperty('id', id))..add(DiagnosticsProperty('threadId', threadId))..add(DiagnosticsProperty('senderId', senderId))..add(DiagnosticsProperty('receiverId', receiverId))..add(DiagnosticsProperty('body', body))..add(DiagnosticsProperty('createdAt', createdAt))..add(DiagnosticsProperty('clientWrittenAt', clientWrittenAt))..add(DiagnosticsProperty('serverReceivedAt', serverReceivedAt))..add(DiagnosticsProperty('deliveredAt', deliveredAt))..add(DiagnosticsProperty('readAt', readAt))..add(DiagnosticsProperty('isMine', isMine))..add(DiagnosticsProperty('senderName', senderName));
+    ..add(DiagnosticsProperty('id', id))..add(DiagnosticsProperty('threadId', threadId))..add(DiagnosticsProperty('senderId', senderId))..add(DiagnosticsProperty('receiverId', receiverId))..add(DiagnosticsProperty('body', body))..add(DiagnosticsProperty('imageUrl', imageUrl))..add(DiagnosticsProperty('imageExpiresAt', imageExpiresAt))..add(DiagnosticsProperty('createdAt', createdAt))..add(DiagnosticsProperty('clientWrittenAt', clientWrittenAt))..add(DiagnosticsProperty('serverReceivedAt', serverReceivedAt))..add(DiagnosticsProperty('deliveredAt', deliveredAt))..add(DiagnosticsProperty('readAt', readAt))..add(DiagnosticsProperty('isMine', isMine))..add(DiagnosticsProperty('senderName', senderName));
 }
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessengerMessage&&(identical(other.id, id) || other.id == id)&&(identical(other.threadId, threadId) || other.threadId == threadId)&&(identical(other.senderId, senderId) || other.senderId == senderId)&&(identical(other.receiverId, receiverId) || other.receiverId == receiverId)&&(identical(other.body, body) || other.body == body)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.clientWrittenAt, clientWrittenAt) || other.clientWrittenAt == clientWrittenAt)&&(identical(other.serverReceivedAt, serverReceivedAt) || other.serverReceivedAt == serverReceivedAt)&&(identical(other.deliveredAt, deliveredAt) || other.deliveredAt == deliveredAt)&&(identical(other.readAt, readAt) || other.readAt == readAt)&&(identical(other.isMine, isMine) || other.isMine == isMine)&&(identical(other.senderName, senderName) || other.senderName == senderName));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessengerMessage&&(identical(other.id, id) || other.id == id)&&(identical(other.threadId, threadId) || other.threadId == threadId)&&(identical(other.senderId, senderId) || other.senderId == senderId)&&(identical(other.receiverId, receiverId) || other.receiverId == receiverId)&&(identical(other.body, body) || other.body == body)&&(identical(other.imageUrl, imageUrl) || other.imageUrl == imageUrl)&&(identical(other.imageExpiresAt, imageExpiresAt) || other.imageExpiresAt == imageExpiresAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.clientWrittenAt, clientWrittenAt) || other.clientWrittenAt == clientWrittenAt)&&(identical(other.serverReceivedAt, serverReceivedAt) || other.serverReceivedAt == serverReceivedAt)&&(identical(other.deliveredAt, deliveredAt) || other.deliveredAt == deliveredAt)&&(identical(other.readAt, readAt) || other.readAt == readAt)&&(identical(other.isMine, isMine) || other.isMine == isMine)&&(identical(other.senderName, senderName) || other.senderName == senderName));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,threadId,senderId,receiverId,body,createdAt,clientWrittenAt,serverReceivedAt,deliveredAt,readAt,isMine,senderName);
+int get hashCode => Object.hash(runtimeType,id,threadId,senderId,receiverId,body,imageUrl,imageExpiresAt,createdAt,clientWrittenAt,serverReceivedAt,deliveredAt,readAt,isMine,senderName);
 
 @override
 String toString({ DiagnosticLevel minLevel = DiagnosticLevel.info }) {
-  return 'MessengerMessage(id: $id, threadId: $threadId, senderId: $senderId, receiverId: $receiverId, body: $body, createdAt: $createdAt, clientWrittenAt: $clientWrittenAt, serverReceivedAt: $serverReceivedAt, deliveredAt: $deliveredAt, readAt: $readAt, isMine: $isMine, senderName: $senderName)';
+  return 'MessengerMessage(id: $id, threadId: $threadId, senderId: $senderId, receiverId: $receiverId, body: $body, imageUrl: $imageUrl, imageExpiresAt: $imageExpiresAt, createdAt: $createdAt, clientWrittenAt: $clientWrittenAt, serverReceivedAt: $serverReceivedAt, deliveredAt: $deliveredAt, readAt: $readAt, isMine: $isMine, senderName: $senderName)';
 }
 
 
@@ -341,7 +341,7 @@ abstract mixin class $MessengerMessageCopyWith<$Res>  {
   factory $MessengerMessageCopyWith(MessengerMessage value, $Res Function(MessengerMessage) _then) = _$MessengerMessageCopyWithImpl;
 @useResult
 $Res call({
-@JsonKey(fromJson: readRequiredInt) int id,@JsonKey(fromJson: readRequiredInt) int threadId,@JsonKey(fromJson: readRequiredInt) int senderId,@JsonKey(fromJson: readRequiredInt) int receiverId,@JsonKey(fromJson: readRequiredText) String body,@JsonKey(fromJson: readRequiredText) String createdAt,@JsonKey(fromJson: readRequiredText) String clientWrittenAt,@JsonKey(fromJson: readRequiredText) String serverReceivedAt,@JsonKey(fromJson: readRequiredText) String deliveredAt,@JsonKey(fromJson: readRequiredText) String readAt,@JsonKey(fromJson: readRequiredBool) bool isMine,@JsonKey(fromJson: readRequiredText) String senderName
+@JsonKey(fromJson: readRequiredInt) int id,@JsonKey(fromJson: readRequiredInt) int threadId,@JsonKey(fromJson: readRequiredInt) int senderId,@JsonKey(fromJson: readRequiredInt) int receiverId,@JsonKey(fromJson: readRequiredText) String body,@JsonKey(fromJson: readOptionalText) String? imageUrl,@JsonKey(fromJson: readOptionalText) String? imageExpiresAt,@JsonKey(fromJson: readRequiredText) String createdAt,@JsonKey(fromJson: readRequiredText) String clientWrittenAt,@JsonKey(fromJson: readRequiredText) String serverReceivedAt,@JsonKey(fromJson: readRequiredText) String deliveredAt,@JsonKey(fromJson: readRequiredText) String readAt,@JsonKey(fromJson: readRequiredBool) bool isMine,@JsonKey(fromJson: readRequiredText) String senderName
 });
 
 
@@ -358,14 +358,16 @@ class _$MessengerMessageCopyWithImpl<$Res>
 
 /// Create a copy of MessengerMessage
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? threadId = null,Object? senderId = null,Object? receiverId = null,Object? body = null,Object? createdAt = null,Object? clientWrittenAt = null,Object? serverReceivedAt = null,Object? deliveredAt = null,Object? readAt = null,Object? isMine = null,Object? senderName = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? threadId = null,Object? senderId = null,Object? receiverId = null,Object? body = null,Object? imageUrl = freezed,Object? imageExpiresAt = freezed,Object? createdAt = null,Object? clientWrittenAt = null,Object? serverReceivedAt = null,Object? deliveredAt = null,Object? readAt = null,Object? isMine = null,Object? senderName = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,threadId: null == threadId ? _self.threadId : threadId // ignore: cast_nullable_to_non_nullable
 as int,senderId: null == senderId ? _self.senderId : senderId // ignore: cast_nullable_to_non_nullable
 as int,receiverId: null == receiverId ? _self.receiverId : receiverId // ignore: cast_nullable_to_non_nullable
 as int,body: null == body ? _self.body : body // ignore: cast_nullable_to_non_nullable
-as String,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as String,imageUrl: freezed == imageUrl ? _self.imageUrl : imageUrl // ignore: cast_nullable_to_non_nullable
+as String?,imageExpiresAt: freezed == imageExpiresAt ? _self.imageExpiresAt : imageExpiresAt // ignore: cast_nullable_to_non_nullable
+as String?,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as String,clientWrittenAt: null == clientWrittenAt ? _self.clientWrittenAt : clientWrittenAt // ignore: cast_nullable_to_non_nullable
 as String,serverReceivedAt: null == serverReceivedAt ? _self.serverReceivedAt : serverReceivedAt // ignore: cast_nullable_to_non_nullable
 as String,deliveredAt: null == deliveredAt ? _self.deliveredAt : deliveredAt // ignore: cast_nullable_to_non_nullable
@@ -457,10 +459,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: readRequiredInt)  int id, @JsonKey(fromJson: readRequiredInt)  int threadId, @JsonKey(fromJson: readRequiredInt)  int senderId, @JsonKey(fromJson: readRequiredInt)  int receiverId, @JsonKey(fromJson: readRequiredText)  String body, @JsonKey(fromJson: readRequiredText)  String createdAt, @JsonKey(fromJson: readRequiredText)  String clientWrittenAt, @JsonKey(fromJson: readRequiredText)  String serverReceivedAt, @JsonKey(fromJson: readRequiredText)  String deliveredAt, @JsonKey(fromJson: readRequiredText)  String readAt, @JsonKey(fromJson: readRequiredBool)  bool isMine, @JsonKey(fromJson: readRequiredText)  String senderName)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: readRequiredInt)  int id, @JsonKey(fromJson: readRequiredInt)  int threadId, @JsonKey(fromJson: readRequiredInt)  int senderId, @JsonKey(fromJson: readRequiredInt)  int receiverId, @JsonKey(fromJson: readRequiredText)  String body, @JsonKey(fromJson: readOptionalText)  String? imageUrl, @JsonKey(fromJson: readOptionalText)  String? imageExpiresAt, @JsonKey(fromJson: readRequiredText)  String createdAt, @JsonKey(fromJson: readRequiredText)  String clientWrittenAt, @JsonKey(fromJson: readRequiredText)  String serverReceivedAt, @JsonKey(fromJson: readRequiredText)  String deliveredAt, @JsonKey(fromJson: readRequiredText)  String readAt, @JsonKey(fromJson: readRequiredBool)  bool isMine, @JsonKey(fromJson: readRequiredText)  String senderName)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _MessengerMessage() when $default != null:
-return $default(_that.id,_that.threadId,_that.senderId,_that.receiverId,_that.body,_that.createdAt,_that.clientWrittenAt,_that.serverReceivedAt,_that.deliveredAt,_that.readAt,_that.isMine,_that.senderName);case _:
+return $default(_that.id,_that.threadId,_that.senderId,_that.receiverId,_that.body,_that.imageUrl,_that.imageExpiresAt,_that.createdAt,_that.clientWrittenAt,_that.serverReceivedAt,_that.deliveredAt,_that.readAt,_that.isMine,_that.senderName);case _:
   return orElse();
 
 }
@@ -478,10 +480,10 @@ return $default(_that.id,_that.threadId,_that.senderId,_that.receiverId,_that.bo
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: readRequiredInt)  int id, @JsonKey(fromJson: readRequiredInt)  int threadId, @JsonKey(fromJson: readRequiredInt)  int senderId, @JsonKey(fromJson: readRequiredInt)  int receiverId, @JsonKey(fromJson: readRequiredText)  String body, @JsonKey(fromJson: readRequiredText)  String createdAt, @JsonKey(fromJson: readRequiredText)  String clientWrittenAt, @JsonKey(fromJson: readRequiredText)  String serverReceivedAt, @JsonKey(fromJson: readRequiredText)  String deliveredAt, @JsonKey(fromJson: readRequiredText)  String readAt, @JsonKey(fromJson: readRequiredBool)  bool isMine, @JsonKey(fromJson: readRequiredText)  String senderName)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: readRequiredInt)  int id, @JsonKey(fromJson: readRequiredInt)  int threadId, @JsonKey(fromJson: readRequiredInt)  int senderId, @JsonKey(fromJson: readRequiredInt)  int receiverId, @JsonKey(fromJson: readRequiredText)  String body, @JsonKey(fromJson: readOptionalText)  String? imageUrl, @JsonKey(fromJson: readOptionalText)  String? imageExpiresAt, @JsonKey(fromJson: readRequiredText)  String createdAt, @JsonKey(fromJson: readRequiredText)  String clientWrittenAt, @JsonKey(fromJson: readRequiredText)  String serverReceivedAt, @JsonKey(fromJson: readRequiredText)  String deliveredAt, @JsonKey(fromJson: readRequiredText)  String readAt, @JsonKey(fromJson: readRequiredBool)  bool isMine, @JsonKey(fromJson: readRequiredText)  String senderName)  $default,) {final _that = this;
 switch (_that) {
 case _MessengerMessage():
-return $default(_that.id,_that.threadId,_that.senderId,_that.receiverId,_that.body,_that.createdAt,_that.clientWrittenAt,_that.serverReceivedAt,_that.deliveredAt,_that.readAt,_that.isMine,_that.senderName);case _:
+return $default(_that.id,_that.threadId,_that.senderId,_that.receiverId,_that.body,_that.imageUrl,_that.imageExpiresAt,_that.createdAt,_that.clientWrittenAt,_that.serverReceivedAt,_that.deliveredAt,_that.readAt,_that.isMine,_that.senderName);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -498,10 +500,10 @@ return $default(_that.id,_that.threadId,_that.senderId,_that.receiverId,_that.bo
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: readRequiredInt)  int id, @JsonKey(fromJson: readRequiredInt)  int threadId, @JsonKey(fromJson: readRequiredInt)  int senderId, @JsonKey(fromJson: readRequiredInt)  int receiverId, @JsonKey(fromJson: readRequiredText)  String body, @JsonKey(fromJson: readRequiredText)  String createdAt, @JsonKey(fromJson: readRequiredText)  String clientWrittenAt, @JsonKey(fromJson: readRequiredText)  String serverReceivedAt, @JsonKey(fromJson: readRequiredText)  String deliveredAt, @JsonKey(fromJson: readRequiredText)  String readAt, @JsonKey(fromJson: readRequiredBool)  bool isMine, @JsonKey(fromJson: readRequiredText)  String senderName)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: readRequiredInt)  int id, @JsonKey(fromJson: readRequiredInt)  int threadId, @JsonKey(fromJson: readRequiredInt)  int senderId, @JsonKey(fromJson: readRequiredInt)  int receiverId, @JsonKey(fromJson: readRequiredText)  String body, @JsonKey(fromJson: readOptionalText)  String? imageUrl, @JsonKey(fromJson: readOptionalText)  String? imageExpiresAt, @JsonKey(fromJson: readRequiredText)  String createdAt, @JsonKey(fromJson: readRequiredText)  String clientWrittenAt, @JsonKey(fromJson: readRequiredText)  String serverReceivedAt, @JsonKey(fromJson: readRequiredText)  String deliveredAt, @JsonKey(fromJson: readRequiredText)  String readAt, @JsonKey(fromJson: readRequiredBool)  bool isMine, @JsonKey(fromJson: readRequiredText)  String senderName)?  $default,) {final _that = this;
 switch (_that) {
 case _MessengerMessage() when $default != null:
-return $default(_that.id,_that.threadId,_that.senderId,_that.receiverId,_that.body,_that.createdAt,_that.clientWrittenAt,_that.serverReceivedAt,_that.deliveredAt,_that.readAt,_that.isMine,_that.senderName);case _:
+return $default(_that.id,_that.threadId,_that.senderId,_that.receiverId,_that.body,_that.imageUrl,_that.imageExpiresAt,_that.createdAt,_that.clientWrittenAt,_that.serverReceivedAt,_that.deliveredAt,_that.readAt,_that.isMine,_that.senderName);case _:
   return null;
 
 }
@@ -513,7 +515,7 @@ return $default(_that.id,_that.threadId,_that.senderId,_that.receiverId,_that.bo
 @JsonSerializable()
 
 class _MessengerMessage extends MessengerMessage with DiagnosticableTreeMixin {
-  const _MessengerMessage({@JsonKey(fromJson: readRequiredInt) required this.id, @JsonKey(fromJson: readRequiredInt) required this.threadId, @JsonKey(fromJson: readRequiredInt) required this.senderId, @JsonKey(fromJson: readRequiredInt) required this.receiverId, @JsonKey(fromJson: readRequiredText) required this.body, @JsonKey(fromJson: readRequiredText) required this.createdAt, @JsonKey(fromJson: readRequiredText) required this.clientWrittenAt, @JsonKey(fromJson: readRequiredText) required this.serverReceivedAt, @JsonKey(fromJson: readRequiredText) required this.deliveredAt, @JsonKey(fromJson: readRequiredText) required this.readAt, @JsonKey(fromJson: readRequiredBool) required this.isMine, @JsonKey(fromJson: readRequiredText) required this.senderName}): super._();
+  const _MessengerMessage({@JsonKey(fromJson: readRequiredInt) required this.id, @JsonKey(fromJson: readRequiredInt) required this.threadId, @JsonKey(fromJson: readRequiredInt) required this.senderId, @JsonKey(fromJson: readRequiredInt) required this.receiverId, @JsonKey(fromJson: readRequiredText) required this.body, @JsonKey(fromJson: readOptionalText) this.imageUrl, @JsonKey(fromJson: readOptionalText) this.imageExpiresAt, @JsonKey(fromJson: readRequiredText) required this.createdAt, @JsonKey(fromJson: readRequiredText) required this.clientWrittenAt, @JsonKey(fromJson: readRequiredText) required this.serverReceivedAt, @JsonKey(fromJson: readRequiredText) required this.deliveredAt, @JsonKey(fromJson: readRequiredText) required this.readAt, @JsonKey(fromJson: readRequiredBool) required this.isMine, @JsonKey(fromJson: readRequiredText) required this.senderName}): super._();
   factory _MessengerMessage.fromJson(Map<String, dynamic> json) => _$MessengerMessageFromJson(json);
 
 @override@JsonKey(fromJson: readRequiredInt) final  int id;
@@ -521,6 +523,8 @@ class _MessengerMessage extends MessengerMessage with DiagnosticableTreeMixin {
 @override@JsonKey(fromJson: readRequiredInt) final  int senderId;
 @override@JsonKey(fromJson: readRequiredInt) final  int receiverId;
 @override@JsonKey(fromJson: readRequiredText) final  String body;
+@override@JsonKey(fromJson: readOptionalText) final  String? imageUrl;
+@override@JsonKey(fromJson: readOptionalText) final  String? imageExpiresAt;
 @override@JsonKey(fromJson: readRequiredText) final  String createdAt;
 @override@JsonKey(fromJson: readRequiredText) final  String clientWrittenAt;
 @override@JsonKey(fromJson: readRequiredText) final  String serverReceivedAt;
@@ -543,21 +547,21 @@ Map<String, dynamic> toJson() {
 void debugFillProperties(DiagnosticPropertiesBuilder properties) {
   properties
     ..add(DiagnosticsProperty('type', 'MessengerMessage'))
-    ..add(DiagnosticsProperty('id', id))..add(DiagnosticsProperty('threadId', threadId))..add(DiagnosticsProperty('senderId', senderId))..add(DiagnosticsProperty('receiverId', receiverId))..add(DiagnosticsProperty('body', body))..add(DiagnosticsProperty('createdAt', createdAt))..add(DiagnosticsProperty('clientWrittenAt', clientWrittenAt))..add(DiagnosticsProperty('serverReceivedAt', serverReceivedAt))..add(DiagnosticsProperty('deliveredAt', deliveredAt))..add(DiagnosticsProperty('readAt', readAt))..add(DiagnosticsProperty('isMine', isMine))..add(DiagnosticsProperty('senderName', senderName));
+    ..add(DiagnosticsProperty('id', id))..add(DiagnosticsProperty('threadId', threadId))..add(DiagnosticsProperty('senderId', senderId))..add(DiagnosticsProperty('receiverId', receiverId))..add(DiagnosticsProperty('body', body))..add(DiagnosticsProperty('imageUrl', imageUrl))..add(DiagnosticsProperty('imageExpiresAt', imageExpiresAt))..add(DiagnosticsProperty('createdAt', createdAt))..add(DiagnosticsProperty('clientWrittenAt', clientWrittenAt))..add(DiagnosticsProperty('serverReceivedAt', serverReceivedAt))..add(DiagnosticsProperty('deliveredAt', deliveredAt))..add(DiagnosticsProperty('readAt', readAt))..add(DiagnosticsProperty('isMine', isMine))..add(DiagnosticsProperty('senderName', senderName));
 }
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MessengerMessage&&(identical(other.id, id) || other.id == id)&&(identical(other.threadId, threadId) || other.threadId == threadId)&&(identical(other.senderId, senderId) || other.senderId == senderId)&&(identical(other.receiverId, receiverId) || other.receiverId == receiverId)&&(identical(other.body, body) || other.body == body)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.clientWrittenAt, clientWrittenAt) || other.clientWrittenAt == clientWrittenAt)&&(identical(other.serverReceivedAt, serverReceivedAt) || other.serverReceivedAt == serverReceivedAt)&&(identical(other.deliveredAt, deliveredAt) || other.deliveredAt == deliveredAt)&&(identical(other.readAt, readAt) || other.readAt == readAt)&&(identical(other.isMine, isMine) || other.isMine == isMine)&&(identical(other.senderName, senderName) || other.senderName == senderName));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MessengerMessage&&(identical(other.id, id) || other.id == id)&&(identical(other.threadId, threadId) || other.threadId == threadId)&&(identical(other.senderId, senderId) || other.senderId == senderId)&&(identical(other.receiverId, receiverId) || other.receiverId == receiverId)&&(identical(other.body, body) || other.body == body)&&(identical(other.imageUrl, imageUrl) || other.imageUrl == imageUrl)&&(identical(other.imageExpiresAt, imageExpiresAt) || other.imageExpiresAt == imageExpiresAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.clientWrittenAt, clientWrittenAt) || other.clientWrittenAt == clientWrittenAt)&&(identical(other.serverReceivedAt, serverReceivedAt) || other.serverReceivedAt == serverReceivedAt)&&(identical(other.deliveredAt, deliveredAt) || other.deliveredAt == deliveredAt)&&(identical(other.readAt, readAt) || other.readAt == readAt)&&(identical(other.isMine, isMine) || other.isMine == isMine)&&(identical(other.senderName, senderName) || other.senderName == senderName));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,threadId,senderId,receiverId,body,createdAt,clientWrittenAt,serverReceivedAt,deliveredAt,readAt,isMine,senderName);
+int get hashCode => Object.hash(runtimeType,id,threadId,senderId,receiverId,body,imageUrl,imageExpiresAt,createdAt,clientWrittenAt,serverReceivedAt,deliveredAt,readAt,isMine,senderName);
 
 @override
 String toString({ DiagnosticLevel minLevel = DiagnosticLevel.info }) {
-  return 'MessengerMessage(id: $id, threadId: $threadId, senderId: $senderId, receiverId: $receiverId, body: $body, createdAt: $createdAt, clientWrittenAt: $clientWrittenAt, serverReceivedAt: $serverReceivedAt, deliveredAt: $deliveredAt, readAt: $readAt, isMine: $isMine, senderName: $senderName)';
+  return 'MessengerMessage(id: $id, threadId: $threadId, senderId: $senderId, receiverId: $receiverId, body: $body, imageUrl: $imageUrl, imageExpiresAt: $imageExpiresAt, createdAt: $createdAt, clientWrittenAt: $clientWrittenAt, serverReceivedAt: $serverReceivedAt, deliveredAt: $deliveredAt, readAt: $readAt, isMine: $isMine, senderName: $senderName)';
 }
 
 
@@ -568,7 +572,7 @@ abstract mixin class _$MessengerMessageCopyWith<$Res> implements $MessengerMessa
   factory _$MessengerMessageCopyWith(_MessengerMessage value, $Res Function(_MessengerMessage) _then) = __$MessengerMessageCopyWithImpl;
 @override @useResult
 $Res call({
-@JsonKey(fromJson: readRequiredInt) int id,@JsonKey(fromJson: readRequiredInt) int threadId,@JsonKey(fromJson: readRequiredInt) int senderId,@JsonKey(fromJson: readRequiredInt) int receiverId,@JsonKey(fromJson: readRequiredText) String body,@JsonKey(fromJson: readRequiredText) String createdAt,@JsonKey(fromJson: readRequiredText) String clientWrittenAt,@JsonKey(fromJson: readRequiredText) String serverReceivedAt,@JsonKey(fromJson: readRequiredText) String deliveredAt,@JsonKey(fromJson: readRequiredText) String readAt,@JsonKey(fromJson: readRequiredBool) bool isMine,@JsonKey(fromJson: readRequiredText) String senderName
+@JsonKey(fromJson: readRequiredInt) int id,@JsonKey(fromJson: readRequiredInt) int threadId,@JsonKey(fromJson: readRequiredInt) int senderId,@JsonKey(fromJson: readRequiredInt) int receiverId,@JsonKey(fromJson: readRequiredText) String body,@JsonKey(fromJson: readOptionalText) String? imageUrl,@JsonKey(fromJson: readOptionalText) String? imageExpiresAt,@JsonKey(fromJson: readRequiredText) String createdAt,@JsonKey(fromJson: readRequiredText) String clientWrittenAt,@JsonKey(fromJson: readRequiredText) String serverReceivedAt,@JsonKey(fromJson: readRequiredText) String deliveredAt,@JsonKey(fromJson: readRequiredText) String readAt,@JsonKey(fromJson: readRequiredBool) bool isMine,@JsonKey(fromJson: readRequiredText) String senderName
 });
 
 
@@ -585,14 +589,16 @@ class __$MessengerMessageCopyWithImpl<$Res>
 
 /// Create a copy of MessengerMessage
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? threadId = null,Object? senderId = null,Object? receiverId = null,Object? body = null,Object? createdAt = null,Object? clientWrittenAt = null,Object? serverReceivedAt = null,Object? deliveredAt = null,Object? readAt = null,Object? isMine = null,Object? senderName = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? threadId = null,Object? senderId = null,Object? receiverId = null,Object? body = null,Object? imageUrl = freezed,Object? imageExpiresAt = freezed,Object? createdAt = null,Object? clientWrittenAt = null,Object? serverReceivedAt = null,Object? deliveredAt = null,Object? readAt = null,Object? isMine = null,Object? senderName = null,}) {
   return _then(_MessengerMessage(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,threadId: null == threadId ? _self.threadId : threadId // ignore: cast_nullable_to_non_nullable
 as int,senderId: null == senderId ? _self.senderId : senderId // ignore: cast_nullable_to_non_nullable
 as int,receiverId: null == receiverId ? _self.receiverId : receiverId // ignore: cast_nullable_to_non_nullable
 as int,body: null == body ? _self.body : body // ignore: cast_nullable_to_non_nullable
-as String,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as String,imageUrl: freezed == imageUrl ? _self.imageUrl : imageUrl // ignore: cast_nullable_to_non_nullable
+as String?,imageExpiresAt: freezed == imageExpiresAt ? _self.imageExpiresAt : imageExpiresAt // ignore: cast_nullable_to_non_nullable
+as String?,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as String,clientWrittenAt: null == clientWrittenAt ? _self.clientWrittenAt : clientWrittenAt // ignore: cast_nullable_to_non_nullable
 as String,serverReceivedAt: null == serverReceivedAt ? _self.serverReceivedAt : serverReceivedAt // ignore: cast_nullable_to_non_nullable
 as String,deliveredAt: null == deliveredAt ? _self.deliveredAt : deliveredAt // ignore: cast_nullable_to_non_nullable

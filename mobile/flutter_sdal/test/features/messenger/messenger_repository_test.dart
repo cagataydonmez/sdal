@@ -36,11 +36,11 @@ void main() {
                 'senderId': 9,
                 'receiverId': 3,
                 'body': 'hello',
-                'createdAt': '2026-01-01T12:00:00.000Z',
-                'clientWrittenAt': '2026-01-01T12:00:00.000Z',
-                'serverReceivedAt': '2026-01-01T12:00:01.000Z',
-                'deliveredAt': '2026-01-01T12:00:02.000Z',
-                'readAt': '2026-01-01T12:00:03.000Z',
+                'created_at': '2026-01-01T12:00:00.000Z',
+                'client_written_at': '2026-01-01T12:00:00.000Z',
+                'server_received_at': '2026-01-01T12:00:01.000Z',
+                'delivered_at': '2026-01-01T12:00:02.000Z',
+                'read_at': '2026-01-01T12:00:03.000Z',
                 'isMine': true,
                 'senderName': 'Test User',
               },
@@ -63,6 +63,10 @@ void main() {
           'beforeId': 101,
         });
         expect(page.items, hasLength(1));
+        expect(page.items.single.clientWrittenAt, '2026-01-01T12:00:00.000Z');
+        expect(page.items.single.serverReceivedAt, '2026-01-01T12:00:01.000Z');
+        expect(page.items.single.deliveredAt, '2026-01-01T12:00:02.000Z');
+        expect(page.items.single.readAt, '2026-01-01T12:00:03.000Z');
         expect(page.hasMore, isFalse);
       },
     );

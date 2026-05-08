@@ -8,6 +8,7 @@ import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/session/session_models.dart';
+import '../../../core/text/sdal_date_time.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/remote_avatar.dart';
@@ -699,7 +700,10 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage>
                                     ),
                                   ),
                                   Text(
-                                    _item.createdAt,
+                                    formatSdalTimestamp(
+                                      context,
+                                      _item.createdAt,
+                                    ),
                                     style: TextStyle(
                                       color: storyForegroundMuted,
                                     ),

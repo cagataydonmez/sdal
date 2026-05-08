@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
+import '../../../core/text/sdal_date_time.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/sdal_network_image.dart';
@@ -128,14 +129,14 @@ class _ExpiredStoriesPageState extends ConsumerState<ExpiredStoriesPage> {
                                     const SizedBox(height: 8),
                                     if (item.createdAt.isNotEmpty)
                                       Text(
-                                        'Paylaşıldı: ${item.createdAt}',
+                                        'Paylaşıldı: ${formatSdalTimestamp(context, item.createdAt)}',
                                         style: Theme.of(
                                           context,
                                         ).textTheme.bodySmall,
                                       ),
                                     if (item.expiresAt.isNotEmpty)
                                       Text(
-                                        'Süresi doldu: ${item.expiresAt}',
+                                        'Süresi doldu: ${formatSdalTimestamp(context, item.expiresAt)}',
                                         style: Theme.of(
                                           context,
                                         ).textTheme.bodySmall,

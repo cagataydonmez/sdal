@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 import '../../../app/providers.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
+import '../../../core/text/sdal_date_time.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/page_onboarding_card.dart';
@@ -324,7 +324,6 @@ class _BulletinMessageCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watch(appConfigProvider);
     final muted = Theme.of(context).sdal.foregroundMuted;
-    final formatter = DateFormat('d MMM yyyy HH:mm', 'tr_TR');
     return SurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -350,7 +349,7 @@ class _BulletinMessageCard extends ConsumerWidget {
                     Text(
                       item.createdAt == null
                           ? 'Tarih bilgisi yok'
-                          : formatter.format(item.createdAt!.toLocal()),
+                          : formatSdalDateTime(context, item.createdAt!),
                       style: Theme.of(
                         context,
                       ).textTheme.bodySmall?.copyWith(color: muted),

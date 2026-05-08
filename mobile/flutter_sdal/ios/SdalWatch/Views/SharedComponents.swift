@@ -73,23 +73,61 @@ struct LoadingView: View {
 // MARK: - Relative Time
 
 func relativeTime(_ iso: String) -> String {
-    let formatter = ISO8601DateFormatter()
-    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    guard let date = formatter.date(from: iso) else {
-        let simple = DateFormatter()
-        simple.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-        guard let d = simple.date(from: iso) else { return iso }
-        return relativeString(from: d)
-    }
+    guard let date = parseSdalDate(iso) else { return iso }
     return relativeString(from: date)
 }
 
+private func parseSdalDate(_ raw: String) -> Date? {
+    let fractional = ISO8601DateFormatter()
+    fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    if let date = fractional.date(from: raw) { return date }
+
+    let internet = ISO8601DateFormatter()
+    internet.formatOptions = [.withInternetDateTime]
+    if let date = internet.date(from: raw) { return date }
+
+    let simple = DateFormatter()
+    simple.locale = Locale(identifier: "tr_TR")
+    simple.timeZone = TimeZone.current
+    simple.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+    return simple.date(from: raw)
+}
+
 private func relativeString(from date: Date) -> String {
-    let seconds = Int(Date().timeIntervalSince(date))
-    if seconds < 60 { return "\(seconds)s" }
-    if seconds < 3600 { return "\(seconds / 60)d" }
-    if seconds < 86400 { return "\(seconds / 3600)sa" }
-    return "\(seconds / 86400)g"
+    let now = Date()
+    let calendar = Calendar.current
+    let seconds = Int(now.timeIntervalSince(date))
+    let dayDifference = calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: calendar.startOfDay(for: now)).day ?? 0
+
+    if seconds < 0 {
+        let futureSeconds = abs(seconds)
+        if futureSeconds < 30 { return "şimdi" }
+        if futureSeconds < 3600 { return "\(max(1, futureSeconds / 60)) dakika sonra" }
+        if dayDifference == 0 { return "\(max(1, futureSeconds / 3600)) saat sonra" }
+        return absoluteDateString(from: date, relativeTo: now)
+    }
+
+    if seconds < 30 { return "şimdi" }
+    if seconds < 3600 { return "\(max(1, seconds / 60)) dakika önce" }
+    if dayDifference == 0 { return "\(max(1, seconds / 3600)) saat önce" }
+    if dayDifference < 7 { return "\(dayDifference) gün önce" }
+    if dayDifference < 14 { return "1 hafta önce" }
+    return absoluteDateString(from: date, relativeTo: now)
+}
+
+private func absoluteDateString(from date: Date, relativeTo now: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "tr_TR")
+    formatter.timeZone = TimeZone.current
+    let sameDay = Calendar.current.isDate(date, inSameDayAs: now)
+    if sameDay {
+        formatter.dateFormat = "HH:mm"
+    } else if Calendar.current.component(.year, from: date) == Calendar.current.component(.year, from: now) {
+        formatter.dateFormat = "d MMMM HH:mm"
+    } else {
+        formatter.dateFormat = "d MMMM yyyy HH:mm"
+    }
+    return formatter.string(from: date)
 }
 
 // MARK: - FeedType Label

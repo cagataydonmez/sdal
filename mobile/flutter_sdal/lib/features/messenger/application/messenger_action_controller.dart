@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/state/async_action_state.dart';
 import '../data/messenger_repository.dart';
@@ -43,6 +44,30 @@ class MessengerActionController extends Notifier<AsyncActionState> {
       message: result.message.isNotEmpty
           ? result.message
           : 'Mesaj gönderilemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> sendPhotoMessage({
+    required int threadId,
+    required File photo,
+  }) async {
+    state = AsyncActionState.loading(scope: 'messenger:send:$threadId');
+    final result = await _repository.sendPhotoMessage(
+      threadId: threadId,
+      photo: photo,
+    );
+    if (result.ok) {
+      ref.invalidate(messengerMessagesProvider(threadId));
+      ref.invalidate(messengerThreadsProvider(''));
+      state = const AsyncActionState.success(scope: 'messenger:send');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'messenger:send:$threadId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Fotoğraf gönderilemedi.',
     );
     return false;
   }

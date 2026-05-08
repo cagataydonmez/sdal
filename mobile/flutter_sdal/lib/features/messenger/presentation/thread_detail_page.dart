@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
+import '../../../core/config/app_config.dart';
+import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/routing/app_router.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/paged_response.dart';
@@ -15,6 +17,7 @@ import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/realtime_status_banner.dart';
 import '../../../core/widgets/remote_avatar.dart';
+import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/messenger_action_controller.dart';
 import '../data/messenger_repository.dart';
@@ -452,58 +455,61 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
                                 constraints: BoxConstraints(
                                   maxWidth: maxBubbleWidth,
                                 ),
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    color: bubbleColor,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: message.isMine
-                                          ? tokens.chatOutgoing
-                                          : tokens.panelBorder,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: tokens.foreground.withValues(
-                                          alpha: 0.06,
-                                        ),
-                                        blurRadius: 18,
-                                        offset: const Offset(0, 8),
+                                child: GestureDetector(
+                                  onTap: () => _showMessageDetails(message),
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: bubbleColor,
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: message.isMine
+                                            ? tokens.chatOutgoing
+                                            : tokens.panelBorder,
                                       ),
-                                    ],
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 12,
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          message.body,
-                                          style: TextStyle(color: textColor),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          formatSdalTimestamp(
-                                            context,
-                                            message.createdAt,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: tokens.foreground.withValues(
+                                            alpha: 0.06,
                                           ),
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall
-                                              ?.copyWith(
-                                                color: message.isMine
-                                                    ? tokens.foregroundOnAccent
-                                                          .withValues(
-                                                            alpha: 0.72,
-                                                          )
-                                                    : tokens.foregroundMuted,
-                                              ),
+                                          blurRadius: 18,
+                                          offset: const Offset(0, 8),
                                         ),
                                       ],
                                     ),
+                                    child: message.hasImage
+                                        ? _PhotoMessageBubble(
+                                            message: message,
+                                            config: config,
+                                            tokens: tokens,
+                                          )
+                                        : Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 12,
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  message.body,
+                                                  style: TextStyle(
+                                                    color: textColor,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                _MessageMetaRow(
+                                                  message: message,
+                                                  textColor: message.isMine
+                                                      ? tokens.foregroundOnAccent
+                                                            .withValues(
+                                                              alpha: 0.72,
+                                                            )
+                                                      : tokens.foregroundMuted,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
                                   ),
                                 ),
                               ),
@@ -545,26 +551,56 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _messageController,
-                      minLines: 1,
-                      maxLines: 5,
-                      decoration: InputDecoration(
-                        labelText: l10n.messageFieldLabel,
-                        alignLabelWithHint: true,
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: sending ? null : _pickAndSendPhoto,
+                        icon: const Icon(Icons.photo_outlined),
+                        tooltip: 'Fotoğraf gönder',
                       ),
-                    ),
+                      Expanded(
+                        child: TextField(
+                          controller: _messageController,
+                          minLines: 1,
+                          maxLines: 5,
+                          decoration: InputDecoration(
+                            labelText: l10n.messageFieldLabel,
+                            alignLabelWithHint: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: sending ? null : _sendMessage,
+                        child: Text(
+                          sending
+                              ? l10n.messageSendInProgress
+                              : l10n.messageSendAction,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  FilledButton(
-                    onPressed: sending ? null : _sendMessage,
-                    child: Text(
-                      sending
-                          ? l10n.messageSendInProgress
-                          : l10n.messageSendAction,
+                  Padding(
+                    padding: const EdgeInsets.only(left: 12, top: 4),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          size: 12,
+                          color: Theme.of(context).sdal.foregroundMuted,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Fotoğraflar 24 saat sonra otomatik silinir',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).sdal.foregroundMuted,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -572,6 +608,35 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _pickAndSendPhoto() async {
+    final file = await pickAndCropImage(
+      context,
+      aspectPreset: CropAspectPreset.square,
+      title: 'Fotoğrafı hazırla',
+    );
+    if (file == null || !mounted) return;
+
+    final ok = await ref
+        .read(messengerActionControllerProvider.notifier)
+        .sendPhotoMessage(threadId: widget.threadId, photo: file);
+    if (!mounted) return;
+
+    if (ok) {
+      _scrollToBottom(force: true);
+      return;
+    }
+
+    final actionState = ref.read(messengerActionControllerProvider);
+    final actionMessage = actionState.message ?? '';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          actionMessage.isNotEmpty ? actionMessage : 'Fotoğraf gönderilemedi.',
+        ),
       ),
     );
   }
@@ -623,5 +688,223 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
       _hasOlderMessages = page.hasMore;
       _loadingOlder = false;
     });
+  }
+
+  Future<void> _showMessageDetails(MessengerMessage message) {
+    return showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        final theme = Theme.of(context);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Mesaj bilgileri', style: theme.textTheme.titleLarge),
+                const SizedBox(height: 16),
+                _MessageDetailRow(
+                  icon: Icons.add_circle_outline,
+                  label: 'Yaratılma tarihi',
+                  value: _messageDetailTime(message.createdAt),
+                ),
+                _MessageDetailRow(
+                  icon: Icons.cloud_done_outlined,
+                  label: 'Sunucuya ulaşma tarihi',
+                  value: _messageDetailTime(message.serverReceivedAt),
+                ),
+                _MessageDetailRow(
+                  icon: Icons.done_all,
+                  label: 'Karşıya iletilme tarihi',
+                  value: _messageDetailTime(message.deliveredAt),
+                ),
+                _MessageDetailRow(
+                  icon: Icons.visibility_outlined,
+                  label: 'Okunma tarihi',
+                  value: _messageDetailTime(message.readAt),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String _messageDetailTime(String raw) {
+    if (raw.trim().isEmpty) return 'Bilgi yok';
+    return formatSdalFullTimestamp(context, raw);
+  }
+}
+
+class _MessageMetaRow extends StatelessWidget {
+  const _MessageMetaRow({required this.message, required this.textColor});
+
+  final MessengerMessage message;
+  final Color textColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = _messageStatus(message);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: Text(
+            formatSdalTimestamp(context, message.createdAt),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: textColor),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Tooltip(
+          message: status.label,
+          child: Icon(status.icon, size: 15, color: textColor),
+        ),
+      ],
+    );
+  }
+}
+
+class _MessageStatus {
+  const _MessageStatus({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+}
+
+_MessageStatus _messageStatus(MessengerMessage message) {
+  if (message.readAt.trim().isNotEmpty) {
+    return const _MessageStatus(
+      icon: Icons.visibility_outlined,
+      label: 'Okundu',
+    );
+  }
+  if (message.deliveredAt.trim().isNotEmpty) {
+    return const _MessageStatus(
+      icon: Icons.done_all,
+      label: 'Karşıya iletildi',
+    );
+  }
+  if (message.serverReceivedAt.trim().isNotEmpty) {
+    return const _MessageStatus(
+      icon: Icons.cloud_done_outlined,
+      label: 'Sunucuya ulaştı',
+    );
+  }
+  if (message.clientWrittenAt.trim().isNotEmpty) {
+    return const _MessageStatus(
+      icon: Icons.schedule_outlined,
+      label: 'Cihazda oluşturuldu',
+    );
+  }
+  return const _MessageStatus(
+    icon: Icons.help_outline,
+    label: 'Durum bilgisi yok',
+  );
+}
+
+class _PhotoMessageBubble extends StatelessWidget {
+  const _PhotoMessageBubble({
+    required this.message,
+    required this.config,
+    required this.tokens,
+  });
+
+  final MessengerMessage message;
+  final AppConfig config;
+  final SdalThemeTokens tokens;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = config.resolveUrl(message.imageUrl!).toString();
+    final metaColor = message.isMine
+        ? tokens.foregroundOnAccent.withValues(alpha: 0.72)
+        : tokens.foregroundMuted;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: SdalNetworkImage(
+            imageUrl: imageUrl,
+            width: 220,
+            height: 220,
+            fit: BoxFit.cover,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _MessageMetaRow(message: message, textColor: metaColor),
+              const SizedBox(height: 2),
+              Row(
+                children: [
+                  Icon(Icons.access_time, size: 11, color: metaColor),
+                  const SizedBox(width: 3),
+                  Text(
+                    '24 saat sonra silinir',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: metaColor,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MessageDetailRow extends StatelessWidget {
+  const _MessageDetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final missing = value == 'Bilgi yok';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: theme.sdal.foregroundMuted),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: theme.textTheme.labelLarge),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: missing
+                        ? theme.sdal.foregroundMuted
+                        : theme.sdal.foreground,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
@@ -50,6 +51,8 @@ abstract class MessengerMessage with _$MessengerMessage {
     @JsonKey(fromJson: readRequiredInt) required int senderId,
     @JsonKey(fromJson: readRequiredInt) required int receiverId,
     @JsonKey(fromJson: readRequiredText) required String body,
+    @JsonKey(fromJson: readOptionalText) String? imageUrl,
+    @JsonKey(fromJson: readOptionalText) String? imageExpiresAt,
     @JsonKey(fromJson: readRequiredText) required String createdAt,
     @JsonKey(fromJson: readRequiredText) required String clientWrittenAt,
     @JsonKey(fromJson: readRequiredText) required String serverReceivedAt,
@@ -59,10 +62,18 @@ abstract class MessengerMessage with _$MessengerMessage {
     @JsonKey(fromJson: readRequiredText) required String senderName,
   }) = _MessengerMessage;
 
+  bool get hasImage => imageUrl != null && imageUrl!.isNotEmpty;
+
   factory MessengerMessage.fromJson(Map<String, dynamic> json) =>
       _$MessengerMessageFromJson(
         normalizeJsonAliases(json, {
           'createdAt': ['created_at'],
+          'clientWrittenAt': ['client_written_at'],
+          'serverReceivedAt': ['server_received_at'],
+          'deliveredAt': ['delivered_at'],
+          'readAt': ['read_at'],
+          'imageUrl': ['image_url'],
+          'imageExpiresAt': ['image_expires_at'],
           'senderName': ['isim', 'kadi'],
         }),
       );
@@ -185,6 +196,20 @@ class MessengerRepository {
       '/api/sdal-messenger/threads/$threadId/messages',
       body: {
         'text': text,
+        'clientWrittenAt': DateTime.now().toUtc().toIso8601String(),
+      },
+      decoder: asJsonMap,
+    );
+  }
+
+  Future<ApiResult<JsonMap>> sendPhotoMessage({
+    required int threadId,
+    required File photo,
+  }) {
+    return _apiClient.multipart<JsonMap>(
+      '/api/sdal-messenger/threads/$threadId/messages/photo',
+      files: {'photo': photo},
+      fields: {
         'clientWrittenAt': DateTime.now().toUtc().toIso8601String(),
       },
       decoder: asJsonMap,

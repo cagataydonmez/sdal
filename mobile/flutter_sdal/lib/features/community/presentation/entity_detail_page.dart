@@ -23,7 +23,9 @@ class EventDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionControllerProvider).value;
-    final futureProvider = FutureProvider.autoDispose<EventDetail?>((ref) async {
+    final futureProvider = FutureProvider.autoDispose<EventDetail?>((
+      ref,
+    ) async {
       return ref.watch(communityRepositoryProvider).fetchEventDetail(eventId);
     });
     final state = ref.watch(futureProvider);
@@ -44,11 +46,16 @@ class EventDetailPage extends ConsumerWidget {
                 onAddComment: (comment) => ref
                     .read(communityRepositoryProvider)
                     .addEventComment(eventId: eventId, comment: comment),
-                onToggleLike: () =>
-                    ref.read(communityRepositoryProvider).toggleEventLike(eventId),
+                onToggleLike: () => ref
+                    .read(communityRepositoryProvider)
+                    .toggleEventLike(eventId),
                 onToggleInteraction: (ac, al) => ref
                     .read(communityRepositoryProvider)
-                    .setEventInteractions(eventId: eventId, allowComments: ac, allowLikes: al),
+                    .setEventInteractions(
+                      eventId: eventId,
+                      allowComments: ac,
+                      allowLikes: al,
+                    ),
               ),
       ),
     );
@@ -62,8 +69,12 @@ class AnnouncementDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionControllerProvider).value;
-    final futureProvider = FutureProvider.autoDispose<AnnouncementDetail?>((ref) async {
-      return ref.watch(communityRepositoryProvider).fetchAnnouncementDetail(announcementId);
+    final futureProvider = FutureProvider.autoDispose<AnnouncementDetail?>((
+      ref,
+    ) async {
+      return ref
+          .watch(communityRepositoryProvider)
+          .fetchAnnouncementDetail(announcementId);
     });
     final state = ref.watch(futureProvider);
     return FeatureScaffold(
@@ -82,7 +93,10 @@ class AnnouncementDetailPage extends ConsumerWidget {
                 onRefresh: () => ref.invalidate(futureProvider),
                 onAddComment: (comment) => ref
                     .read(communityRepositoryProvider)
-                    .addAnnouncementComment(announcementId: announcementId, comment: comment),
+                    .addAnnouncementComment(
+                      announcementId: announcementId,
+                      comment: comment,
+                    ),
                 onToggleLike: () => ref
                     .read(communityRepositoryProvider)
                     .toggleAnnouncementLike(announcementId),
@@ -112,12 +126,16 @@ class GroupEventDetailPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final detailState = ref.watch(groupDetailProvider(groupId));
     final canManage = detailState.value?.canManage ?? false;
-    final futureProvider = FutureProvider.autoDispose<GroupEventDetail?>((ref) async {
-      return ref.watch(groupsRepositoryProvider).fetchGroupEventDetail(
-        groupId: groupId,
-        eventId: eventId,
-        canManage: canManage,
-      );
+    final futureProvider = FutureProvider.autoDispose<GroupEventDetail?>((
+      ref,
+    ) async {
+      return ref
+          .watch(groupsRepositoryProvider)
+          .fetchGroupEventDetail(
+            groupId: groupId,
+            eventId: eventId,
+            canManage: canManage,
+          );
     });
     final state = ref.watch(futureProvider);
     return FeatureScaffold(
@@ -133,7 +151,7 @@ class GroupEventDetailPage extends ConsumerWidget {
                 image: '',
                 creatorHandle: detail.event.creatorHandle,
                 createdAt: detail.event.createdAt,
-                extraMeta: _buildEventMeta(detail.event),
+                extraMeta: _buildEventMeta(context, detail.event),
                 comments: detail.comments,
                 likeCount: detail.likeCount,
                 liked: detail.liked,
@@ -143,7 +161,11 @@ class GroupEventDetailPage extends ConsumerWidget {
                 onRefresh: () => ref.invalidate(futureProvider),
                 onAddComment: (comment) => ref
                     .read(groupsRepositoryProvider)
-                    .addGroupEventComment(groupId: groupId, eventId: eventId, comment: comment),
+                    .addGroupEventComment(
+                      groupId: groupId,
+                      eventId: eventId,
+                      comment: comment,
+                    ),
                 onToggleLike: () => ref
                     .read(groupsRepositoryProvider)
                     .toggleGroupEventLike(groupId: groupId, eventId: eventId),
@@ -160,11 +182,15 @@ class GroupEventDetailPage extends ConsumerWidget {
     );
   }
 
-  List<String> _buildEventMeta(GroupEventItem e) {
+  List<String> _buildEventMeta(BuildContext context, GroupEventItem e) {
     final parts = <String>[];
     if (e.location.isNotEmpty) parts.add('📍 ${e.location}');
-    if (e.startsAt.isNotEmpty) parts.add('🗓 ${e.startsAt}');
-    if (e.endsAt.isNotEmpty) parts.add('⏱ ${e.endsAt}');
+    if (e.startsAt.isNotEmpty) {
+      parts.add('🗓 ${formatSdalTimestamp(context, e.startsAt)}');
+    }
+    if (e.endsAt.isNotEmpty) {
+      parts.add('⏱ ${formatSdalTimestamp(context, e.endsAt)}');
+    }
     return parts;
   }
 }
@@ -182,13 +208,17 @@ class GroupAnnouncementDetailPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final detailState = ref.watch(groupDetailProvider(groupId));
     final canManage = detailState.value?.canManage ?? false;
-    final futureProvider = FutureProvider.autoDispose<GroupAnnouncementDetail?>((ref) async {
-      return ref.watch(groupsRepositoryProvider).fetchGroupAnnouncementDetail(
-        groupId: groupId,
-        announcementId: announcementId,
-        canManage: canManage,
-      );
-    });
+    final futureProvider = FutureProvider.autoDispose<GroupAnnouncementDetail?>(
+      (ref) async {
+        return ref
+            .watch(groupsRepositoryProvider)
+            .fetchGroupAnnouncementDetail(
+              groupId: groupId,
+              announcementId: announcementId,
+              canManage: canManage,
+            );
+      },
+    );
     final state = ref.watch(futureProvider);
     return FeatureScaffold(
       title: 'Duyuru',
@@ -220,7 +250,10 @@ class GroupAnnouncementDetailPage extends ConsumerWidget {
                     ),
                 onToggleLike: () => ref
                     .read(groupsRepositoryProvider)
-                    .toggleGroupAnnouncementLike(groupId: groupId, announcementId: announcementId),
+                    .toggleGroupAnnouncementLike(
+                      groupId: groupId,
+                      announcementId: announcementId,
+                    ),
                 onToggleInteraction: (ac, al) => ref
                     .read(groupsRepositoryProvider)
                     .setGroupAnnouncementInteractions(
@@ -258,10 +291,12 @@ class _EntityDetailBody<T> extends ConsumerStatefulWidget {
   final VoidCallback onRefresh;
   final Future<dynamic> Function(String comment) onAddComment;
   final Future<dynamic> Function() onToggleLike;
-  final Future<dynamic> Function(bool? allowComments, bool? allowLikes) onToggleInteraction;
+  final Future<dynamic> Function(bool? allowComments, bool? allowLikes)
+  onToggleInteraction;
 
   @override
-  ConsumerState<_EntityDetailBody<T>> createState() => _EntityDetailBodyState<T>();
+  ConsumerState<_EntityDetailBody<T>> createState() =>
+      _EntityDetailBodyState<T>();
 }
 
 class _EntityDetailBodyState<T> extends ConsumerState<_EntityDetailBody<T>> {
@@ -313,7 +348,10 @@ class _EntityDetailBodyState<T> extends ConsumerState<_EntityDetailBody<T>> {
   }
 
   Future<void> _toggleLike() async {
-    setState(() { _liked = !_liked; _likeCount += _liked ? 1 : -1; });
+    setState(() {
+      _liked = !_liked;
+      _likeCount += _liked ? 1 : -1;
+    });
     await widget.onToggleLike();
   }
 
@@ -347,10 +385,17 @@ class _EntityDetailBodyState<T> extends ConsumerState<_EntityDetailBody<T>> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
-                        color: isEvent ? tokens.warningMuted : tokens.successMuted,
-                        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
+                        color: isEvent
+                            ? tokens.warningMuted
+                            : tokens.successMuted,
+                        borderRadius: BorderRadius.circular(
+                          SdalThemeTokens.radiusPill,
+                        ),
                       ),
                       child: Text(
                         isEvent ? '📅 Etkinlik' : '📢 Duyuru',
@@ -368,10 +413,13 @@ class _EntityDetailBodyState<T> extends ConsumerState<_EntityDetailBody<T>> {
                 const SizedBox(height: 8),
                 Text(
                   [
-                    if (_createdAt.isNotEmpty) formatSdalTimestamp(context, _createdAt),
+                    if (_createdAt.isNotEmpty)
+                      formatSdalTimestamp(context, _createdAt),
                     if (_creatorHandle.isNotEmpty) '@$_creatorHandle',
                   ].join(' · '),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: tokens.foregroundMuted,
+                  ),
                 ),
                 if (_image.isNotEmpty) ...[
                   const SizedBox(height: 14),
@@ -457,7 +505,10 @@ class _EntityDetailBodyState<T> extends ConsumerState<_EntityDetailBody<T>> {
                     ),
                   ),
                 if (_comments.isEmpty)
-                  Text('Henüz yorum yok.', style: TextStyle(color: tokens.foregroundMuted))
+                  Text(
+                    'Henüz yorum yok.',
+                    style: TextStyle(color: tokens.foregroundMuted),
+                  )
                 else
                   ..._comments.map((c) => _CommentRow(comment: c)),
               ],
@@ -473,12 +524,19 @@ class _EntityDetailBodyState<T> extends ConsumerState<_EntityDetailBody<T>> {
     final ev = (widget.detail as EventDetail).item;
     final parts = <String>[];
     if (ev.location.isNotEmpty) parts.add('📍 ${ev.location}');
-    if (ev.startsAt.isNotEmpty) parts.add('🗓 ${formatSdalTimestamp(context, ev.startsAt)}');
-    if (ev.endsAt.isNotEmpty) parts.add('⏱ ${formatSdalTimestamp(context, ev.endsAt)}');
+    if (ev.startsAt.isNotEmpty) {
+      parts.add('🗓 ${formatSdalTimestamp(context, ev.startsAt)}');
+    }
+    if (ev.endsAt.isNotEmpty) {
+      parts.add('⏱ ${formatSdalTimestamp(context, ev.endsAt)}');
+    }
     if (parts.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(top: 12),
-      child: Text(parts.join('\n'), style: Theme.of(context).textTheme.bodyMedium),
+      child: Text(
+        parts.join('\n'),
+        style: Theme.of(context).textTheme.bodyMedium,
+      ),
     );
   }
 }
@@ -520,7 +578,8 @@ class _GroupEntityBody extends ConsumerStatefulWidget {
   final VoidCallback onRefresh;
   final Future<dynamic> Function(String comment) onAddComment;
   final Future<dynamic> Function() onToggleLike;
-  final Future<dynamic> Function(bool? allowComments, bool? allowLikes) onToggleInteraction;
+  final Future<dynamic> Function(bool? allowComments, bool? allowLikes)
+  onToggleInteraction;
 
   @override
   ConsumerState<_GroupEntityBody> createState() => _GroupEntityBodyState();
@@ -546,7 +605,10 @@ class _GroupEntityBodyState extends ConsumerState<_GroupEntityBody> {
   }
 
   Future<void> _toggleLike() async {
-    setState(() { _liked = !_liked; _likeCount += _liked ? 1 : -1; });
+    setState(() {
+      _liked = !_liked;
+      _likeCount += _liked ? 1 : -1;
+    });
     await widget.onToggleLike();
   }
 
@@ -574,14 +636,21 @@ class _GroupEntityBodyState extends ConsumerState<_GroupEntityBody> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(widget.title, style: Theme.of(context).textTheme.headlineSmall),
+                Text(
+                  widget.title,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
                 const SizedBox(height: 8),
                 Text(
                   [
-                    if (widget.createdAt.isNotEmpty) formatSdalTimestamp(context, widget.createdAt),
-                    if (widget.creatorHandle.isNotEmpty) '@${widget.creatorHandle}',
+                    if (widget.createdAt.isNotEmpty)
+                      formatSdalTimestamp(context, widget.createdAt),
+                    if (widget.creatorHandle.isNotEmpty)
+                      '@${widget.creatorHandle}',
                   ].join(' · '),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: tokens.foregroundMuted,
+                  ),
                 ),
                 if (widget.image.isNotEmpty) ...[
                   const SizedBox(height: 14),
@@ -595,14 +664,22 @@ class _GroupEntityBodyState extends ConsumerState<_GroupEntityBody> {
                 ],
                 if (widget.body.isNotEmpty) ...[
                   const SizedBox(height: 14),
-                  Text(plainTextFromRichContent(widget.body), style: Theme.of(context).textTheme.bodyLarge),
+                  Text(
+                    plainTextFromRichContent(widget.body),
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
                 ],
                 if (widget.extraMeta.isNotEmpty) ...[
                   const SizedBox(height: 12),
-                  ...widget.extraMeta.map((line) => Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(line, style: Theme.of(context).textTheme.bodyMedium),
-                  )),
+                  ...widget.extraMeta.map(
+                    (line) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        line,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                  ),
                 ],
                 const SizedBox(height: 16),
                 Row(
@@ -662,10 +739,16 @@ class _GroupEntityBodyState extends ConsumerState<_GroupEntityBody> {
                 ] else
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: Text('Yorumlar kapalı.', style: TextStyle(color: tokens.foregroundMuted)),
+                    child: Text(
+                      'Yorumlar kapalı.',
+                      style: TextStyle(color: tokens.foregroundMuted),
+                    ),
                   ),
                 if (widget.comments.isEmpty)
-                  Text('Henüz yorum yok.', style: TextStyle(color: tokens.foregroundMuted))
+                  Text(
+                    'Henüz yorum yok.',
+                    style: TextStyle(color: tokens.foregroundMuted),
+                  )
                 else
                   ...widget.comments.map((c) => _GroupCommentRow(comment: c)),
               ],
@@ -729,7 +812,8 @@ class _InteractionSettingsCard extends StatefulWidget {
   final Future<dynamic> Function(bool? allowComments, bool? allowLikes) onSave;
 
   @override
-  State<_InteractionSettingsCard> createState() => _InteractionSettingsCardState();
+  State<_InteractionSettingsCard> createState() =>
+      _InteractionSettingsCardState();
 }
 
 class _InteractionSettingsCardState extends State<_InteractionSettingsCard> {
@@ -763,17 +847,24 @@ class _InteractionSettingsCardState extends State<_InteractionSettingsCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Etkileşim ayarları', style: Theme.of(context).textTheme.titleSmall),
+          Text(
+            'Etkileşim ayarları',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
           const SizedBox(height: 4),
           Text(
             'Kimler yorum veya beğeni yapabilsin?',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
           ),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
             title: const Text('Yorumlara izin ver'),
             value: _allowComments,
-            onChanged: _saving ? null : (v) => setState(() => _allowComments = v),
+            onChanged: _saving
+                ? null
+                : (v) => setState(() => _allowComments = v),
           ),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
@@ -820,15 +911,24 @@ class _CommentRow extends ConsumerWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(comment.displayName, style: Theme.of(context).textTheme.titleSmall),
+                      child: Text(
+                        comment.displayName,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
                     ),
                     if (comment.verified)
-                      Icon(Icons.verified_rounded, size: 14, color: Theme.of(context).sdal.info),
+                      Icon(
+                        Icons.verified_rounded,
+                        size: 14,
+                        color: Theme.of(context).sdal.info,
+                      ),
                   ],
                 ),
                 Text(
                   formatSdalTimestamp(context, comment.createdAt),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: tokens.foregroundMuted,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(plainTextFromRichContent(comment.comment)),
@@ -867,15 +967,24 @@ class _GroupCommentRow extends ConsumerWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(comment.displayName, style: Theme.of(context).textTheme.titleSmall),
+                      child: Text(
+                        comment.displayName,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
                     ),
                     if (comment.verified)
-                      Icon(Icons.verified_rounded, size: 14, color: tokens.info),
+                      Icon(
+                        Icons.verified_rounded,
+                        size: 14,
+                        color: tokens.info,
+                      ),
                   ],
                 ),
                 Text(
                   formatSdalTimestamp(context, comment.createdAt),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: tokens.foregroundMuted,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(plainTextFromRichContent(comment.comment)),

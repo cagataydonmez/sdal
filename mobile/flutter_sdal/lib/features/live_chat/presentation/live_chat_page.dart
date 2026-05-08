@@ -5,6 +5,7 @@ import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/realtime_connection_state.dart';
 import '../../../core/session/session_controller.dart';
+import '../../../core/text/sdal_date_time.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/chat_jump_to_latest_button.dart';
 import '../../../core/widgets/feature_scaffold.dart';
@@ -356,7 +357,10 @@ class _LiveChatPageState extends ConsumerState<LiveChatPage> {
                                                       ),
                                                     ),
                                                     Text(
-                                                      item.createdAt,
+                                                      formatSdalTimestamp(
+                                                        context,
+                                                        item.createdAt,
+                                                      ),
                                                       style: Theme.of(context)
                                                           .textTheme
                                                           .bodySmall

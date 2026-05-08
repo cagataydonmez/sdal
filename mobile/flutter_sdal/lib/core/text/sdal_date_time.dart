@@ -4,6 +4,23 @@ import 'package:intl/intl.dart';
 String formatSdalTimestamp(BuildContext context, String raw, {DateTime? now}) =>
     _formatSdalDate(context, raw, now: now)?.text ?? raw;
 
+String formatSdalDateTime(
+  BuildContext context,
+  DateTime value, {
+  DateTime? now,
+}) {
+  return _formatSdalDateTime(context, value, now: now).text;
+}
+
+String formatSdalFullTimestamp(BuildContext context, String raw) {
+  final parsed = DateTime.tryParse(raw);
+  if (parsed == null) return raw;
+  return DateFormat(
+    'd MMMM yyyy HH:mm',
+    _localeName(context),
+  ).format(parsed.toLocal());
+}
+
 String formatSdalEditedLabel(
   BuildContext context,
   String raw, {
@@ -64,15 +81,44 @@ _SdalFormattedDate? _formatSdalDate(
 }) {
   final parsed = DateTime.tryParse(raw);
   if (parsed == null) return null;
+  return _formatSdalDateTime(context, parsed, now: now);
+}
 
+_SdalFormattedDate _formatSdalDateTime(
+  BuildContext context,
+  DateTime value, {
+  DateTime? now,
+}) {
   final locale = Localizations.localeOf(context);
-  final localeName = locale.countryCode?.isNotEmpty == true
-      ? '${locale.languageCode}_${locale.countryCode}'
-      : locale.languageCode;
-  final localTime = parsed.toLocal();
+  final localeName = _localeName(context);
+  final localTime = value.toLocal();
   final currentTime = (now ?? DateTime.now()).toLocal();
+  final isTurkish = locale.languageCode.toLowerCase() == 'tr';
 
   if (localTime.isAfter(currentTime)) {
+    final difference = localTime.difference(currentTime);
+    final dayDifference = _calendarDayDifference(localTime, currentTime);
+    if (difference.inSeconds < 30) {
+      return _SdalFormattedDate(isTurkish ? 'şimdi' : 'now', isAbsolute: false);
+    }
+    if (difference.inMinutes < 60) {
+      final minutes = difference.inMinutes.clamp(1, 59);
+      return _SdalFormattedDate(
+        isTurkish
+            ? '$minutes dakika sonra'
+            : 'in $minutes minute${minutes == 1 ? '' : 's'}',
+        isAbsolute: false,
+      );
+    }
+    if (dayDifference == 0 && difference.inHours < 24) {
+      final hours = difference.inHours.clamp(1, 23);
+      return _SdalFormattedDate(
+        isTurkish
+            ? '$hours saat sonra'
+            : 'in $hours hour${hours == 1 ? '' : 's'}',
+        isAbsolute: false,
+      );
+    }
     return _SdalFormattedDate(
       _formatAbsoluteDate(localTime, currentTime, localeName),
       isAbsolute: true,
@@ -81,26 +127,25 @@ _SdalFormattedDate? _formatSdalDate(
 
   final difference = currentTime.difference(localTime);
   final dayDifference = _calendarDayDifference(currentTime, localTime);
-  final isTurkish = locale.languageCode.toLowerCase() == 'tr';
 
   if (difference.inSeconds < 30) {
-    return _SdalFormattedDate(
-      isTurkish ? 'Şimdi' : 'Now',
-      isAbsolute: false,
-    );
+    return _SdalFormattedDate(isTurkish ? 'şimdi' : 'now', isAbsolute: false);
   }
   if (difference.inMinutes < 60) {
     final minutes = difference.inMinutes.clamp(1, 59);
     return _SdalFormattedDate(
       isTurkish
-          ? '$minutes Dakika Önce'
+          ? '$minutes dakika önce'
           : '$minutes minute${minutes == 1 ? '' : 's'} ago',
       isAbsolute: false,
     );
   }
   if (dayDifference == 0) {
+    final hours = difference.inHours.clamp(1, 23);
     return _SdalFormattedDate(
-      DateFormat('HH:mm', localeName).format(localTime),
+      isTurkish
+          ? '$hours saat önce'
+          : '$hours hour${hours == 1 ? '' : 's'} ago',
       isAbsolute: false,
     );
   }
@@ -114,7 +159,7 @@ _SdalFormattedDate? _formatSdalDate(
   }
   if (dayDifference < 14) {
     return _SdalFormattedDate(
-      isTurkish ? '1 Hafta önce' : '1 week ago',
+      isTurkish ? '1 hafta önce' : '1 week ago',
       isAbsolute: false,
     );
   }
@@ -125,18 +170,14 @@ _SdalFormattedDate? _formatSdalDate(
   );
 }
 
-String _formatAbsoluteDate(
-  DateTime value,
-  DateTime now,
-  String localeName,
-) {
+String _formatAbsoluteDate(DateTime value, DateTime now, String localeName) {
   if (_isSameDay(value, now)) {
     return DateFormat('HH:mm', localeName).format(value);
   }
   if (value.year == now.year) {
-    return DateFormat('d MMMM', localeName).format(value);
+    return DateFormat('d MMMM HH:mm', localeName).format(value);
   }
-  return DateFormat('d MMMM yyyy', localeName).format(value);
+  return DateFormat('d MMMM yyyy HH:mm', localeName).format(value);
 }
 
 int _calendarDayDifference(DateTime now, DateTime value) {
@@ -147,3 +188,10 @@ int _calendarDayDifference(DateTime now, DateTime value) {
 
 bool _isSameDay(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
+
+String _localeName(BuildContext context) {
+  final locale = Localizations.localeOf(context);
+  return locale.countryCode?.isNotEmpty == true
+      ? '${locale.languageCode}_${locale.countryCode}'
+      : locale.languageCode;
+}

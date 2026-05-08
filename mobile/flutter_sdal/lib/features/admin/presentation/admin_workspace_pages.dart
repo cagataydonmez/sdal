@@ -3,11 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/session/session_controller.dart';
+import '../../../core/text/sdal_date_time.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../admin/application/admin_action_controller.dart';
 import '../../admin/data/admin_repository.dart';
+
+String _workspaceTimestamp(BuildContext context, String raw) =>
+    raw.isEmpty ? '' : formatSdalTimestamp(context, raw);
 
 class AdminWorkspacePage extends ConsumerWidget {
   const AdminWorkspacePage({super.key});
@@ -564,12 +568,13 @@ class ModeratorWorkspacePage extends ConsumerWidget {
                         title: 'Öğretmen ağı',
                         summary:
                             'Mezunların eklediği öğretmen bağlantılarını onaylayın veya reddedin.',
-                        countLabel: '$teacherNetworkLinkTotal bekleyen bağlantı',
+                        countLabel:
+                            '$teacherNetworkLinkTotal bekleyen bağlantı',
                         icon: Icons.school_outlined,
                         tone: _WorkspaceTone.info,
                         onTap: () => context.go('/admin/teacher-network'),
                       ),
-                    if (user?.hasAdminAccess == true)
+                    if (user.hasAdminAccess)
                       _WorkspaceNavCard(
                         title: 'Öğretmen hesapları',
                         summary:
@@ -786,8 +791,7 @@ class _AdminTeacherAccountsPageState
                           child: ChoiceChip(
                             label: Text(label),
                             selected: _status == value,
-                            onSelected: (_) =>
-                                setState(() => _status = value),
+                            onSelected: (_) => setState(() => _status = value),
                           ),
                         ),
                     ],
@@ -799,8 +803,7 @@ class _AdminTeacherAccountsPageState
           const SizedBox(height: 8),
           Expanded(
             child: accountsState.when(
-              loading: () =>
-                  const Center(child: CircularProgressIndicator()),
+              loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(child: Text(e.toString())),
               data: (list) {
                 if (list.items.isEmpty) {
@@ -878,16 +881,16 @@ class _AdminTeacherAccountsPageState
                                 onPressed: actionState.isLoading
                                     ? null
                                     : () => ref
-                                        .read(
-                                          adminActionControllerProvider
-                                              .notifier,
-                                        )
-                                        .verifyUserManually(userId: item.id)
-                                        .then((_) {
-                                          ref.invalidate(
-                                            adminTeacherAccountsProvider,
-                                          );
-                                        }),
+                                          .read(
+                                            adminActionControllerProvider
+                                                .notifier,
+                                          )
+                                          .verifyUserManually(userId: item.id)
+                                          .then((_) {
+                                            ref.invalidate(
+                                              adminTeacherAccountsProvider,
+                                            );
+                                          }),
                                 child: const Text(
                                   'Onayla',
                                   style: TextStyle(fontSize: 12),
@@ -993,14 +996,17 @@ class _AdminTeacherNetworkManagementPageState
       ),
       data: (access) {
         final permissions = access.permissions;
-        final isFullAdmin = access.user?.hasAdminAccess == true || access.adminOk;
-        final canView = isFullAdmin || _hasAnyPermission(permissions, const [
-          'requests.view',
-          'requests.moderate',
-        ]);
-        final canModerate = isFullAdmin || _hasAnyPermission(permissions, const [
-          'requests.moderate',
-        ]);
+        final isFullAdmin =
+            access.user?.hasAdminAccess == true || access.adminOk;
+        final canView =
+            isFullAdmin ||
+            _hasAnyPermission(permissions, const [
+              'requests.view',
+              'requests.moderate',
+            ]);
+        final canModerate =
+            isFullAdmin ||
+            _hasAnyPermission(permissions, const ['requests.moderate']);
         final linksState = canView
             ? ref.watch(adminTeacherNetworkLinksProvider(_query))
             : const AsyncValue.data(
@@ -1712,7 +1718,7 @@ class _RequestPreviewList extends StatelessWidget {
                   '@${item.requesterHandle}',
                   if (item.requestedGraduationYear.isNotEmpty)
                     'İstenen yıl: ${_formatGraduationYear(item.requestedGraduationYear)}',
-                  item.createdAt,
+                  _workspaceTimestamp(context, item.createdAt),
                 ].where((part) => part.trim().isNotEmpty).join(' · '),
                 status: item.status,
                 canModerate: canModerate,
@@ -1760,7 +1766,7 @@ class _VerificationPreviewList extends StatelessWidget {
                       : 'Üye doğrulaması',
                   _formatGraduationYear(item.graduationYear),
                   item.hasProof ? 'Kanıt var' : 'Kanıt yok',
-                  item.createdAt,
+                  _workspaceTimestamp(context, item.createdAt),
                 ].where((part) => part.trim().isNotEmpty).join(' · '),
                 status: item.status,
                 canModerate: canModerate,
@@ -1811,7 +1817,7 @@ class _TeacherNetworkPreviewList extends StatelessWidget {
                   if (item.activePairLinkCount > 1) 'Benzer kayıt var',
                   if (item.moderationLabel.isNotEmpty) item.moderationLabel,
                   if (item.notes.isNotEmpty) item.notes,
-                  item.createdAt,
+                  _workspaceTimestamp(context, item.createdAt),
                 ].where((part) => part.trim().isNotEmpty).join(' · '),
                 status: item.reviewStatus,
                 canModerate: canModerate,
@@ -1974,8 +1980,8 @@ class _ContentModerationCard extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         entry.item.authorHandle.isEmpty
-                            ? entry.item.createdAt
-                            : '@${entry.item.authorHandle} · ${entry.item.createdAt}',
+                            ? _workspaceTimestamp(context, entry.item.createdAt)
+                            : '@${entry.item.authorHandle} · ${_workspaceTimestamp(context, entry.item.createdAt)}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).sdal.foregroundMuted,
                         ),

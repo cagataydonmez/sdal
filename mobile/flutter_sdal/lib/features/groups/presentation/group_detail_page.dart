@@ -6,6 +6,7 @@ import '../../../app/providers.dart';
 import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
+import '../../../core/text/sdal_date_time.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
@@ -1386,10 +1387,18 @@ class _GroupEventTile extends StatelessWidget {
             ],
             if (event.startsAt.isNotEmpty) ...[
               const SizedBox(height: 6),
-              Text(l10n.groupEventStartsAtValue(event.startsAt)),
+              Text(
+                l10n.groupEventStartsAtValue(
+                  formatSdalTimestamp(context, event.startsAt),
+                ),
+              ),
             ],
             if (event.endsAt.isNotEmpty)
-              Text(l10n.groupEventEndsAtValue(event.endsAt)),
+              Text(
+                l10n.groupEventEndsAtValue(
+                  formatSdalTimestamp(context, event.endsAt),
+                ),
+              ),
           ],
         ),
       ),
@@ -1439,7 +1448,10 @@ class _GroupAnnouncementTile extends StatelessWidget {
             ),
             if (item.body.isNotEmpty) Text(item.body),
             const SizedBox(height: 8),
-            Text(item.createdAt, style: Theme.of(context).textTheme.bodySmall),
+            Text(
+              formatSdalTimestamp(context, item.createdAt),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           ],
         ),
       ),

@@ -9,10 +9,17 @@ import '../application/admin_action_controller.dart';
 import '../data/admin_repository.dart';
 import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/session/session_controller.dart';
+import '../../../core/text/sdal_date_time.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
+
+String _adminTimestamp(BuildContext context, String raw) =>
+    raw.isEmpty ? '' : formatSdalTimestamp(context, raw);
+
+String _adminTimestampLabel(BuildContext context, String label, String raw) =>
+    raw.isEmpty ? '' : '$label: ${formatSdalTimestamp(context, raw)}';
 
 class AdminHubPage extends ConsumerWidget {
   const AdminHubPage({super.key});
@@ -713,7 +720,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                 ? '@${item.authorHandle}'
                                 : item.authorName,
                             subtitle: item.content,
-                            trailing: item.createdAt,
+                            trailing: _adminTimestamp(context, item.createdAt),
                             action: _AdminDeleteButton(
                               label: 'Gonderiyi sil',
                               onConfirm: () => _handleDeleteAction(
@@ -738,7 +745,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                 ? '@${item.authorHandle}'
                                 : item.authorName,
                             subtitle: item.content,
-                            trailing: item.createdAt,
+                            trailing: _adminTimestamp(context, item.createdAt),
                             action: _AdminDeleteButton(
                               label: 'Yorumu sil',
                               onConfirm: () => _handleDeleteAction(
@@ -763,7 +770,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                 ? '@${item.authorHandle}'
                                 : item.authorName,
                             subtitle: item.content,
-                            trailing: item.createdAt,
+                            trailing: _adminTimestamp(context, item.createdAt),
                             action: _AdminDeleteButton(
                               label: 'Hikayeyi sil',
                               onConfirm: () => _handleDeleteAction(
@@ -809,7 +816,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                 : item.requesterName,
                             subtitle:
                                 '${item.categoryLabel}${item.requestedGraduationYear.isEmpty ? '' : ' · hedef: ${_formatGraduationYear(item.requestedGraduationYear)}'}',
-                            trailing: item.createdAt,
+                            trailing: _adminTimestamp(context, item.createdAt),
                             action: Wrap(
                               spacing: 6,
                               children: [
@@ -856,7 +863,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                 : item.requesterName,
                             subtitle:
                                 '${item.isTeacherVerification ? 'Öğretmen doğrulaması' : 'Üye doğrulaması'} · ${_formatGraduationYear(item.graduationYear)}${item.hasProof ? ' · kanıt yüklendi' : ' · kanıt yok'}${item.proofPath.isEmpty ? '' : ' · ${item.proofPath}'}',
-                            trailing: item.createdAt,
+                            trailing: _adminTimestamp(context, item.createdAt),
                             action: Wrap(
                               spacing: 6,
                               children: [
@@ -902,7 +909,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                 '${item.alumniHandle.isNotEmpty ? '@${item.alumniHandle}' : item.alumniName} -> ${item.teacherHandle.isNotEmpty ? '@${item.teacherHandle}' : item.teacherName}',
                             subtitle:
                                 '${_formatTeacherRelationship(item.relationshipType)} · ${_formatGraduationYear(item.alumniGraduationYear)}${item.classYear.isEmpty ? '' : ' · ${item.classYear}. sınıf'} · güven ${(item.confidenceScore * 100).round()}%${item.activePairLinkCount > 1 ? ' · benzer kayıt var' : ''}${item.moderationLabel.isEmpty ? '' : ' · ${item.moderationLabel}'}${item.notes.isEmpty ? '' : ' · ${item.notes}'}',
-                            trailing: item.createdAt,
+                            trailing: _adminTimestamp(context, item.createdAt),
                             action: Wrap(
                               spacing: 6,
                               children: [
@@ -983,7 +990,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                             : item.requesterName,
                         subtitle:
                             '${item.isTeacherVerification ? 'Öğretmen' : 'Mezun'} · ${_formatGraduationYear(item.graduationYear)}',
-                        trailing: item.createdAt,
+                        trailing: _adminTimestamp(context, item.createdAt),
                         action: IconButton(
                           tooltip: 'Bildirimi tekrar gönder',
                           onPressed: actionState.isLoading
@@ -1120,7 +1127,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                             subtitle:
                                 '${item.targetLabel} · ${item.summaryLabel}'
                                 '${item.imageUrl.isNotEmpty ? ' · görselli' : ''}',
-                            trailing: item.createdAt,
+                            trailing: _adminTimestamp(context, item.createdAt),
                             onTap: () => _openBroadcastDetail(context, item),
                           ),
                         if (broadcasts.isEmpty)
@@ -1224,7 +1231,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                             subtitle: item.errorMessage.isNotEmpty
                                 ? '${item.statusLabel} — ${item.errorMessage}'
                                 : item.statusLabel,
-                            trailing: item.createdAt,
+                            trailing: _adminTimestamp(context, item.createdAt),
                           ),
                       ],
                     ),
@@ -1273,9 +1280,11 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                           subtitle: settings.smsVerificationEnabled
                               ? 'Yeni kayıtlar e-posta aktivasyonundan sonra SMS doğrulamasına yönlendirilir.'
                               : 'SMS kapalıyken kayıt ve giriş akışında yalnızca e-posta doğrulaması çalışır.',
-                          trailing: settings.updatedAt.isEmpty
-                              ? ''
-                              : 'Güncelleme: ${settings.updatedAt}',
+                          trailing: _adminTimestampLabel(
+                            context,
+                            'Güncelleme',
+                            settings.updatedAt,
+                          ),
                           action: Switch(
                             value: settings.smsVerificationEnabled,
                             onChanged: actionState.isLoading
@@ -1342,7 +1351,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                 'Telefon hash: ${item.phoneHashPreview.isEmpty ? 'yok' : item.phoneHashPreview}'
                                 '${item.manualReviewRequired ? ' · manuel inceleme' : ''}'
                                 '${item.suspiciousReason.isNotEmpty ? ' · ${item.suspiciousReason}' : ''}',
-                            trailing: item.verifiedAt,
+                            trailing: _adminTimestamp(context, item.verifiedAt),
                           ),
                       ],
                     ),
@@ -1361,8 +1370,16 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                 ' · cihaz hash: ${item.deviceHashPreview.isEmpty ? 'yok' : item.deviceHashPreview}'
                                 '${item.ipHashPreview.isNotEmpty ? ' · IP hash: ${item.ipHashPreview}' : ''}',
                             trailing: item.revoked
-                                ? 'İptal: ${item.revokedAt}'
-                                : 'Son: ${item.lastSeenAt}',
+                                ? _adminTimestampLabel(
+                                    context,
+                                    'İptal',
+                                    item.revokedAt,
+                                  )
+                                : _adminTimestampLabel(
+                                    context,
+                                    'Son',
+                                    item.lastSeenAt,
+                                  ),
                           ),
                       ],
                     ),
@@ -1379,7 +1396,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                 '${item.reason.isNotEmpty ? ' · ${item.reason}' : ''}'
                                 '${item.deviceHashPreview.isNotEmpty ? ' · cihaz: ${item.deviceHashPreview}' : ''}'
                                 '${item.ipHashPreview.isNotEmpty ? ' · IP: ${item.ipHashPreview}' : ''}',
-                            trailing: item.createdAt,
+                            trailing: _adminTimestamp(context, item.createdAt),
                           ),
                       ],
                     ),
@@ -1394,8 +1411,8 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                 '${item.displayName} · ${item.consumed ? 'tamamlandı' : 'bekliyor'}',
                             subtitle:
                                 'Cihaz hash: ${item.deviceHashPreview.isEmpty ? 'yok' : item.deviceHashPreview}'
-                                ' · geçerlilik: ${item.expiresAt}',
-                            trailing: item.createdAt,
+                                ' · geçerlilik: ${_adminTimestamp(context, item.expiresAt)}',
+                            trailing: _adminTimestamp(context, item.createdAt),
                           ),
                       ],
                     ),
@@ -1414,7 +1431,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                 '${item.emailHashPreview.isNotEmpty ? ' · e-posta: ${item.emailHashPreview}' : ''}'
                                 '${item.deviceHashPreview.isNotEmpty ? ' · cihaz: ${item.deviceHashPreview}' : ''}'
                                 '${item.ipHashPreview.isNotEmpty ? ' · IP: ${item.ipHashPreview}' : ''}',
-                            trailing: item.createdAt,
+                            trailing: _adminTimestamp(context, item.createdAt),
                           ),
                       ],
                     ),
@@ -1760,7 +1777,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                       _AdminPreviewLine(
                         title: item.name,
                         subtitle: item.subject,
-                        trailing: item.createdAt,
+                        trailing: _adminTimestamp(context, item.createdAt),
                         action: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -1787,7 +1804,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                         _AdminPreviewLine(
                           title: item.name,
                           subtitle: '${item.size} byte',
-                          trailing: item.modifiedAt,
+                          trailing: _adminTimestamp(context, item.modifiedAt),
                           action: IconButton(
                             tooltip: 'Icerigi gor',
                             onPressed: () =>
@@ -1894,7 +1911,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                           _AdminPreviewLine(
                             title: item.name,
                             subtitle: '${item.size} byte',
-                            trailing: item.createdAt,
+                            trailing: _adminTimestamp(context, item.createdAt),
                             action: FilledButton.tonal(
                               onPressed: () =>
                                   _handleRestoreBackup(context, ref, item),
@@ -1956,7 +1973,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                 ? '@${item.requesterHandle}'
                                 : item.requesterName,
                             subtitle: item.categoryLabel,
-                            trailing: item.createdAt,
+                            trailing: _adminTimestamp(context, item.createdAt),
                             action: _AdminDecisionButtons(
                               onApprove: () => _handleMemberRequestReview(
                                 context,
@@ -1989,7 +2006,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                             subtitle: item.graduationYear.isNotEmpty
                                 ? 'Mezuniyet yılı: ${item.graduationYear}'
                                 : 'Mezuniyet yılı yok',
-                            trailing: item.createdAt,
+                            trailing: _adminTimestamp(context, item.createdAt),
                             action: _AdminDecisionButtons(
                               onApprove: () => _handleVerificationReview(
                                 context,
@@ -2133,7 +2150,10 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                             _AdminPreviewLine(
                               title: item.key,
                               subtitle: item.value,
-                              trailing: item.updatedAt,
+                              trailing: _adminTimestamp(
+                                context,
+                                item.updatedAt,
+                              ),
                               action: IconButton(
                                 tooltip: 'Metni düzenle',
                                 onPressed: () => _handleEditLanguageString(
@@ -3494,7 +3514,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              '${item.size} byte · ${item.createdAt}',
+                              '${item.size} byte · ${_adminTimestamp(context, item.createdAt)}',
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                           ],
@@ -5583,7 +5603,7 @@ class _BroadcastDetailDialog extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '${item.targetLabel} · ${item.createdAt}',
+                '${item.targetLabel} · ${_adminTimestamp(context, item.createdAt)}',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.sdal.foregroundMuted,
                 ),
@@ -5705,8 +5725,8 @@ class _BroadcastRecipientLine extends StatelessWidget {
         ? '${delivery.statusLabel} · ${delivery.errorMessage}'
         : delivery.statusLabel;
     final time = delivery.createdAt.isNotEmpty
-        ? delivery.createdAt
-        : delivery.recipientCreatedAt;
+        ? _adminTimestamp(context, delivery.createdAt)
+        : _adminTimestamp(context, delivery.recipientCreatedAt);
     final statusColor = delivery.deliveryStatus == 'sent'
         ? Colors.green
         : delivery.deliveryStatus == 'failed'
