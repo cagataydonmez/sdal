@@ -100,6 +100,29 @@ export function registerOpportunityRoutes(app, {
     res.json({ items: rows, hasMore: rows.length === limit });
   });
 
+  app.get('/api/new/jobs/:id', requireAuth, async (req, res) => {
+    ensureJobApplicationsTable();
+    const jobId = Number(req.params.id || 0);
+    if (!jobId) return res.status(400).json({ error: 'Geçersiz iş ilanı kimliği.' });
+
+    const row = await sqlGetAsync(
+      `SELECT j.*, u.kadi AS poster_kadi, u.isim AS poster_isim, u.soyisim AS poster_soyisim,
+              ja_self.id AS my_application_id,
+              ja_self.status AS my_application_status,
+              ja_self.created_at AS my_application_created_at,
+              ja_self.reviewed_at AS my_application_reviewed_at,
+              ja_self.decision_note AS my_application_decision_note
+       FROM jobs j
+       LEFT JOIN uyeler u ON u.id = j.poster_id
+       LEFT JOIN job_applications ja_self ON ja_self.job_id = j.id AND ja_self.applicant_id = ?
+       WHERE j.id = ?`,
+      [req.session.userId, jobId]
+    );
+
+    if (!row) return res.status(404).json({ error: 'İş ilanı bulunamadı.' });
+    res.json(row);
+  });
+
   app.post('/api/new/jobs/:id/apply', requireAuth, async (req, res) => {
     if (!ensureVerifiedSocialHubMember(req, res)) return;
     const jobId = Number(req.params.id || 0);
