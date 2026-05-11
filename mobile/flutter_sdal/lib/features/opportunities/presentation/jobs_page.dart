@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/state/async_action_state.dart';
@@ -20,12 +21,6 @@ class JobsPage extends ConsumerStatefulWidget {
 }
 
 class _JobsPageState extends ConsumerState<JobsPage> {
-  final TextEditingController _companyController = TextEditingController();
-  final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _descriptionController = TextEditingController();
-  final TextEditingController _locationController = TextEditingController();
-  final TextEditingController _jobTypeController = TextEditingController();
-  final TextEditingController _linkController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _searchLocationController =
       TextEditingController();
@@ -41,6 +36,7 @@ class _JobsPageState extends ConsumerState<JobsPage> {
   List<JobItem> _items = const <JobItem>[];
   bool _isLoading = true;
   String _error = '';
+  bool _filterExpanded = false;
 
   @override
   void initState() {
@@ -50,12 +46,6 @@ class _JobsPageState extends ConsumerState<JobsPage> {
 
   @override
   void dispose() {
-    _companyController.dispose();
-    _titleController.dispose();
-    _descriptionController.dispose();
-    _locationController.dispose();
-    _jobTypeController.dispose();
-    _linkController.dispose();
     _searchController.dispose();
     _searchLocationController.dispose();
     _searchJobTypeController.dispose();
@@ -73,6 +63,7 @@ class _JobsPageState extends ConsumerState<JobsPage> {
     final l10n = context.l10n;
     final tokens = Theme.of(context).sdal;
     final actionState = ref.watch(jobsActionControllerProvider);
+    final sortedItems = _getSortedItems();
 
     return FeatureScaffold(
       title: l10n.jobsTitle,
@@ -94,154 +85,59 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                 'İlan paylaşırken şirket, rol, konum ve başvuru linkini açık yaz. Arama alanıyla SDAL ağı içindeki uygun fırsatları süzebilirsin.',
           ),
           const SizedBox(height: 16),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: tokens.panelRaised,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: tokens.panelBorder),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.jobsCreateTitle,
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    l10n.jobsCreateHelper,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: tokens.foregroundMuted,
-                    ),
-                  ),
-                ],
+          SurfaceCard(
+            child: ExpansionTile(
+              initiallyExpanded: _filterExpanded,
+              onExpansionChanged: (expanded) {
+                setState(() => _filterExpanded = expanded);
+              },
+              title: Text(
+                l10n.jobsSearchTitle,
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SurfaceCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              subtitle: Text(
+                l10n.jobsSearchHelper,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: tokens.foregroundMuted,
+                ),
+              ),
               children: [
-                TextField(
-                  controller: _companyController,
-                  decoration: InputDecoration(
-                    labelText: l10n.jobsCompanyLabel,
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _titleController,
-                  decoration: InputDecoration(
-                    labelText: l10n.jobsPositionLabel,
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _descriptionController,
-                  minLines: 4,
-                  maxLines: 6,
-                  decoration: InputDecoration(
-                    labelText: l10n.jobsDescriptionLabel,
-                    alignLabelWithHint: true,
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _locationController,
-                  decoration: InputDecoration(
-                    labelText: l10n.jobsLocationLabel,
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _jobTypeController,
-                  decoration: InputDecoration(
-                    labelText: l10n.jobsTypeLabel,
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _linkController,
-                  decoration: InputDecoration(
-                    labelText: l10n.jobsLinkLabel,
-                    hintText: l10n.jobsLinkHint,
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed:
-                        actionState.isLoading &&
-                            actionState.scope == 'jobs:create'
-                        ? null
-                        : _create,
-                    child: Text(
-                      actionState.isLoading &&
-                              actionState.scope == 'jobs:create'
-                          ? l10n.jobsCreateInProgress
-                          : l10n.jobsCreateAction,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          SurfaceCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.jobsSearchTitle,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  l10n.jobsSearchHelper,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: tokens.foregroundMuted,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    labelText: l10n.jobsSearchLabel,
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _searchLocationController,
-                  decoration: InputDecoration(
-                    labelText: l10n.jobsLocationFilterLabel,
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _searchJobTypeController,
-                  decoration: InputDecoration(
-                    labelText: l10n.jobsTypeFilterLabel,
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: FilledButton.tonal(
-                    onPressed: _load,
-                    child: Text(l10n.jobsApplyFiltersAction),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          labelText: l10n.jobsSearchLabel,
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _searchLocationController,
+                        decoration: InputDecoration(
+                          labelText: l10n.jobsLocationFilterLabel,
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _searchJobTypeController,
+                        decoration: InputDecoration(
+                          labelText: l10n.jobsTypeFilterLabel,
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: FilledButton.tonal(
+                          onPressed: _load,
+                          child: Text(l10n.jobsApplyFiltersAction),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -254,8 +150,107 @@ class _JobsPageState extends ConsumerState<JobsPage> {
             SurfaceCard(child: Text(_error))
           else if (_items.isEmpty)
             SurfaceCard(child: Text(l10n.jobsEmpty))
-          else
-            ..._items.map((job) => _buildJobCard(job, actionState)),
+          else ...[
+            if (sortedItems.isNotEmpty) ...[
+              _buildHeroJobCard(sortedItems.first, actionState),
+              const SizedBox(height: 16),
+            ],
+            ...sortedItems.map((job) => _buildJobCard(job, actionState)),
+          ],
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => context.push('/jobs/create'),
+              icon: const Icon(Icons.add_outlined),
+              label: Text(l10n.jobsCreateAction),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<JobItem> _getSortedItems() {
+    final sorted = List<JobItem>.from(_items);
+    sorted.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return sorted;
+  }
+
+  Widget _buildHeroJobCard(JobItem job, AsyncActionState actionState) {
+    final tokens = Theme.of(context).sdal;
+    return SurfaceCard(
+      child: Stack(
+        children: [
+          Container(
+            width: double.infinity,
+            height: 180,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              gradient: LinearGradient(
+                colors: [
+                  tokens.accent.withValues(alpha: 0.6),
+                  tokens.accent.withValues(alpha: 0.2),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      job.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineSmall
+                          ?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      job.company,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+                Align(
+                  alignment: Alignment.bottomRight,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '💼 En yeni iş',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: tokens.accent,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -505,39 +500,6 @@ class _JobsPageState extends ConsumerState<JobsPage> {
   int get _currentUserId {
     final session = ref.read(sessionControllerProvider).value;
     return session?.user?.id ?? 0;
-  }
-
-  Future<void> _create() async {
-    final ok = await ref
-        .read(jobsActionControllerProvider.notifier)
-        .createJob(
-          company: _companyController.text.trim(),
-          title: _titleController.text.trim(),
-          description: _descriptionController.text.trim(),
-          location: _locationController.text.trim(),
-          jobType: _jobTypeController.text.trim(),
-          link: _linkController.text.trim(),
-        );
-    if (!mounted) return;
-    final state = ref.read(jobsActionControllerProvider);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          state.message ??
-              (ok
-                  ? context.l10n.jobsCreateSuccess
-                  : context.l10n.jobsCreateFailed),
-        ),
-      ),
-    );
-    if (!ok) return;
-    _companyController.clear();
-    _titleController.clear();
-    _descriptionController.clear();
-    _locationController.clear();
-    _jobTypeController.clear();
-    _linkController.clear();
-    _load();
   }
 
   Future<void> _apply(int jobId, String coverLetter) async {

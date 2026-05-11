@@ -38,6 +38,7 @@ import '../../features/profile/presentation/email_change_verify_page.dart';
 import '../../features/profile/presentation/profile_photo_page.dart';
 import '../../features/profile/presentation/profile_verification_page.dart';
 import '../../features/opportunities/presentation/jobs_page.dart';
+import '../../features/opportunities/presentation/jobs_create_page.dart';
 import '../../features/requests/presentation/requests_page.dart';
 import '../../features/requests/presentation/module_access_request_page.dart';
 import '../../features/stories/presentation/expired_stories_page.dart';
@@ -421,6 +422,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/jobs',
                 pageBuilder: (context, state) => _slidePage(const JobsPage()),
+                routes: [
+                  GoRoute(
+                    path: 'create',
+                    pageBuilder: (context, state) => _slidePage(const JobsCreatePage()),
+                  ),
+                ],
               ),
             ],
           ),

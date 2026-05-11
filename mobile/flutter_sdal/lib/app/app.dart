@@ -165,6 +165,7 @@ class _LiveSyncBootstrapState extends ConsumerState<LiveSyncBootstrap>
   DateTime? _lastSessionRefreshAt;
   bool _isForeground = true;
   bool _isAuthenticated = false;
+  bool _serverReachable = true;
   RealtimeConnectionStatus _messengerStatus =
       RealtimeConnectionStatus.disconnected;
 
@@ -180,6 +181,11 @@ class _LiveSyncBootstrapState extends ConsumerState<LiveSyncBootstrap>
     _messengerStatus = messengerRealtime.currentState.status;
     _messengerStatesSubscription = messengerRealtime.states.listen((state) {
       _messengerStatus = state.status;
+      if (state.status == RealtimeConnectionStatus.connected) {
+        _setServerReachable(true);
+      } else if (state.status == RealtimeConnectionStatus.failed) {
+        unawaited(_refreshSessionSnapshot(force: true));
+      }
       _syncLiveServices();
     });
     final snapshot = ref.read(sessionControllerProvider).value;
@@ -206,7 +212,7 @@ class _LiveSyncBootstrapState extends ConsumerState<LiveSyncBootstrap>
       AppLifecycleState.detached => false,
     };
     if (!wasForeground && _isForeground) {
-      _refreshSessionSnapshot();
+      unawaited(_refreshSessionSnapshot(force: true));
     }
     _syncLiveServices();
   }
@@ -237,22 +243,43 @@ class _LiveSyncBootstrapState extends ConsumerState<LiveSyncBootstrap>
   }
 
   void _runHeartbeatTick() {
-    _refreshSessionSnapshot(minInterval: const Duration(minutes: 2));
+    unawaited(
+      _refreshSessionSnapshot(
+        minInterval: _serverReachable
+            ? const Duration(minutes: 2)
+            : Duration.zero,
+        force: !_serverReachable,
+      ),
+    );
     ref.invalidate(messengerThreadsProvider(''));
     ref.invalidate(messengerUnreadCountProvider);
     ref.invalidate(notificationUnreadCountProvider);
     ref.invalidate(notificationsProvider);
   }
 
-  void _refreshSessionSnapshot({
+  Future<bool> _refreshSessionSnapshot({
     Duration minInterval = const Duration(seconds: 20),
+    bool force = false,
   }) {
-    if (!_isAuthenticated) return;
+    if (!_isAuthenticated) return Future.value(true);
     final now = DateTime.now();
     final last = _lastSessionRefreshAt;
-    if (last != null && now.difference(last) < minInterval) return;
+    if (!force && last != null && now.difference(last) < minInterval) {
+      return Future.value(_serverReachable);
+    }
     _lastSessionRefreshAt = now;
-    unawaited(ref.read(sessionControllerProvider.notifier).refreshSilently());
+    return ref.read(sessionControllerProvider.notifier).refreshSilently().then((
+      ok,
+    ) {
+      _setServerReachable(ok);
+      return ok;
+    });
+  }
+
+  void _setServerReachable(bool value) {
+    if (_serverReachable == value || !mounted) return;
+    setState(() => _serverReachable = value);
+    _ensureHeartbeatTimer();
   }
 
   void _syncLiveServices() {
@@ -271,11 +298,13 @@ class _LiveSyncBootstrapState extends ConsumerState<LiveSyncBootstrap>
   }
 
   void _ensureHeartbeatTimer() {
-    final interval = switch (_messengerStatus) {
-      RealtimeConnectionStatus.connected => _connectedHeartbeatInterval,
-      RealtimeConnectionStatus.failed => _failedHeartbeatInterval,
-      _ => _fallbackHeartbeatInterval,
-    };
+    final interval = !_serverReachable
+        ? _fallbackHeartbeatInterval
+        : switch (_messengerStatus) {
+            RealtimeConnectionStatus.connected => _connectedHeartbeatInterval,
+            RealtimeConnectionStatus.failed => _failedHeartbeatInterval,
+            _ => _fallbackHeartbeatInterval,
+          };
     if (_heartbeatTimer != null &&
         _heartbeatTimer!.isActive &&
         _heartbeatInterval == interval) {
@@ -300,5 +329,61 @@ class _LiveSyncBootstrapState extends ConsumerState<LiveSyncBootstrap>
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) {
+    final showOfflineBanner =
+        _isAuthenticated && _isForeground && !_serverReachable;
+    return Column(
+      children: [
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: showOfflineBanner
+              ? const _OfflineConnectionBanner()
+              : const SizedBox.shrink(),
+        ),
+        Expanded(child: widget.child),
+      ],
+    );
+  }
+}
+
+class _OfflineConnectionBanner extends StatelessWidget {
+  const _OfflineConnectionBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final locale = Localizations.localeOf(context).languageCode.toLowerCase();
+    final text = locale == 'tr'
+        ? 'İnternet bağlantın yok. Sunucuya erişilemiyor.'
+        : 'No internet connection. The server cannot be reached.';
+    return Material(
+      color: theme.colorScheme.errorContainer,
+      child: SafeArea(
+        bottom: false,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              Icon(
+                Icons.wifi_off_rounded,
+                size: 18,
+                color: theme.colorScheme.onErrorContainer,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  text,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onErrorContainer,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

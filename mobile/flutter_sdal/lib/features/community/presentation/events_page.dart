@@ -71,10 +71,10 @@ class _EventsPageState extends ConsumerState<EventsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final actionState = ref.watch(communityActionControllerProvider);
-    final isSaving =
-        actionState.isLoading && actionState.scope == 'events:create';
     final l10n = context.l10n;
+    final sortedItems = _getSortedItems();
+    final heroItem = sortedItems.isNotEmpty ? sortedItems.first : null;
+    final otherItems = sortedItems.length > 1 ? sortedItems.skip(1).toList() : [];
 
     return FeatureScaffold(
       title: l10n.eventsTitle,
@@ -92,94 +92,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
               message:
                   'Etkinlik önerirken başlık, zaman, konum ve kapak görselini net ver. Yayına alınan etkinliklerde yanıtlar ve yorumlar burada görünür.',
             ),
-            const SizedBox(height: 16),
-            SurfaceCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Yeni etkinlik öner',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Başlık',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _descriptionController,
-                    minLines: 4,
-                    maxLines: 6,
-                    decoration: const InputDecoration(
-                      labelText: 'Açıklama',
-                      alignLabelWithHint: true,
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _locationController,
-                    decoration: const InputDecoration(
-                      labelText: 'Konum',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _startsAtController,
-                          decoration: const InputDecoration(
-                            labelText: 'Başlangıç tarihi',
-                            hintText: '2026-04-04T19:30',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: _endsAtController,
-                          decoration: const InputDecoration(
-                            labelText: 'Bitiş tarihi',
-                            hintText: '2026-04-04T22:00',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: isSaving
-                        ? null
-                        : () => _pickImage(ImageSource.gallery),
-                    icon: const Icon(Icons.photo_library_outlined),
-                    label: Text(
-                      _imageFile == null
-                          ? 'Kapak görseli ekle'
-                          : 'Kapak görselini değiştir',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: isSaving ? null : _createEvent,
-                      child: Text(
-                        isSaving ? 'Gönderiliyor...' : 'Etkinliği gönder',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             if (_isLoadingInitial)
               const Padding(
                 padding: EdgeInsets.only(top: 60),
@@ -203,14 +116,357 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                   onAction: () => _load(reset: true),
                 ),
               )
-            else
-              ..._items.map(_buildEventCard),
+            else ...[
+              if (heroItem != null) ...[
+                _buildHeroEventCard(heroItem),
+                const SizedBox(height: 24),
+              ],
+              ...otherItems.map(_buildEventCard),
+            ],
             if (_isLoadingMore)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
                 child: Center(child: CircularProgressIndicator()),
               ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => context.push('/events/create'),
+                icon: const Icon(Icons.add_outlined),
+                label: const Text('Yeni etkinlik öner'),
+              ),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+
+  List<EventItem> _getSortedItems() {
+    final sorted = [..._items];
+    sorted.sort((a, b) {
+      final aInteraction = a.attendCount + a.declineCount;
+      final bInteraction = b.attendCount + b.declineCount;
+      return bInteraction.compareTo(aInteraction);
+    });
+    return sorted;
+  }
+
+  Widget _buildHeroEventCard(EventItem item) {
+    final comments = _commentsByEvent[item.id] ?? const <EventComment>[];
+    final commentController = _commentControllers.putIfAbsent(
+      item.id,
+      TextEditingController.new,
+    );
+    final actionState = ref.watch(communityActionControllerProvider);
+    final config = ref.watch(appConfigProvider);
+    final session = ref.watch(sessionControllerProvider).value;
+    final isAdmin = session?.hasAdminAccess ?? false;
+    final respondingScope = 'events:respond:${item.id}';
+    final commentingScope = 'events:comment:${item.id}';
+    final visibilityScope = 'events:visibility:${item.id}';
+    final notifyScope = 'events:notify:${item.id}';
+    final interactionCount = item.attendCount + item.declineCount;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Stack(
+          children: [
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: _buildEventImage(item),
+              ),
+            ),
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.5),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 16,
+              left: 16,
+              right: 16,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    item.title,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).sdal.accent.withOpacity(0.9),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              '🔥',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Katılacağım $interactionCount',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(
+                                color: Theme.of(context)
+                                    .sdal
+                                    .foregroundOnAccent,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              top: 12,
+              right: 12,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => context.push('/events/${item.id}'),
+                  customBorder: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_outward,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _eventMeta(context, item),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).sdal.foregroundMuted,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _plainText(item.description),
+                style: Theme.of(context).textTheme.bodyMedium,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilterChip(
+                    label: Text('Katılacağım (${item.attendCount})'),
+                    selected: item.myResponse == 'attend',
+                    onSelected:
+                        actionState.isLoading &&
+                            actionState.scope == 'events:respond:${item.id}'
+                        ? null
+                        : (_) => _respond(item.id, 'attend'),
+                  ),
+                  FilterChip(
+                    label: Text('Katılamam (${item.declineCount})'),
+                    selected: item.myResponse == 'decline',
+                    onSelected:
+                        actionState.isLoading &&
+                            actionState.scope == 'events:respond:${item.id}'
+                        ? null
+                        : (_) => _respond(item.id, 'decline'),
+                  ),
+                ],
+              ),
+              if (item.canManageResponses) ...[
+                const SizedBox(height: 12),
+                _VisibilityCard(
+                  item: item,
+                  saving:
+                      actionState.isLoading &&
+                      actionState.scope == visibilityScope,
+                  onSave: (showCounts, showAttendees, showDecliners) =>
+                      _saveVisibility(
+                        item.id,
+                        showCounts,
+                        showAttendees,
+                        showDecliners,
+                      ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton(
+                      onPressed:
+                          actionState.isLoading &&
+                              actionState.scope == notifyScope
+                          ? null
+                          : () => _notify(item.id, 'invite'),
+                      child: const Text('Davet bildirimi'),
+                    ),
+                    OutlinedButton(
+                      onPressed:
+                          actionState.isLoading &&
+                              actionState.scope == notifyScope
+                          ? null
+                          : () => _notify(item.id, 'reminder'),
+                      child: const Text('Hatırlatma'),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: commentController,
+                minLines: 2,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Yorum ekle',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.tonal(
+                  onPressed:
+                      actionState.isLoading &&
+                          actionState.scope == commentingScope
+                      ? null
+                      : () => _addComment(item.id),
+                  child: const Text('Yorum gönder'),
+                ),
+              ),
+              if (comments.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                ...comments.map(
+                  (comment) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        RemoteAvatar(
+                          label: comment.displayName,
+                          imageUrl: config.resolveUrl(comment.photo).toString(),
+                          radius: 18,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      comment.displayName,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleSmall,
+                                    ),
+                                  ),
+                                  if (comment.verified)
+                                    Icon(
+                                      Icons.verified_rounded,
+                                      size: 16,
+                                      color: Theme.of(context).sdal.info,
+                                    ),
+                                ],
+                              ),
+                              Text(
+                                formatSdalTimestamp(context, comment.createdAt),
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).sdal.foregroundMuted,
+                                    ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(_plainText(comment.comment)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEventImage(EventItem item) {
+    if (item.image.isNotEmpty) {
+      return SdalNetworkImage(
+        imageUrl: item.image,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorFallback: _buildPlaceholderImage(),
+      );
+    }
+    return _buildPlaceholderImage();
+  }
+
+  Widget _buildPlaceholderImage() {
+    return Container(
+      color: Theme.of(context).sdal.panelMuted,
+      child: Center(
+        child: Icon(
+          Icons.event_outlined,
+          size: 64,
+          color: Theme.of(context).sdal.foregroundMuted,
         ),
       ),
     );
@@ -232,9 +488,9 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     final notifyScope = 'events:notify:${item.id}';
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 16),
       child: InkWell(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         onTap: () => context.push('/events/${item.id}'),
         child: SurfaceCard(
           child: Column(
@@ -243,10 +499,55 @@ class _EventsPageState extends ConsumerState<EventsPage> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      width: 100,
+                      height: 64,
+                      child: _buildEventImage(item),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      item.title,
-                      style: Theme.of(context).textTheme.titleLarge,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.title,
+                          style: Theme.of(context).textTheme.titleSmall,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _eventMeta(context, item),
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).sdal.foregroundMuted,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Text(
+                              '${item.attendCount}',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(
+                                color: Theme.of(context).sdal.accent,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'katılacak',
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                   if (isAdmin)
@@ -282,25 +583,6 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                       ],
                     ),
                 ],
-              ),
-              const SizedBox(height: 8),
-              if (item.image.isNotEmpty) ...[
-                SdalNetworkImage(
-                  imageUrl: item.image,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  borderRadius: BorderRadius.circular(16),
-                  errorFallback: const SizedBox.shrink(),
-                ),
-                const SizedBox(height: 12),
-              ],
-              Text(_plainText(item.description)),
-              const SizedBox(height: 10),
-              Text(
-                _eventMeta(context, item),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).sdal.foregroundMuted,
-                ),
               ),
               const SizedBox(height: 12),
               Wrap(

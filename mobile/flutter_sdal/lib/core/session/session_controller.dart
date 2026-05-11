@@ -61,8 +61,8 @@ class SessionController extends AsyncNotifier<SessionSnapshot> {
     if (snapshot?.isAuthenticated == true) _syncWatch(snapshot!);
   }
 
-  Future<void> refreshSilently() async {
-    if (_refreshInFlight) return;
+  Future<bool> refreshSilently() async {
+    if (_refreshInFlight) return true;
     _refreshInFlight = true;
     try {
       final next = await AsyncValue.guard(_repository.bootstrap);
@@ -70,7 +70,9 @@ class SessionController extends AsyncNotifier<SessionSnapshot> {
         state = next;
         final snapshot = next.value;
         if (snapshot?.isAuthenticated == true) _syncWatch(snapshot!);
+        return true;
       }
+      return false;
     } finally {
       _refreshInFlight = false;
     }
