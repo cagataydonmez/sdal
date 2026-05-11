@@ -24,7 +24,7 @@ export function createEventChatRuntime({
     );
     if (existing.length > 0) return;
 
-    const typeLabel = entityType === 'event' ? '📅 Etkinlik' : '📢 Duyuru';
+    const typeLabel = entityType === 'event' ? '📅 Etkinlik' : entityType === 'job' ? '💼 İş İlanı' : '📢 Duyuru';
     const trimmedExcerpt = (excerpt || '').replace(/<[^>]*>/g, '').trim().slice(0, 220);
     const content = trimmedExcerpt
       ? `${typeLabel}: ${title}\n\n${trimmedExcerpt}`

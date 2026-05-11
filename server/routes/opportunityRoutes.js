@@ -28,7 +28,8 @@ export function registerOpportunityRoutes(app, {
   uploadRateLimit,
   postUpload,
   processDiskImageUpload,
-  uploadImagePresets
+  uploadImagePresets,
+  createEntityFeedPost
 }) {
   app.get('/api/new/opportunities', requireAuth, opportunityEndpointRateLimit, async (req, res) => {
     try {
@@ -133,7 +134,11 @@ export function registerOpportunityRoutes(app, {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [req.session.userId, company, title, description, location, jobType, workMode || null, link || null, imageUrl, now]
       );
-      return res.json({ ok: true, id: result?.lastInsertRowid });
+      const newJobId = Number(result?.lastInsertRowid || 0);
+      if (newJobId && createEntityFeedPost) {
+        createEntityFeedPost({ entityType: 'job', entityId: newJobId, title, excerpt: '', groupId: null, userId: Number(req.session.userId), createdAt: now }).catch(() => {});
+      }
+      return res.json({ ok: true, id: newJobId });
     } catch (err) {
       console.error('jobs.upload failed:', err);
       if (!res.headersSent) return res.status(500).send('İş ilanı oluşturulamadı.');
@@ -324,7 +329,11 @@ export function registerOpportunityRoutes(app, {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [req.session.userId, company, title, description, location, jobType, workMode || null, link || null, now]
     );
-    res.json({ ok: true, id: result?.lastInsertRowid });
+    const newJobId = Number(result?.lastInsertRowid || 0);
+    if (newJobId && createEntityFeedPost) {
+      createEntityFeedPost({ entityType: 'job', entityId: newJobId, title, excerpt: '', groupId: null, userId: Number(req.session.userId), createdAt: now }).catch(() => {});
+    }
+    res.json({ ok: true, id: newJobId });
   });
 
   app.delete('/api/new/jobs/:id', requireAuth, async (req, res) => {
