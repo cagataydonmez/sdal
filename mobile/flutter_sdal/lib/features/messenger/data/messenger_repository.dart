@@ -441,8 +441,14 @@ final messengerUnreadCountProvider = FutureProvider.autoDispose<int>((
 
 final messengerMessagesProvider = FutureProvider.autoDispose
     .family<PagedResponse<MessengerMessage>, int>(
-      (ref, threadId) =>
-          ref.watch(messengerRepositoryProvider).fetchMessages(threadId),
+      (ref, threadId) async {
+        final prefetched = ref.watch(_prefetchedMessagesProvider(threadId));
+        if (prefetched != null) {
+          ref.read(_prefetchedMessagesProvider(threadId).notifier).state = null;
+          return prefetched;
+        }
+        return ref.watch(messengerRepositoryProvider).fetchMessages(threadId);
+      },
     );
 
 final messengerContactsProvider = FutureProvider.autoDispose
@@ -450,3 +456,15 @@ final messengerContactsProvider = FutureProvider.autoDispose
       (ref, query) =>
           ref.watch(messengerRepositoryProvider).searchContacts(query),
     );
+
+final _prefetchedMessagesProvider = StateProvider.family<
+    PagedResponse<MessengerMessage>?,
+    int>((ref, threadId) => null);
+
+void cachePrefetchedMessages(
+  Ref ref,
+  int threadId,
+  PagedResponse<MessengerMessage> messages,
+) {
+  ref.read(_prefetchedMessagesProvider(threadId).notifier).state = messages;
+}

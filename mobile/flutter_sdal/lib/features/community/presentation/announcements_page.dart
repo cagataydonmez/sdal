@@ -1,13 +1,9 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
-import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/text/sdal_date_time.dart';
-import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
@@ -26,12 +22,9 @@ class AnnouncementsPage extends ConsumerStatefulWidget {
 }
 
 class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
-  final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _bodyController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<AnnouncementItem> _items = <AnnouncementItem>[];
 
-  File? _imageFile;
   bool _isLoadingInitial = true;
   bool _isLoadingMore = false;
   bool _hasMore = true;
@@ -46,8 +39,6 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
 
   @override
   void dispose() {
-    _titleController.dispose();
-    _bodyController.dispose();
     _scrollController
       ..removeListener(_onScroll)
       ..dispose();
@@ -61,7 +52,9 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
     final l10n = context.l10n;
     final sortedItems = _getSortedItems();
     final heroItem = sortedItems.isNotEmpty ? sortedItems.first : null;
-    final otherItems = sortedItems.length > 1 ? sortedItems.skip(1).toList() : [];
+    final otherItems = sortedItems.length > 1
+        ? sortedItems.skip(1).toList()
+        : <AnnouncementItem>[];
 
     return FeatureScaffold(
       title: l10n.announcementsTitle,
@@ -105,10 +98,10 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
               )
             else ...[
               if (heroItem != null) ...[
-                _buildHeroAnnouncementCard(heroItem, isAdmin),
+                _buildHeroCard(heroItem, isAdmin),
                 const SizedBox(height: 24),
               ],
-              ...otherItems.map((item) => _buildAnnouncementCard(item, isAdmin)),
+              ...otherItems.map((item) => _buildCard(item, isAdmin)),
             ],
             if (_isLoadingMore)
               const Padding(
@@ -136,254 +129,163 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
     return sorted;
   }
 
-  Widget _buildHeroAnnouncementCard(AnnouncementItem item, bool isAdmin) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Stack(
-          children: [
-            AspectRatio(
-              aspectRatio: 16 / 9,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: _buildAnnouncementImage(item),
-              ),
-            ),
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
+  Widget _buildHeroCard(AnnouncementItem item, bool isAdmin) {
+    return GestureDetector(
+      onTap: () => context.push('/announcements/${item.id}'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Stack(
+            children: [
+              AspectRatio(
+                aspectRatio: 16 / 9,
+                child: ClipRRect(
                   borderRadius: BorderRadius.circular(24),
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.5),
-                    ],
-                  ),
+                  child: _buildAnnouncementImage(item),
                 ),
               ),
-            ),
-            Positioned(
-              bottom: 16,
-              left: 16,
-              right: 16,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    item.title,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).sdal.accent.withOpacity(0.9),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          '📢',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'En yeni duyuru',
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelSmall
-                              ?.copyWith(
-                            color: Theme.of(context)
-                                .sdal
-                                .foregroundOnAccent,
-                          ),
-                        ),
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.55),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
-            Positioned(
-              top: 12,
-              right: 12,
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => context.push('/announcements/${item.id}'),
-                  customBorder: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_outward,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _metaLine(context, item.createdAt, item.creatorHandle, item.approved),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).sdal.foregroundMuted,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                _plainText(item.body),
-                style: Theme.of(context).textTheme.bodyMedium,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (isAdmin) ...[
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: PopupMenuButton<String>(
-                    onSelected: (value) async {
-                      if (value == 'approve') {
-                        await _approveAnnouncement(item.id, approved: true);
-                        return;
-                      }
-                      if (value == 'reject') {
-                        await _approveAnnouncement(item.id, approved: false);
-                        return;
-                      }
-                      if (value == 'delete') {
-                        await _deleteAnnouncement(item.id);
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      if (!item.approved)
-                        const PopupMenuItem<String>(
-                          value: 'approve',
-                          child: Text('Onayla'),
-                        ),
-                      if (item.approved)
-                        const PopupMenuItem<String>(
-                          value: 'reject',
-                          child: Text('Yayından kaldır'),
-                        ),
-                      const PopupMenuItem<String>(
-                        value: 'delete',
-                        child: Text('Sil'),
+              Positioned(
+                bottom: 16,
+                left: 16,
+                right: 60,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      item.title,
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
                       ),
-                    ],
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).sdal.accent.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('📢', style: TextStyle(fontSize: 13)),
+                          const SizedBox(width: 5),
+                          Text(
+                            'En yeni duyuru',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: Theme.of(context).sdal.foregroundOnAccent,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isAdmin)
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: _AnnouncementAdminMenu(
+                    item: item,
+                    onApprove: (approved) =>
+                        _approveAnnouncement(item.id, approved: approved),
+                    onDelete: () => _deleteAnnouncement(item.id),
+                    dark: true,
                   ),
                 ),
-              ],
             ],
           ),
-        ),
-      ],
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              _metaLine(context, item.createdAt, item.creatorHandle, item.approved),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).sdal.foregroundMuted,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildAnnouncementCard(AnnouncementItem item, bool isAdmin) {
+  Widget _buildCard(AnnouncementItem item, bool isAdmin) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 12),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () => context.push('/announcements/${item.id}'),
         child: SurfaceCard(
-          child: Column(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: SizedBox(
-                      width: 100,
-                      height: 64,
-                      child: _buildAnnouncementImage(item),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.title,
-                          style: Theme.of(context).textTheme.titleSmall,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _metaLine(context, item.createdAt, item.creatorHandle, item.approved),
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).sdal.foregroundMuted,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (isAdmin)
-                    PopupMenuButton<String>(
-                      onSelected: (value) async {
-                        if (value == 'approve') {
-                          await _approveAnnouncement(item.id, approved: true);
-                          return;
-                        }
-                        if (value == 'reject') {
-                          await _approveAnnouncement(item.id, approved: false);
-                          return;
-                        }
-                        if (value == 'delete') {
-                          await _deleteAnnouncement(item.id);
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        if (!item.approved)
-                          const PopupMenuItem<String>(
-                            value: 'approve',
-                            child: Text('Onayla'),
-                          ),
-                        if (item.approved)
-                          const PopupMenuItem<String>(
-                            value: 'reject',
-                            child: Text('Yayından kaldır'),
-                          ),
-                        const PopupMenuItem<String>(
-                          value: 'delete',
-                          child: Text('Sil'),
-                        ),
-                      ],
-                    ),
-                ],
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 96,
+                  height: 64,
+                  child: _buildAnnouncementImage(item),
+                ),
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title,
+                      style: Theme.of(context).textTheme.titleSmall,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _metaLine(
+                        context,
+                        item.createdAt,
+                        item.creatorHandle,
+                        item.approved,
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).sdal.foregroundMuted,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              if (isAdmin)
+                _AnnouncementAdminMenu(
+                  item: item,
+                  onApprove: (approved) =>
+                      _approveAnnouncement(item.id, approved: approved),
+                  onDelete: () => _deleteAnnouncement(item.id),
+                  dark: false,
+                ),
             ],
           ),
         ),
@@ -410,91 +312,11 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
       child: Center(
         child: Icon(
           Icons.campaign_outlined,
-          size: 64,
+          size: 40,
           color: Theme.of(context).sdal.foregroundMuted,
         ),
       ),
     );
-  }
-
-  Future<void> _pickImage(ImageSource source) async {
-    final picked = await pickAndCropImage(
-      context,
-      source: source,
-      aspectPreset: CropAspectPreset.wide169,
-      title: 'Duyuru görselini hazırla',
-    );
-    if (picked == null || !mounted) return;
-    setState(() => _imageFile = picked);
-  }
-
-  Future<void> _create() async {
-    final title = _titleController.text.trim();
-    final body = _bodyController.text.trim();
-    if (title.isEmpty || body.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Başlık ve içerik gerekli.')),
-      );
-      return;
-    }
-    final ok = await ref
-        .read(communityActionControllerProvider.notifier)
-        .createAnnouncement(title: title, body: body, imageFile: _imageFile);
-    if (!mounted) return;
-    final actionState = ref.read(communityActionControllerProvider);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          actionState.message ??
-              (ok ? 'Duyuru gönderildi.' : 'Duyuru gönderilemedi.'),
-        ),
-      ),
-    );
-    if (!ok) return;
-    _titleController.clear();
-    _bodyController.clear();
-    setState(() => _imageFile = null);
-    _load(reset: true);
-  }
-
-  Future<void> _load({required bool reset}) async {
-    if (reset) {
-      setState(() {
-        _isLoadingInitial = true;
-        _hasMore = true;
-        _error = '';
-      });
-    } else {
-      if (_isLoadingInitial || _isLoadingMore || !_hasMore) return;
-      setState(() => _isLoadingMore = true);
-    }
-    try {
-      final page = await ref
-          .read(communityRepositoryProvider)
-          .fetchAnnouncements(offset: reset ? 0 : _items.length);
-      if (!mounted) return;
-      setState(() {
-        if (reset) {
-          _items
-            ..clear()
-            ..addAll(page.items);
-        } else {
-          _items.addAll(page.items);
-        }
-        _hasMore = page.hasMore;
-        _error = '';
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _error = error.toString());
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoadingInitial = false;
-          _isLoadingMore = false;
-        });
-      }
-    }
   }
 
   Future<void> _approveAnnouncement(
@@ -558,6 +380,46 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
     if (ok) _load(reset: true);
   }
 
+  Future<void> _load({required bool reset}) async {
+    if (reset) {
+      setState(() {
+        _isLoadingInitial = true;
+        _hasMore = true;
+        _error = '';
+      });
+    } else {
+      if (_isLoadingInitial || _isLoadingMore || !_hasMore) return;
+      setState(() => _isLoadingMore = true);
+    }
+    try {
+      final page = await ref
+          .read(communityRepositoryProvider)
+          .fetchAnnouncements(offset: reset ? 0 : _items.length);
+      if (!mounted) return;
+      setState(() {
+        if (reset) {
+          _items
+            ..clear()
+            ..addAll(page.items);
+        } else {
+          _items.addAll(page.items);
+        }
+        _hasMore = page.hasMore;
+        _error = '';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString());
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingInitial = false;
+          _isLoadingMore = false;
+        });
+      }
+    }
+  }
+
   void _onScroll() {
     if (!_scrollController.hasClients || _isLoadingInitial || _isLoadingMore) {
       return;
@@ -565,14 +427,44 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
     final remaining =
         _scrollController.position.maxScrollExtent -
         _scrollController.position.pixels;
-    if (remaining < 240) {
-      _load(reset: false);
-    }
+    if (remaining < 240) _load(reset: false);
   }
 }
 
-String _plainText(String raw) {
-  return plainTextFromRichContent(raw);
+class _AnnouncementAdminMenu extends StatelessWidget {
+  const _AnnouncementAdminMenu({
+    required this.item,
+    required this.onApprove,
+    required this.onDelete,
+    required this.dark,
+  });
+
+  final AnnouncementItem item;
+  final void Function(bool approved) onApprove;
+  final VoidCallback onDelete;
+  final bool dark;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      icon: Icon(Icons.more_vert, color: dark ? Colors.white : null),
+      onSelected: (value) {
+        if (value == 'approve') onApprove(true);
+        if (value == 'reject') onApprove(false);
+        if (value == 'delete') onDelete();
+      },
+      itemBuilder: (context) => [
+        if (!item.approved)
+          const PopupMenuItem<String>(value: 'approve', child: Text('Onayla')),
+        if (item.approved)
+          const PopupMenuItem<String>(
+            value: 'reject',
+            child: Text('Yayından kaldır'),
+          ),
+        const PopupMenuItem<String>(value: 'delete', child: Text('Sil')),
+      ],
+    );
+  }
 }
 
 String _metaLine(
@@ -582,9 +474,7 @@ String _metaLine(
   bool approved,
 ) {
   final parts = <String>[];
-  if (createdAt.isNotEmpty) {
-    parts.add(formatSdalTimestamp(context, createdAt));
-  }
+  if (createdAt.isNotEmpty) parts.add(formatSdalTimestamp(context, createdAt));
   if (handle.isNotEmpty) parts.add('@$handle');
   if (!approved) parts.add('Onay bekliyor');
   return parts.join(' · ');

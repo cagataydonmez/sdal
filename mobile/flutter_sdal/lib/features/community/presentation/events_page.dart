@@ -1,20 +1,14 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
-import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/text/sdal_date_time.dart';
-import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
-import '../../../app/providers.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/page_onboarding_card.dart';
-import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/community_action_controller.dart';
@@ -28,19 +22,9 @@ class EventsPage extends ConsumerStatefulWidget {
 }
 
 class _EventsPageState extends ConsumerState<EventsPage> {
-  final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _descriptionController = TextEditingController();
-  final TextEditingController _locationController = TextEditingController();
-  final TextEditingController _startsAtController = TextEditingController();
-  final TextEditingController _endsAtController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<EventItem> _items = <EventItem>[];
-  final Map<int, List<EventComment>> _commentsByEvent =
-      <int, List<EventComment>>{};
-  final Map<int, TextEditingController> _commentControllers =
-      <int, TextEditingController>{};
 
-  File? _imageFile;
   bool _isLoadingInitial = true;
   bool _isLoadingMore = false;
   bool _hasMore = true;
@@ -55,14 +39,6 @@ class _EventsPageState extends ConsumerState<EventsPage> {
 
   @override
   void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    _locationController.dispose();
-    _startsAtController.dispose();
-    _endsAtController.dispose();
-    for (final controller in _commentControllers.values) {
-      controller.dispose();
-    }
     _scrollController
       ..removeListener(_onScroll)
       ..dispose();
@@ -71,10 +47,13 @@ class _EventsPageState extends ConsumerState<EventsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final session = ref.watch(sessionControllerProvider).value;
+    final isAdmin = session?.hasAdminAccess ?? false;
     final l10n = context.l10n;
     final sortedItems = _getSortedItems();
     final heroItem = sortedItems.isNotEmpty ? sortedItems.first : null;
-    final otherItems = sortedItems.length > 1 ? sortedItems.skip(1).toList() : [];
+    final otherItems =
+        sortedItems.length > 1 ? sortedItems.skip(1).toList() : <EventItem>[];
 
     return FeatureScaffold(
       title: l10n.eventsTitle,
@@ -118,10 +97,10 @@ class _EventsPageState extends ConsumerState<EventsPage> {
               )
             else ...[
               if (heroItem != null) ...[
-                _buildHeroEventCard(heroItem),
+                _buildHeroEventCard(heroItem, isAdmin),
                 const SizedBox(height: 24),
               ],
-              ...otherItems.map((item) => _buildEventCard(item)),
+              ...otherItems.map((item) => _buildEventCard(item, isAdmin)),
             ],
             if (_isLoadingMore)
               const Padding(
@@ -146,303 +125,186 @@ class _EventsPageState extends ConsumerState<EventsPage> {
   List<EventItem> _getSortedItems() {
     final sorted = [..._items];
     sorted.sort((a, b) {
-      final aInteraction = a.attendCount + a.declineCount;
-      final bInteraction = b.attendCount + b.declineCount;
-      return bInteraction.compareTo(aInteraction);
+      final aScore = a.attendCount + a.declineCount;
+      final bScore = b.attendCount + b.declineCount;
+      return bScore.compareTo(aScore);
     });
     return sorted;
   }
 
-  Widget _buildHeroEventCard(EventItem item) {
-    final comments = _commentsByEvent[item.id] ?? const <EventComment>[];
-    final commentController = _commentControllers.putIfAbsent(
-      item.id,
-      TextEditingController.new,
-    );
-    final actionState = ref.watch(communityActionControllerProvider);
-    final config = ref.watch(appConfigProvider);
-    final session = ref.watch(sessionControllerProvider).value;
-    final isAdmin = session?.hasAdminAccess ?? false;
-    final respondingScope = 'events:respond:${item.id}';
-    final commentingScope = 'events:comment:${item.id}';
-    final visibilityScope = 'events:visibility:${item.id}';
-    final notifyScope = 'events:notify:${item.id}';
-    final interactionCount = item.attendCount + item.declineCount;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Stack(
-          children: [
-            AspectRatio(
-              aspectRatio: 16 / 9,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: _buildEventImage(item),
-              ),
-            ),
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(24),
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.5),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 16,
-              left: 16,
-              right: 16,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    item.title,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).sdal.accent.withOpacity(0.9),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text(
-                              '🔥',
-                              style: TextStyle(fontSize: 14),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Katılacağım $interactionCount',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelSmall
-                                  ?.copyWith(
-                                color: Theme.of(context)
-                                    .sdal
-                                    .foregroundOnAccent,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              top: 12,
-              right: 12,
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => context.push('/events/${item.id}'),
-                  customBorder: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_outward,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildHeroEventCard(EventItem item, bool isAdmin) {
+    return GestureDetector(
+      onTap: () => context.push('/events/${item.id}'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Stack(
             children: [
-              Text(
-                _eventMeta(context, item),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).sdal.foregroundMuted,
+              AspectRatio(
+                aspectRatio: 16 / 9,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: _buildEventImage(item),
                 ),
               ),
-              const SizedBox(height: 12),
-              Text(
-                _plainText(item.description),
-                style: Theme.of(context).textTheme.bodyMedium,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  FilterChip(
-                    label: Text('Katılacağım (${item.attendCount})'),
-                    selected: item.myResponse == 'attend',
-                    onSelected:
-                        actionState.isLoading &&
-                            actionState.scope == 'events:respond:${item.id}'
-                        ? null
-                        : (_) => _respond(item.id, 'attend'),
-                  ),
-                  FilterChip(
-                    label: Text('Katılamam (${item.declineCount})'),
-                    selected: item.myResponse == 'decline',
-                    onSelected:
-                        actionState.isLoading &&
-                            actionState.scope == 'events:respond:${item.id}'
-                        ? null
-                        : (_) => _respond(item.id, 'decline'),
-                  ),
-                ],
-              ),
-              if (item.canManageResponses) ...[
-                const SizedBox(height: 12),
-                _VisibilityCard(
-                  item: item,
-                  saving:
-                      actionState.isLoading &&
-                      actionState.scope == visibilityScope,
-                  onSave: (showCounts, showAttendees, showDecliners) =>
-                      _saveVisibility(
-                        item.id,
-                        showCounts,
-                        showAttendees,
-                        showDecliners,
-                      ),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    OutlinedButton(
-                      onPressed:
-                          actionState.isLoading &&
-                              actionState.scope == notifyScope
-                          ? null
-                          : () => _notify(item.id, 'invite'),
-                      child: const Text('Davet bildirimi'),
-                    ),
-                    OutlinedButton(
-                      onPressed:
-                          actionState.isLoading &&
-                              actionState.scope == notifyScope
-                          ? null
-                          : () => _notify(item.id, 'reminder'),
-                      child: const Text('Hatırlatma'),
-                    ),
-                  ],
-                ),
-              ],
-              const SizedBox(height: 12),
-              TextField(
-                controller: commentController,
-                minLines: 2,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Yorum ekle',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton.tonal(
-                  onPressed:
-                      actionState.isLoading &&
-                          actionState.scope == commentingScope
-                      ? null
-                      : () => _addComment(item.id),
-                  child: const Text('Yorum gönder'),
-                ),
-              ),
-              if (comments.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                ...comments.map(
-                  (comment) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        RemoteAvatar(
-                          label: comment.displayName,
-                          imageUrl: config.resolveUrl(comment.photo).toString(),
-                          radius: 18,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      comment.displayName,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleSmall,
-                                    ),
-                                  ),
-                                  if (comment.verified)
-                                    Icon(
-                                      Icons.verified_rounded,
-                                      size: 16,
-                                      color: Theme.of(context).sdal.info,
-                                    ),
-                                ],
-                              ),
-                              Text(
-                                formatSdalTimestamp(context, comment.createdAt),
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: Theme.of(
-                                        context,
-                                      ).sdal.foregroundMuted,
-                                    ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(_plainText(comment.comment)),
-                            ],
-                          ),
-                        ),
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.55),
                       ],
                     ),
                   ),
                 ),
-              ],
+              ),
+              Positioned(
+                bottom: 16,
+                left: 16,
+                right: 60,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      item.title,
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).sdal.accent.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('🔥', style: TextStyle(fontSize: 13)),
+                          const SizedBox(width: 5),
+                          Text(
+                            '${item.attendCount} katılacak',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: Theme.of(context).sdal.foregroundOnAccent,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isAdmin)
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: _EventAdminMenu(
+                    item: item,
+                    onApprove: (approved) => _approveEvent(item.id, approved: approved),
+                    onDelete: () => _deleteEvent(item.id),
+                    dark: true,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              _eventMeta(context, item),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).sdal.foregroundMuted,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEventCard(EventItem item, bool isAdmin) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => context.push('/events/${item.id}'),
+        child: SurfaceCard(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 96,
+                  height: 64,
+                  child: _buildEventImage(item),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title,
+                      style: Theme.of(context).textTheme.titleSmall,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _eventMeta(context, item),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).sdal.foregroundMuted,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        Text(
+                          '${item.attendCount}',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: Theme.of(context).sdal.accent,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          'katılacak',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: Theme.of(context).sdal.foregroundMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (isAdmin)
+                _EventAdminMenu(
+                  item: item,
+                  onApprove: (approved) => _approveEvent(item.id, approved: approved),
+                  onDelete: () => _deleteEvent(item.id),
+                  dark: false,
+                ),
             ],
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -465,397 +327,8 @@ class _EventsPageState extends ConsumerState<EventsPage> {
       child: Center(
         child: Icon(
           Icons.event_outlined,
-          size: 64,
+          size: 40,
           color: Theme.of(context).sdal.foregroundMuted,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEventCard(EventItem item) {
-    final comments = _commentsByEvent[item.id] ?? const <EventComment>[];
-    final commentController = _commentControllers.putIfAbsent(
-      item.id,
-      TextEditingController.new,
-    );
-    final actionState = ref.watch(communityActionControllerProvider);
-    final config = ref.watch(appConfigProvider);
-    final session = ref.watch(sessionControllerProvider).value;
-    final isAdmin = session?.hasAdminAccess ?? false;
-    final respondingScope = 'events:respond:${item.id}';
-    final commentingScope = 'events:comment:${item.id}';
-    final visibilityScope = 'events:visibility:${item.id}';
-    final notifyScope = 'events:notify:${item.id}';
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => context.push('/events/${item.id}'),
-        child: SurfaceCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: SizedBox(
-                      width: 100,
-                      height: 64,
-                      child: _buildEventImage(item),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.title,
-                          style: Theme.of(context).textTheme.titleSmall,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _eventMeta(context, item),
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).sdal.foregroundMuted,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Text(
-                              '${item.attendCount}',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelSmall
-                                  ?.copyWith(
-                                color: Theme.of(context).sdal.accent,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'katılacak',
-                              style: Theme.of(context).textTheme.labelSmall,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (isAdmin)
-                    PopupMenuButton<String>(
-                      onSelected: (value) async {
-                        if (value == 'approve') {
-                          await _approveEvent(item.id, approved: true);
-                          return;
-                        }
-                        if (value == 'reject') {
-                          await _approveEvent(item.id, approved: false);
-                          return;
-                        }
-                        if (value == 'delete') {
-                          await _deleteEvent(item.id);
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        if (!item.approved)
-                          const PopupMenuItem<String>(
-                            value: 'approve',
-                            child: Text('Onayla'),
-                          ),
-                        if (item.approved)
-                          const PopupMenuItem<String>(
-                            value: 'reject',
-                            child: Text('Yayından kaldır'),
-                          ),
-                        const PopupMenuItem<String>(
-                          value: 'delete',
-                          child: Text('Sil'),
-                        ),
-                      ],
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  FilterChip(
-                    label: Text('Katılacağım (${item.attendCount})'),
-                    selected: item.myResponse == 'attend',
-                    onSelected:
-                        actionState.isLoading &&
-                            actionState.scope == respondingScope
-                        ? null
-                        : (_) => _respond(item.id, 'attend'),
-                  ),
-                  FilterChip(
-                    label: Text('Katılamam (${item.declineCount})'),
-                    selected: item.myResponse == 'decline',
-                    onSelected:
-                        actionState.isLoading &&
-                            actionState.scope == respondingScope
-                        ? null
-                        : (_) => _respond(item.id, 'decline'),
-                  ),
-                ],
-              ),
-              if (item.canManageResponses) ...[
-                const SizedBox(height: 12),
-                _VisibilityCard(
-                  item: item,
-                  saving:
-                      actionState.isLoading &&
-                      actionState.scope == visibilityScope,
-                  onSave: (showCounts, showAttendees, showDecliners) =>
-                      _saveVisibility(
-                        item.id,
-                        showCounts,
-                        showAttendees,
-                        showDecliners,
-                      ),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    OutlinedButton(
-                      onPressed:
-                          actionState.isLoading &&
-                              actionState.scope == notifyScope
-                          ? null
-                          : () => _notify(item.id, 'invite'),
-                      child: const Text('Davet bildirimi'),
-                    ),
-                    OutlinedButton(
-                      onPressed:
-                          actionState.isLoading &&
-                              actionState.scope == notifyScope
-                          ? null
-                          : () => _notify(item.id, 'reminder'),
-                      child: const Text('Hatırlatma'),
-                    ),
-                  ],
-                ),
-              ],
-              const SizedBox(height: 12),
-              TextField(
-                controller: commentController,
-                minLines: 2,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Yorum ekle',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton.tonal(
-                  onPressed:
-                      actionState.isLoading &&
-                          actionState.scope == commentingScope
-                      ? null
-                      : () => _addComment(item.id),
-                  child: const Text('Yorum gönder'),
-                ),
-              ),
-              if (comments.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                ...comments.map(
-                  (comment) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        RemoteAvatar(
-                          label: comment.displayName,
-                          imageUrl: config.resolveUrl(comment.photo).toString(),
-                          radius: 18,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      comment.displayName,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleSmall,
-                                    ),
-                                  ),
-                                  if (comment.verified)
-                                    Icon(
-                                      Icons.verified_rounded,
-                                      size: 16,
-                                      color: Theme.of(context).sdal.info,
-                                    ),
-                                ],
-                              ),
-                              Text(
-                                formatSdalTimestamp(context, comment.createdAt),
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: Theme.of(
-                                        context,
-                                      ).sdal.foregroundMuted,
-                                    ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(_plainText(comment.comment)),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _pickImage(ImageSource source) async {
-    final picked = await pickAndCropImage(
-      context,
-      source: source,
-      aspectPreset: CropAspectPreset.wide169,
-      title: 'Etkinlik görselini hazırla',
-    );
-    if (picked == null || !mounted) return;
-    setState(() => _imageFile = picked);
-  }
-
-  Future<void> _createEvent() async {
-    final ok = await ref
-        .read(communityActionControllerProvider.notifier)
-        .createEvent(
-          title: _titleController.text.trim(),
-          description: _descriptionController.text.trim(),
-          location: _locationController.text.trim(),
-          startsAt: _startsAtController.text.trim(),
-          endsAt: _endsAtController.text.trim(),
-          imageFile: _imageFile,
-        );
-    if (!mounted) return;
-    final state = ref.read(communityActionControllerProvider);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          state.message ??
-              (ok ? 'Etkinlik gönderildi.' : 'Etkinlik oluşturulamadı.'),
-        ),
-      ),
-    );
-    if (!ok) return;
-    _titleController.clear();
-    _descriptionController.clear();
-    _locationController.clear();
-    _startsAtController.clear();
-    _endsAtController.clear();
-    setState(() => _imageFile = null);
-    _load(reset: true);
-  }
-
-  Future<void> _respond(int eventId, String response) async {
-    final ok = await ref
-        .read(communityActionControllerProvider.notifier)
-        .respond(eventId: eventId, response: response);
-    if (!mounted) return;
-    final state = ref.read(communityActionControllerProvider);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          state.message ??
-              (ok ? 'Etkinlik yanıtın kaydedildi.' : 'İşlem başarısız oldu.'),
-        ),
-      ),
-    );
-    if (ok) _load(reset: true);
-  }
-
-  Future<void> _addComment(int eventId) async {
-    final controller = _commentControllers[eventId]!;
-    final comment = controller.text.trim();
-    if (comment.isEmpty) return;
-    final ok = await ref
-        .read(communityActionControllerProvider.notifier)
-        .addComment(eventId: eventId, comment: comment);
-    if (!mounted) return;
-    final state = ref.read(communityActionControllerProvider);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          state.message ?? (ok ? 'Yorum gönderildi.' : 'Yorum gönderilemedi.'),
-        ),
-      ),
-    );
-    if (!ok) return;
-    controller.clear();
-    final comments = await ref
-        .read(communityRepositoryProvider)
-        .fetchEventComments(eventId);
-    if (!mounted) return;
-    setState(() => _commentsByEvent[eventId] = comments);
-  }
-
-  Future<void> _saveVisibility(
-    int eventId,
-    bool showCounts,
-    bool showAttendees,
-    bool showDecliners,
-  ) async {
-    final ok = await ref
-        .read(communityActionControllerProvider.notifier)
-        .updateVisibility(
-          eventId: eventId,
-          showCounts: showCounts,
-          showAttendeeNames: showAttendees,
-          showDeclinerNames: showDecliners,
-        );
-    if (!mounted) return;
-    final state = ref.read(communityActionControllerProvider);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          state.message ??
-              (ok
-                  ? 'Görünürlük ayarları kaydedildi.'
-                  : 'İşlem başarısız oldu.'),
-        ),
-      ),
-    );
-    if (ok) _load(reset: true);
-  }
-
-  Future<void> _notify(int eventId, String mode) async {
-    final ok = await ref
-        .read(communityActionControllerProvider.notifier)
-        .notifyAudience(eventId: eventId, mode: mode);
-    if (!mounted) return;
-    final state = ref.read(communityActionControllerProvider);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          state.message ??
-              (ok ? 'Bildirim gönderildi.' : 'Bildirim gönderilemedi.'),
         ),
       ),
     );
@@ -934,12 +407,6 @@ class _EventsPageState extends ConsumerState<EventsPage> {
       final page = await ref
           .read(communityRepositoryProvider)
           .fetchEvents(offset: reset ? 0 : _items.length);
-      final comments = <int, List<EventComment>>{};
-      for (final item in page.items) {
-        comments[item.id] = await ref
-            .read(communityRepositoryProvider)
-            .fetchEventComments(item.id);
-      }
       if (!mounted) return;
       setState(() {
         if (reset) {
@@ -949,7 +416,6 @@ class _EventsPageState extends ConsumerState<EventsPage> {
         } else {
           _items.addAll(page.items);
         }
-        _commentsByEvent.addAll(comments);
         _hasMore = page.hasMore;
         _error = '';
       });
@@ -973,130 +439,47 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     final remaining =
         _scrollController.position.maxScrollExtent -
         _scrollController.position.pixels;
-    if (remaining < 240) {
-      _load(reset: false);
-    }
+    if (remaining < 240) _load(reset: false);
   }
 }
 
-class _VisibilityCard extends StatefulWidget {
-  const _VisibilityCard({
+class _EventAdminMenu extends StatelessWidget {
+  const _EventAdminMenu({
     required this.item,
-    required this.saving,
-    required this.onSave,
+    required this.onApprove,
+    required this.onDelete,
+    required this.dark,
   });
 
   final EventItem item;
-  final bool saving;
-  final Future<void> Function(bool, bool, bool) onSave;
-
-  @override
-  State<_VisibilityCard> createState() => _VisibilityCardState();
-}
-
-class _VisibilityCardState extends State<_VisibilityCard> {
-  late bool showCounts;
-  late bool showAttendees;
-  late bool showDecliners;
-
-  @override
-  void initState() {
-    super.initState();
-    showCounts = widget.item.visibility.showCounts;
-    showAttendees = widget.item.visibility.showAttendeeNames;
-    showDecliners = widget.item.visibility.showDeclinerNames;
-  }
-
-  @override
-  void didUpdateWidget(covariant _VisibilityCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.item.id != widget.item.id ||
-        oldWidget.item.visibility.showCounts !=
-            widget.item.visibility.showCounts ||
-        oldWidget.item.visibility.showAttendeeNames !=
-            widget.item.visibility.showAttendeeNames ||
-        oldWidget.item.visibility.showDeclinerNames !=
-            widget.item.visibility.showDeclinerNames) {
-      showCounts = widget.item.visibility.showCounts;
-      showAttendees = widget.item.visibility.showAttendeeNames;
-      showDecliners = widget.item.visibility.showDeclinerNames;
-    }
-  }
+  final void Function(bool approved) onApprove;
+  final VoidCallback onDelete;
+  final bool dark;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final tokens = Theme.of(context).sdal;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: tokens.panelMuted,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: tokens.panelBorder),
+    return PopupMenuButton<String>(
+      icon: Icon(
+        Icons.more_vert,
+        color: dark ? Colors.white : null,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            l10n.eventVisibilityTitle,
-            style: Theme.of(context).textTheme.titleSmall,
+      onSelected: (value) {
+        if (value == 'approve') onApprove(true);
+        if (value == 'reject') onApprove(false);
+        if (value == 'delete') onDelete();
+      },
+      itemBuilder: (context) => [
+        if (!item.approved)
+          const PopupMenuItem<String>(value: 'approve', child: Text('Onayla')),
+        if (item.approved)
+          const PopupMenuItem<String>(
+            value: 'reject',
+            child: Text('Yayından kaldır'),
           ),
-          const SizedBox(height: 6),
-          Text(
-            l10n.eventVisibilityHelper,
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
-          ),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: Text(l10n.eventVisibilityShowCounts),
-            subtitle: Text(l10n.eventVisibilityShowCountsHint),
-            value: showCounts,
-            onChanged: widget.saving
-                ? null
-                : (value) => setState(() => showCounts = value),
-          ),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: Text(l10n.eventVisibilityShowAttendees),
-            subtitle: Text(l10n.eventVisibilityShowAttendeesHint),
-            value: showAttendees,
-            onChanged: widget.saving
-                ? null
-                : (value) => setState(() => showAttendees = value),
-          ),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: Text(l10n.eventVisibilityShowDecliners),
-            subtitle: Text(l10n.eventVisibilityShowDeclinersHint),
-            value: showDecliners,
-            onChanged: widget.saving
-                ? null
-                : (value) => setState(() => showDecliners = value),
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton.tonal(
-              onPressed: widget.saving
-                  ? null
-                  : () =>
-                        widget.onSave(showCounts, showAttendees, showDecliners),
-              child: Text(
-                widget.saving
-                    ? l10n.submitInProgress
-                    : l10n.eventVisibilitySaveAction,
-              ),
-            ),
-          ),
-        ],
-      ),
+        const PopupMenuItem<String>(value: 'delete', child: Text('Sil')),
+      ],
     );
   }
-}
-
-String _plainText(String raw) {
-  return plainTextFromRichContent(raw);
 }
 
 String _eventMeta(BuildContext context, EventItem item) {

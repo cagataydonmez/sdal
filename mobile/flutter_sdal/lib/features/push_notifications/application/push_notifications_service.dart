@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/routing/app_router.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/session/session_models.dart';
+import '../../messenger/data/messenger_repository.dart';
 import '../../notifications/data/notifications_repository.dart';
 import '../../notifications/notification_route_mapper.dart';
 import '../data/push_notifications_repository.dart';
@@ -286,6 +287,7 @@ class PushNotificationsService {
     ref.invalidate(notificationUnreadCountProvider);
     if (!_localNotificationsReady) return;
     final route = _extractRoute(message);
+    unawaited(_prefetchMessagesIfNeeded(route ?? ''));
     final androidDetails = await _buildAndroidDetails(message);
     final iosDetails = await _buildIosDetails(message);
     await _localNotifications.show(
@@ -420,10 +422,26 @@ class PushNotificationsService {
     ref.invalidate(notificationUnreadCountProvider);
     final route = _extractRoute(message);
     if (route != null) {
+      await _prefetchMessagesIfNeeded(route);
       _openRoute(route);
       return;
     }
     await _persistPendingRoute(message);
+  }
+
+  Future<void> _prefetchMessagesIfNeeded(String route) async {
+    if (!route.startsWith('/messages/')) return;
+    final threadIdStr = route.replaceFirst('/messages/', '');
+    final threadId = int.tryParse(threadIdStr);
+    if (threadId == null || threadId <= 0) return;
+
+    try {
+      final repository = ref.read(messengerRepositoryProvider);
+      final messages = await repository.fetchMessages(threadId);
+      cachePrefetchedMessages(ref, threadId, messages);
+    } catch (err) {
+      debugPrint('push message prefetch failed: $err');
+    }
   }
 
   Future<void> _persistPendingRoute(RemoteMessage message) async {

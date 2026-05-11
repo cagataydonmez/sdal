@@ -215,6 +215,20 @@ class OpportunitiesRepository {
     ).map(JobItem.fromMap).toList(growable: false);
   }
 
+  Future<JobItem?> fetchJob(int jobId) async {
+    try {
+      final result = await _apiClient.get<JsonMap>(
+        '/api/new/jobs/$jobId',
+        decoder: asJsonMap,
+      );
+      final map = asJsonMap(result.rawData);
+      if (map.isEmpty) return null;
+      return JobItem.fromMap(map);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<ApiResult<dynamic>> createJob({
     required String company,
     required String title,
