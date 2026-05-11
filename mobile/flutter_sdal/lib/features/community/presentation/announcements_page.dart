@@ -56,12 +56,12 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final actionState = ref.watch(communityActionControllerProvider);
     final session = ref.watch(sessionControllerProvider).value;
     final isAdmin = session?.hasAdminAccess ?? false;
-    final isSaving =
-        actionState.isLoading && actionState.scope == 'announcements:create';
     final l10n = context.l10n;
+    final sortedItems = _getSortedItems();
+    final heroItem = sortedItems.isNotEmpty ? sortedItems.first : null;
+    final otherItems = sortedItems.length > 1 ? sortedItems.skip(1).toList() : [];
 
     return FeatureScaffold(
       title: l10n.announcementsTitle,
@@ -79,73 +79,7 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
               message:
                   'Önemli gelişmeleri buradan takip et; duyuru önerilerin incelenir ve uygun olduğunda tüm SDAL topluluğuyla paylaşılır.',
             ),
-            const SizedBox(height: 16),
-            SurfaceCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Yeni duyuru öner',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Başlık',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _bodyController,
-                    minLines: 4,
-                    maxLines: 6,
-                    decoration: const InputDecoration(
-                      labelText: 'İçerik',
-                      alignLabelWithHint: true,
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: isSaving
-                            ? null
-                            : () => _pickImage(ImageSource.gallery),
-                        icon: const Icon(Icons.photo_library_outlined),
-                        label: Text(
-                          _imageFile == null
-                              ? 'Görsel ekle'
-                              : 'Görsel değiştir',
-                        ),
-                      ),
-                      if (_imageFile != null)
-                        Text(
-                          _imageFile!.path.split('/').last,
-                          style: TextStyle(
-                            color: Theme.of(context).sdal.foregroundMuted,
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: isSaving ? null : _create,
-                      child: Text(
-                        isSaving ? 'Gönderiliyor...' : 'Duyuruyu gönder',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             if (_isLoadingInitial)
               const Padding(
                 padding: EdgeInsets.only(top: 60),
@@ -169,99 +103,315 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                   onAction: () => _load(reset: true),
                 ),
               )
-            else
-              ..._items.map(
-                (item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(24),
-                    onTap: () => context.push('/announcements/${item.id}'),
-                    child: SurfaceCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.title,
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          if (isAdmin)
-                            Align(
-                              alignment: Alignment.topRight,
-                              child: PopupMenuButton<String>(
-                                onSelected: (value) async {
-                                  if (value == 'approve') {
-                                    await _approveAnnouncement(
-                                      item.id,
-                                      approved: true,
-                                    );
-                                    return;
-                                  }
-                                  if (value == 'reject') {
-                                    await _approveAnnouncement(
-                                      item.id,
-                                      approved: false,
-                                    );
-                                    return;
-                                  }
-                                  if (value == 'delete') {
-                                    await _deleteAnnouncement(item.id);
-                                  }
-                                },
-                                itemBuilder: (context) => [
-                                  if (!item.approved)
-                                    const PopupMenuItem<String>(
-                                      value: 'approve',
-                                      child: Text('Onayla'),
-                                    ),
-                                  if (item.approved)
-                                    const PopupMenuItem<String>(
-                                      value: 'reject',
-                                      child: Text('Yayından kaldır'),
-                                    ),
-                                  const PopupMenuItem<String>(
-                                    value: 'delete',
-                                    child: Text('Sil'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          const SizedBox(height: 8),
-                          if (item.image.isNotEmpty) ...[
-                            SdalNetworkImage(
-                              imageUrl: item.image,
-                              fit: BoxFit.cover,
-                              width: double.infinity,
-                              borderRadius: BorderRadius.circular(16),
-                              errorFallback: const SizedBox.shrink(),
-                            ),
-                            const SizedBox(height: 12),
-                          ],
-                          Text(_plainText(item.body)),
-                          const SizedBox(height: 12),
-                          Text(
-                            _metaLine(
-                              context,
-                              item.createdAt,
-                              item.creatorHandle,
-                              item.approved,
-                            ),
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: Theme.of(context).sdal.foregroundMuted,
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+            else ...[
+              if (heroItem != null) ...[
+                _buildHeroAnnouncementCard(heroItem, isAdmin),
+                const SizedBox(height: 24),
+              ],
+              ...otherItems.map((item) => _buildAnnouncementCard(item, isAdmin)),
+            ],
             if (_isLoadingMore)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
                 child: Center(child: CircularProgressIndicator()),
               ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => context.push('/announcements/create'),
+                icon: const Icon(Icons.add_outlined),
+                label: const Text('Yeni duyuru öner'),
+              ),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+
+  List<AnnouncementItem> _getSortedItems() {
+    final sorted = [..._items];
+    sorted.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return sorted;
+  }
+
+  Widget _buildHeroAnnouncementCard(AnnouncementItem item, bool isAdmin) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Stack(
+          children: [
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: _buildAnnouncementImage(item),
+              ),
+            ),
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.5),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 16,
+              left: 16,
+              right: 16,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    item.title,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).sdal.accent.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          '📢',
+                          style: TextStyle(fontSize: 14),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'En yeni duyuru',
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelSmall
+                              ?.copyWith(
+                            color: Theme.of(context)
+                                .sdal
+                                .foregroundOnAccent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              top: 12,
+              right: 12,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => context.push('/announcements/${item.id}'),
+                  customBorder: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_outward,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _metaLine(context, item.createdAt, item.creatorHandle, item.approved),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).sdal.foregroundMuted,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _plainText(item.body),
+                style: Theme.of(context).textTheme.bodyMedium,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (isAdmin) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: PopupMenuButton<String>(
+                    onSelected: (value) async {
+                      if (value == 'approve') {
+                        await _approveAnnouncement(item.id, approved: true);
+                        return;
+                      }
+                      if (value == 'reject') {
+                        await _approveAnnouncement(item.id, approved: false);
+                        return;
+                      }
+                      if (value == 'delete') {
+                        await _deleteAnnouncement(item.id);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      if (!item.approved)
+                        const PopupMenuItem<String>(
+                          value: 'approve',
+                          child: Text('Onayla'),
+                        ),
+                      if (item.approved)
+                        const PopupMenuItem<String>(
+                          value: 'reject',
+                          child: Text('Yayından kaldır'),
+                        ),
+                      const PopupMenuItem<String>(
+                        value: 'delete',
+                        child: Text('Sil'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAnnouncementCard(AnnouncementItem item, bool isAdmin) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => context.push('/announcements/${item.id}'),
+        child: SurfaceCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      width: 100,
+                      height: 64,
+                      child: _buildAnnouncementImage(item),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.title,
+                          style: Theme.of(context).textTheme.titleSmall,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _metaLine(context, item.createdAt, item.creatorHandle, item.approved),
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).sdal.foregroundMuted,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (isAdmin)
+                    PopupMenuButton<String>(
+                      onSelected: (value) async {
+                        if (value == 'approve') {
+                          await _approveAnnouncement(item.id, approved: true);
+                          return;
+                        }
+                        if (value == 'reject') {
+                          await _approveAnnouncement(item.id, approved: false);
+                          return;
+                        }
+                        if (value == 'delete') {
+                          await _deleteAnnouncement(item.id);
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        if (!item.approved)
+                          const PopupMenuItem<String>(
+                            value: 'approve',
+                            child: Text('Onayla'),
+                          ),
+                        if (item.approved)
+                          const PopupMenuItem<String>(
+                            value: 'reject',
+                            child: Text('Yayından kaldır'),
+                          ),
+                        const PopupMenuItem<String>(
+                          value: 'delete',
+                          child: Text('Sil'),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnnouncementImage(AnnouncementItem item) {
+    if (item.image.isNotEmpty) {
+      return SdalNetworkImage(
+        imageUrl: item.image,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorFallback: _buildPlaceholderImage(),
+      );
+    }
+    return _buildPlaceholderImage();
+  }
+
+  Widget _buildPlaceholderImage() {
+    return Container(
+      color: Theme.of(context).sdal.panelMuted,
+      child: Center(
+        child: Icon(
+          Icons.campaign_outlined,
+          size: 64,
+          color: Theme.of(context).sdal.foregroundMuted,
         ),
       ),
     );

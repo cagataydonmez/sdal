@@ -9,8 +9,10 @@ import '../../features/albums/presentation/album_photo_page.dart';
 import '../../features/albums/presentation/album_upload_page.dart';
 import '../../features/albums/presentation/albums_page.dart';
 import '../../features/community/presentation/announcements_page.dart';
+import '../../features/community/presentation/announcements_create_page.dart';
 import '../../features/community/presentation/entity_detail_page.dart';
 import '../../features/community/presentation/events_page.dart';
+import '../../features/community/presentation/events_create_page.dart';
 import '../../features/admin/presentation/admin_pages.dart';
 import '../../features/admin/presentation/admin_root_pages.dart';
 import '../../features/admin/presentation/admin_workspace_pages.dart';
@@ -193,9 +195,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
-      StatefulShellRoute.indexedStack(
+      StatefulShellRoute(
         builder: (context, state, navigationShell) =>
             AppTabShell(navigationShell: navigationShell),
+        navigatorContainerBuilder: buildAppTabNavigationContainer,
         branches: [
           StatefulShellBranch(
             routes: [
@@ -251,6 +254,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 pageBuilder: (context, state) => _slidePage(const EventsPage()),
                 routes: [
                   GoRoute(
+                    path: 'create',
+                    pageBuilder: (context, state) => _slidePage(const EventsCreatePage()),
+                  ),
+                  GoRoute(
                     path: ':eventId',
                     pageBuilder: (context, state) => _slidePage(
                       EventDetailPage(
@@ -265,6 +272,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 pageBuilder: (context, state) =>
                     _slidePage(const AnnouncementsPage()),
                 routes: [
+                  GoRoute(
+                    path: 'create',
+                    pageBuilder: (context, state) => _slidePage(const AnnouncementsCreatePage()),
+                  ),
                   GoRoute(
                     path: ':announcementId',
                     pageBuilder: (context, state) => _slidePage(
