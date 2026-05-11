@@ -10,6 +10,39 @@ import '../session/session_controller.dart';
 import '../shell/shell_metadata_repository.dart';
 import '../theme/sdal_theme_tokens.dart';
 
+class _DragOffsetInheritedWidget extends InheritedWidget {
+  const _DragOffsetInheritedWidget({
+    required this.dragOffset,
+    required super.child,
+  });
+
+  final double dragOffset;
+
+  @override
+  bool updateShouldNotify(_DragOffsetInheritedWidget oldWidget) =>
+      dragOffset != oldWidget.dragOffset;
+
+  static double of(BuildContext context) {
+    return context
+            .dependOnInheritedWidgetOfExactType<_DragOffsetInheritedWidget>()
+            ?.dragOffset ??
+        0;
+  }
+}
+
+Widget buildAppTabNavigationContainer(
+  BuildContext context,
+  StatefulNavigationShell navigationShell,
+  List<Widget> children,
+) {
+  final dragOffset = _DragOffsetInheritedWidget.of(context);
+  return _SlidingTabBranchContainer(
+    currentIndex: navigationShell.currentIndex,
+    children: children,
+    dragOffset: dragOffset,
+  );
+}
+
 class AppTabShell extends ConsumerStatefulWidget {
   const AppTabShell({super.key, required this.navigationShell});
 
@@ -21,13 +54,66 @@ class AppTabShell extends ConsumerStatefulWidget {
 
 class _AppTabShellState extends ConsumerState<AppTabShell> {
   static const _messengerTabIndex = 2;
+  static const _tabRootPaths = <String>[
+    '/feed',
+    '/explore',
+    '/messenger',
+    '/notifications',
+    '/profile',
+  ];
+  static const _swipeDistanceThreshold = 96.0;
+  static const _swipeVelocityThreshold = 450.0;
   int _lastIndex = -1;
+  double _horizontalDragDistance = 0;
 
   void _onTap(int index) {
     widget.navigationShell.goBranch(
       index,
       initialLocation: index == widget.navigationShell.currentIndex,
     );
+  }
+
+  void _onHorizontalDragStart(DragStartDetails details) {
+    _horizontalDragDistance = 0;
+  }
+
+  void _onHorizontalDragUpdate(DragUpdateDetails details) {
+    _horizontalDragDistance += details.primaryDelta ?? 0;
+    setState(() {});
+  }
+
+  void _onHorizontalDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    final direction = velocity.abs() >= _swipeVelocityThreshold
+        ? velocity.sign
+        : _horizontalDragDistance.abs() >= _swipeDistanceThreshold
+        ? _horizontalDragDistance.sign
+        : 0.0;
+
+    if (direction == 0) {
+      _horizontalDragDistance = 0;
+      setState(() {});
+      return;
+    }
+
+    final currentIndex = widget.navigationShell.currentIndex;
+    final targetIndex = direction < 0 ? currentIndex + 1 : currentIndex - 1;
+    if (targetIndex < 0 || targetIndex >= _tabRootPaths.length) {
+      _horizontalDragDistance = 0;
+      setState(() {});
+      return;
+    }
+
+    _horizontalDragDistance = 0;
+    widget.navigationShell.goBranch(targetIndex);
+  }
+
+  bool _canSwipeBetweenTabs(BuildContext context) {
+    try {
+      return _tabRootPaths.contains(GoRouterState.of(context).uri.path);
+    } catch (_) {
+      return true;
+    }
   }
 
   @override
@@ -74,6 +160,7 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
       localUnreadNotifications,
       shellMenu?.badgeForRoute('/notifications') ?? 0,
     );
+    final canSwipeBetweenTabs = _canSwipeBetweenTabs(context);
     return Scaffold(
       body: Column(
         children: [
@@ -85,7 +172,24 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
             _VerificationRequiredBanner(
               onTap: () => context.go('/profile/verification'),
             ),
-          Expanded(child: widget.navigationShell),
+          Expanded(
+            child: _DragOffsetInheritedWidget(
+              dragOffset: _horizontalDragDistance,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onHorizontalDragStart: canSwipeBetweenTabs
+                    ? _onHorizontalDragStart
+                    : null,
+                onHorizontalDragUpdate: canSwipeBetweenTabs
+                    ? _onHorizontalDragUpdate
+                    : null,
+                onHorizontalDragEnd: canSwipeBetweenTabs
+                    ? _onHorizontalDragEnd
+                    : null,
+                child: widget.navigationShell,
+              ),
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -139,6 +243,129 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SlidingTabBranchContainer extends StatefulWidget {
+  const _SlidingTabBranchContainer({
+    required this.currentIndex,
+    required this.children,
+    required this.dragOffset,
+  });
+
+  final int currentIndex;
+  final List<Widget> children;
+  final double dragOffset;
+
+  @override
+  State<_SlidingTabBranchContainer> createState() =>
+      _SlidingTabBranchContainerState();
+}
+
+class _SlidingTabBranchContainerState extends State<_SlidingTabBranchContainer>
+    with SingleTickerProviderStateMixin {
+  static const _duration = Duration(milliseconds: 220);
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
+  int? _previousIndex;
+  int _direction = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: _duration)
+      ..value = 1;
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _SlidingTabBranchContainer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentIndex == widget.currentIndex) return;
+    _previousIndex = oldWidget.currentIndex;
+    _direction = widget.currentIndex > oldWidget.currentIndex ? 1 : -1;
+    _controller.forward(from: 0).whenComplete(() {
+      if (mounted) setState(() => _previousIndex = null);
+    });
+  }
+
+  double _getScreenWidth(BuildContext context) {
+    return MediaQuery.of(context).size.width;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, _) {
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            for (var index = 0; index < widget.children.length; index++)
+              _buildBranch(index, widget.children[index]),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildBranch(int index, Widget child) {
+    final isCurrent = index == widget.currentIndex;
+    final isPrevious = index == _previousIndex;
+    final isVisible = isCurrent || isPrevious;
+
+    if (!isVisible) {
+      return Offstage(
+        offstage: true,
+        child: TickerMode(enabled: false, child: child),
+      );
+    }
+
+    return Builder(
+      builder: (context) {
+        final screenWidth = _getScreenWidth(context);
+        final isDragging = widget.dragOffset.abs() > 0;
+
+        if (isDragging) {
+          final dragProgress = (widget.dragOffset.abs() / screenWidth).clamp(0.0, 1.0);
+          final dragDirection = widget.dragOffset.sign;
+
+          final offset = isCurrent
+              ? Offset(dragDirection * dragProgress, 0)
+              : Offset(-dragDirection * dragProgress, 0);
+
+          return FractionalTranslation(
+            translation: offset,
+            child: IgnorePointer(
+              ignoring: !isCurrent,
+              child: TickerMode(enabled: isCurrent, child: child),
+            ),
+          );
+        }
+
+        final progress = _animation.value;
+        final offset = isCurrent
+            ? Offset(_direction * (1 - progress), 0)
+            : Offset(-_direction * progress, 0);
+
+        return FractionalTranslation(
+          translation: offset,
+          child: IgnorePointer(
+            ignoring: !isCurrent,
+            child: TickerMode(enabled: isCurrent, child: child),
+          ),
+        );
+      },
     );
   }
 }
