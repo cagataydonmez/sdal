@@ -24,7 +24,11 @@ export function registerOpportunityRoutes(app, {
   isFormattedContentEmpty,
   ensureJobApplicationsTable,
   ensureVerifiedSocialHubMember,
-  buildOpportunityInboxPayload
+  buildOpportunityInboxPayload,
+  uploadRateLimit,
+  postUpload,
+  processDiskImageUpload,
+  uploadImagePresets
 }) {
   app.get('/api/new/opportunities', requireAuth, opportunityEndpointRateLimit, async (req, res) => {
     try {
@@ -98,6 +102,42 @@ export function registerOpportunityRoutes(app, {
     );
 
     res.json({ items: rows, hasMore: rows.length === limit });
+  });
+
+  app.post('/api/new/jobs/upload', requireAuth, uploadRateLimit, postUpload.single('image'), async (req, res) => {
+    if (!ensureVerifiedSocialHubMember(req, res)) return;
+    ensureJobApplicationsTable();
+    try {
+      const company = sanitizePlainUserText(String(req.body?.company || '').trim(), 140);
+      const title = sanitizePlainUserText(String(req.body?.title || '').trim(), 180);
+      const description = formatUserText(String(req.body?.description || ''));
+      const location = sanitizePlainUserText(String(req.body?.location || '').trim(), 120);
+      const jobType = sanitizePlainUserText(String(req.body?.job_type || '').trim(), 60);
+      const workMode = sanitizePlainUserText(String(req.body?.work_mode || '').trim(), 60);
+      const link = sanitizePlainUserText(String(req.body?.link || '').trim(), 500);
+      if (!company || !title || isFormattedContentEmpty(description)) {
+        return res.status(400).send('Şirket, başlık ve açıklama gerekli.');
+      }
+      if (link && !/^https?:\/\//i.test(link)) return res.status(400).send('Link http:// veya https:// ile başlamalı.');
+      let imageUrl = null;
+      if (req.file?.path) {
+        const processedUpload = await processDiskImageUpload({
+          req, res, file: req.file, bucket: 'job_image', preset: uploadImagePresets.jobImage
+        });
+        if (!processedUpload.ok) return res.status(processedUpload.statusCode).send(processedUpload.message);
+        imageUrl = processedUpload.url;
+      }
+      const now = new Date().toISOString();
+      const result = await sqlRunAsync(
+        `INSERT INTO jobs (poster_id, company, title, description, location, job_type, work_mode, link, image, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [req.session.userId, company, title, description, location, jobType, workMode || null, link || null, imageUrl, now]
+      );
+      return res.json({ ok: true, id: result?.lastInsertRowid });
+    } catch (err) {
+      console.error('jobs.upload failed:', err);
+      if (!res.headersSent) return res.status(500).send('İş ilanı oluşturulamadı.');
+    }
   });
 
   app.get('/api/new/jobs/:id', requireAuth, async (req, res) => {
@@ -266,11 +306,13 @@ export function registerOpportunityRoutes(app, {
 
   app.post('/api/new/jobs', requireAuth, async (req, res) => {
     if (!ensureVerifiedSocialHubMember(req, res)) return;
+    ensureJobApplicationsTable();
     const company = sanitizePlainUserText(String(req.body?.company || '').trim(), 140);
     const title = sanitizePlainUserText(String(req.body?.title || '').trim(), 180);
     const description = formatUserText(String(req.body?.description || ''));
     const location = sanitizePlainUserText(String(req.body?.location || '').trim(), 120);
     const jobType = sanitizePlainUserText(String(req.body?.job_type || '').trim(), 60);
+    const workMode = sanitizePlainUserText(String(req.body?.work_mode || '').trim(), 60);
     const link = sanitizePlainUserText(String(req.body?.link || '').trim(), 500);
     if (!company || !title || isFormattedContentEmpty(description)) {
       return res.status(400).send('Şirket, başlık ve açıklama gerekli.');
@@ -278,9 +320,9 @@ export function registerOpportunityRoutes(app, {
     if (link && !/^https?:\/\//i.test(link)) return res.status(400).send('Link http:// veya https:// ile başlamalı.');
     const now = new Date().toISOString();
     const result = await sqlRunAsync(
-      `INSERT INTO jobs (poster_id, company, title, description, location, job_type, link, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.session.userId, company, title, description, location, jobType, link || null, now]
+      `INSERT INTO jobs (poster_id, company, title, description, location, job_type, work_mode, link, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.session.userId, company, title, description, location, jobType, workMode || null, link || null, now]
     );
     res.json({ ok: true, id: result?.lastInsertRowid });
   });

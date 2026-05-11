@@ -3610,7 +3610,8 @@ const uploadImagePresets = Object.freeze({
   postImage: { width: 1900, height: 1900, fit: 'inside', quality: 84, background: '#ffffff' },
   groupCover: { width: 1800, height: 1000, fit: 'contain', quality: 84, background: '#f4f1ec' },
   eventImage: { width: 1900, height: 1900, fit: 'inside', quality: 84, background: '#ffffff' },
-  announcementImage: { width: 1900, height: 1900, fit: 'inside', quality: 84, background: '#ffffff' }
+  announcementImage: { width: 1900, height: 1900, fit: 'inside', quality: 84, background: '#ffffff' },
+  jobImage: { width: 1900, height: 1200, fit: 'inside', quality: 84, background: '#ffffff' }
 });
 
 function walkDirStats(rootDir) {
@@ -5030,6 +5031,12 @@ function ensureJobApplicationsTable() {
   }
   sqlRun('CREATE INDEX IF NOT EXISTS idx_job_applications_job ON job_applications (job_id, created_at DESC)');
   sqlRun('CREATE INDEX IF NOT EXISTS idx_job_applications_applicant ON job_applications (applicant_id, created_at DESC)');
+  if (!hasColumn('jobs', 'image')) {
+    try { sqlRun('ALTER TABLE jobs ADD COLUMN image TEXT'); } catch {}
+  }
+  if (!hasColumn('jobs', 'work_mode')) {
+    try { sqlRun('ALTER TABLE jobs ADD COLUMN work_mode TEXT'); } catch {}
+  }
 }
 
 registerNetworkRequestRoutes(app, {
