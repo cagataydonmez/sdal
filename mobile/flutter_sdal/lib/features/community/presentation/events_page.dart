@@ -121,7 +121,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                 _buildHeroEventCard(heroItem),
                 const SizedBox(height: 24),
               ],
-              ...otherItems.map(_buildEventCard),
+              ...otherItems.map((item) => _buildEventCard(item)),
             ],
             if (_isLoadingMore)
               const Padding(
