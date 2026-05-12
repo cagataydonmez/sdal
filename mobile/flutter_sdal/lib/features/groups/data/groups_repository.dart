@@ -583,6 +583,7 @@ class GroupsRepository {
     required String location,
     required String startsAt,
     required String endsAt,
+    bool showInFeed = true,
   }) {
     return _apiClient.post<dynamic>(
       '/api/new/groups/$groupId/events',
@@ -592,6 +593,7 @@ class GroupsRepository {
         'location': location,
         'starts_at': startsAt,
         'ends_at': endsAt,
+        'show_in_feed': showInFeed ? '1' : '0',
       },
     );
   }
@@ -609,10 +611,11 @@ class GroupsRepository {
     required int groupId,
     required String title,
     required String body,
+    bool showInFeed = true,
   }) {
     return _apiClient.post<dynamic>(
       '/api/new/groups/$groupId/announcements',
-      body: {'title': title, 'body': body},
+      body: {'title': title, 'body': body, 'show_in_feed': showInFeed ? '1' : '0'},
     );
   }
 

@@ -19,6 +19,7 @@ class JobsActionController extends Notifier<AsyncActionState> {
     required String workMode,
     required String link,
     File? imageFile,
+    bool showInFeed = true,
   }) async {
     state = const AsyncActionState.loading(scope: 'jobs:create');
     final result = await _repository.createJob(
@@ -30,6 +31,7 @@ class JobsActionController extends Notifier<AsyncActionState> {
       workMode: workMode,
       link: link,
       imageFile: imageFile,
+      showInFeed: showInFeed,
     );
     if (result.ok) {
       state = const AsyncActionState.success(scope: 'jobs:create');

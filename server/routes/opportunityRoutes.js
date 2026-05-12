@@ -129,13 +129,14 @@ export function registerOpportunityRoutes(app, {
         imageUrl = processedUpload.url;
       }
       const now = new Date().toISOString();
+      const showInFeed = req.body?.show_in_feed === false || req.body?.show_in_feed === 'false' || req.body?.show_in_feed === '0' ? 0 : 1;
       const result = await sqlRunAsync(
-        `INSERT INTO jobs (poster_id, company, title, description, location, job_type, work_mode, link, image, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [req.session.userId, company, title, description, location, jobType, workMode || null, link || null, imageUrl, now]
+        `INSERT INTO jobs (poster_id, company, title, description, location, job_type, work_mode, link, image, created_at, show_in_feed)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [req.session.userId, company, title, description, location, jobType, workMode || null, link || null, imageUrl, now, showInFeed]
       );
       const newJobId = Number(result?.lastInsertRowid || 0);
-      if (newJobId && createEntityFeedPost) {
+      if (newJobId && showInFeed && createEntityFeedPost) {
         createEntityFeedPost({ entityType: 'job', entityId: newJobId, title, excerpt: '', groupId: null, userId: Number(req.session.userId), createdAt: now }).catch(() => {});
       }
       return res.json({ ok: true, id: newJobId });
@@ -382,13 +383,14 @@ export function registerOpportunityRoutes(app, {
     }
     if (link && !/^https?:\/\//i.test(link)) return res.status(400).send('Link http:// veya https:// ile başlamalı.');
     const now = new Date().toISOString();
+    const showInFeed = req.body?.show_in_feed === false || req.body?.show_in_feed === 'false' || req.body?.show_in_feed === '0' ? 0 : 1;
     const result = await sqlRunAsync(
-      `INSERT INTO jobs (poster_id, company, title, description, location, job_type, work_mode, link, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.session.userId, company, title, description, location, jobType, workMode || null, link || null, now]
+      `INSERT INTO jobs (poster_id, company, title, description, location, job_type, work_mode, link, created_at, show_in_feed)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.session.userId, company, title, description, location, jobType, workMode || null, link || null, now, showInFeed]
     );
     const newJobId = Number(result?.lastInsertRowid || 0);
-    if (newJobId && createEntityFeedPost) {
+    if (newJobId && showInFeed && createEntityFeedPost) {
       createEntityFeedPost({ entityType: 'job', entityId: newJobId, title, excerpt: '', groupId: null, userId: Number(req.session.userId), createdAt: now }).catch(() => {});
     }
     res.json({ ok: true, id: newJobId });

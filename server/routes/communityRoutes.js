@@ -388,9 +388,10 @@ export function registerCommunityRoutes(app, {
       const isAdmin = hasAdminSession(req, user);
       const now = new Date().toISOString();
       const groupId = req.body?.group_id ? Number(req.body.group_id) : null;
+      const showInFeed = req.body?.show_in_feed === false || req.body?.show_in_feed === 'false' || req.body?.show_in_feed === '0' ? 0 : 1;
       const result = await sqlRunAsync(
-        `INSERT INTO announcements (title, body, image, created_at, created_by, approved, approved_by, approved_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO announcements (title, body, image, created_at, created_by, approved, approved_by, approved_at, show_in_feed)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           title,
           formattedBody,
@@ -399,10 +400,11 @@ export function registerCommunityRoutes(app, {
           req.session.userId,
           toDbFlagForColumn('announcements', 'approved', isAdmin),
           isAdmin ? req.session.userId : null,
-          isAdmin ? now : null
+          isAdmin ? now : null,
+          showInFeed
         ]
       );
-      if (isAdmin && createEntityFeedPost) {
+      if (isAdmin && showInFeed && createEntityFeedPost) {
         createEntityFeedPost({
           entityType: 'announcement',
           entityId: Number(result?.lastInsertRowid || 0),
@@ -441,9 +443,10 @@ export function registerCommunityRoutes(app, {
       }
       const now = new Date().toISOString();
       const groupId = req.body?.group_id ? Number(req.body.group_id) : null;
+      const showInFeed = req.body?.show_in_feed === false || req.body?.show_in_feed === 'false' || req.body?.show_in_feed === '0' ? 0 : 1;
       const result = await sqlRunAsync(
-        `INSERT INTO announcements (title, body, image, created_at, created_by, approved, approved_by, approved_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO announcements (title, body, image, created_at, created_by, approved, approved_by, approved_at, show_in_feed)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           title,
           body,
@@ -452,10 +455,11 @@ export function registerCommunityRoutes(app, {
           req.session.userId,
           toDbFlagForColumn('announcements', 'approved', isAdmin),
           isAdmin ? req.session.userId : null,
-          isAdmin ? now : null
+          isAdmin ? now : null,
+          showInFeed
         ]
       );
-      if (isAdmin && createEntityFeedPost) {
+      if (isAdmin && showInFeed && createEntityFeedPost) {
         createEntityFeedPost({
           entityType: 'announcement',
           entityId: Number(result?.lastInsertRowid || 0),
@@ -496,7 +500,7 @@ export function registerCommunityRoutes(app, {
             : `"${announcement.title || 'Duyuru'}" duyurun reddedildi.`
         });
       }
-      if (approved && announcement && createEntityFeedPost) {
+      if (approved && announcement && Number(announcement.show_in_feed ?? 1) !== 0 && createEntityFeedPost) {
         createEntityFeedPost({
           entityType: 'announcement',
           entityId: Number(announcement.id),

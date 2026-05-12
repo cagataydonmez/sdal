@@ -36,6 +36,7 @@ class _JobsCreatePageState extends ConsumerState<JobsCreatePage> {
   String? _selectedJobType;
   String? _selectedWorkMode;
   File? _imageFile;
+  bool _showInFeed = true;
 
   @override
   void initState() {
@@ -222,7 +223,15 @@ class _JobsCreatePageState extends ConsumerState<JobsCreatePage> {
               child: Image.file(_imageFile!, height: 180, fit: BoxFit.cover, width: double.infinity),
             ),
           ],
-          const SizedBox(height: 24),
+          const SizedBox(height: 8),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Ana akışta göster'),
+            subtitle: const Text('İlan herkese açık akışta görünsün'),
+            value: _showInFeed,
+            onChanged: isSaving ? null : (v) => setState(() => _showInFeed = v),
+          ),
+          const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: isSaving ? null : _create,
             icon: const Icon(Icons.check_outlined),
@@ -260,6 +269,7 @@ class _JobsCreatePageState extends ConsumerState<JobsCreatePage> {
       workMode: _selectedWorkMode ?? '',
       link: link,
       imageFile: _imageFile,
+      showInFeed: _showInFeed,
     );
     if (!mounted) return;
     final state = ref.read(jobsActionControllerProvider);

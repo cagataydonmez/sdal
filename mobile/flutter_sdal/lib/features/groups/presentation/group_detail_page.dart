@@ -1689,6 +1689,7 @@ class _EventSheetState extends ConsumerState<_EventSheet> {
   final _locationController = TextEditingController();
   final _startsAtController = TextEditingController();
   final _endsAtController = TextEditingController();
+  bool _showInFeed = true;
 
   @override
   void dispose() {
@@ -1755,7 +1756,14 @@ class _EventSheetState extends ConsumerState<_EventSheet> {
               l10n.groupEventScheduleHint,
               style: Theme.of(context).textTheme.bodySmall,
             ),
-            const SizedBox(height: 16),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Topluluk akışında göster'),
+              subtitle: const Text('Etkinlik ana akışta herkese görünsün'),
+              value: _showInFeed,
+              onChanged: state.isLoading ? null : (v) => setState(() => _showInFeed = v),
+            ),
+            const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               child: FilledButton(
@@ -1771,6 +1779,7 @@ class _EventSheetState extends ConsumerState<_EventSheet> {
                               location: _locationController.text.trim(),
                               startsAt: _startsAtController.text.trim(),
                               endsAt: _endsAtController.text.trim(),
+                              showInFeed: _showInFeed,
                             );
                         if (!context.mounted || !ok) return;
                         ref.invalidate(groupDetailProvider(widget.groupId));
@@ -1803,6 +1812,7 @@ class _AnnouncementSheet extends ConsumerStatefulWidget {
 class _AnnouncementSheetState extends ConsumerState<_AnnouncementSheet> {
   final _titleController = TextEditingController();
   final _bodyController = TextEditingController();
+  bool _showInFeed = true;
 
   @override
   void dispose() {
@@ -1843,7 +1853,14 @@ class _AnnouncementSheetState extends ConsumerState<_AnnouncementSheet> {
               labelText: l10n.groupAnnouncementBodyLabel,
             ),
           ),
-          const SizedBox(height: 16),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Topluluk akışında göster'),
+            subtitle: const Text('Duyuru ana akışta herkese görünsün'),
+            value: _showInFeed,
+            onChanged: state.isLoading ? null : (v) => setState(() => _showInFeed = v),
+          ),
+          const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
             child: FilledButton(
@@ -1856,6 +1873,7 @@ class _AnnouncementSheetState extends ConsumerState<_AnnouncementSheet> {
                             groupId: widget.groupId,
                             title: _titleController.text.trim(),
                             body: _bodyController.text.trim(),
+                            showInFeed: _showInFeed,
                           );
                       if (!context.mounted || !ok) return;
                       ref.invalidate(groupDetailProvider(widget.groupId));

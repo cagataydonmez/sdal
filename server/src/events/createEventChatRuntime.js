@@ -24,7 +24,7 @@ export function createEventChatRuntime({
     );
     if (existing.length > 0) return;
 
-    const typeLabel = entityType === 'event' ? '📅 Etkinlik' : entityType === 'job' ? '💼 İş İlanı' : '📢 Duyuru';
+    const typeLabel = entityType === 'event' || entityType === 'group_event' ? '📅 Etkinlik' : entityType === 'job' ? '💼 İş İlanı' : '📢 Duyuru';
     const trimmedExcerpt = (excerpt || '').replace(/<[^>]*>/g, '').trim().slice(0, 220);
     const content = trimmedExcerpt
       ? `${typeLabel}: ${title}\n\n${trimmedExcerpt}`
@@ -142,6 +142,8 @@ export function createEventChatRuntime({
     addColumn('show_response_counts', toDbFlagForColumn('events', 'show_response_counts', true));
     addColumn('show_attendee_names', toDbFlagForColumn('events', 'show_attendee_names', false));
     addColumn('show_decliner_names', toDbFlagForColumn('events', 'show_decliner_names', false));
+    const showInFeed = req.body?.show_in_feed === false || req.body?.show_in_feed === 'false' || req.body?.show_in_feed === '0' ? 0 : 1;
+    addColumn('show_in_feed', showInFeed);
 
     if (!columns.length || !columns.includes('title')) {
       throw new Error('events_table_missing_required_columns');
@@ -159,7 +161,7 @@ export function createEventChatRuntime({
       message: 'Etkinlik aciklamasinda senden bahsetti.'
     });
     const eventId = Number(result?.lastInsertRowid || 0);
-    if (isAdmin && eventId) {
+    if (isAdmin && eventId && showInFeed) {
       const groupId = req.body?.group_id ? Number(req.body.group_id) : null;
       createEntityFeedPost({
         entityType: 'event',

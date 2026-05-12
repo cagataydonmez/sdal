@@ -311,17 +311,23 @@ class CommunityRepository {
     required String title,
     required String body,
     File? imageFile,
+    bool showInFeed = true,
   }) {
+    final fields = <String, dynamic>{
+      'title': title,
+      'body': body,
+      'show_in_feed': showInFeed ? '1' : '0',
+    };
     if (imageFile != null) {
       return _apiClient.multipart<dynamic>(
         '/api/new/announcements/upload',
         files: {'image': imageFile},
-        fields: {'title': title, 'body': body},
+        fields: fields,
       );
     }
     return _apiClient.post<dynamic>(
       '/api/new/announcements',
-      body: {'title': title, 'body': body},
+      body: fields,
     );
   }
 
@@ -364,6 +370,7 @@ class CommunityRepository {
     required String startsAt,
     required String endsAt,
     File? imageFile,
+    bool showInFeed = true,
   }) {
     final fields = <String, dynamic>{
       'title': title,
@@ -371,6 +378,7 @@ class CommunityRepository {
       'location': location,
       'starts_at': startsAt,
       'ends_at': endsAt,
+      'show_in_feed': showInFeed ? '1' : '0',
     };
     if (imageFile != null) {
       return _apiClient.multipart<dynamic>(

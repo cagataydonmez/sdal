@@ -20,6 +20,7 @@ class _AnnouncementsCreatePageState
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _bodyController = TextEditingController();
   File? _imageFile;
+  bool _showInFeed = true;
 
   @override
   void dispose() {
@@ -80,7 +81,15 @@ class _AnnouncementsCreatePageState
               ),
             ),
           ],
-          const SizedBox(height: 24),
+          const SizedBox(height: 8),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Ana akışta göster'),
+            subtitle: const Text('Duyuru herkese açık akışta görünsün'),
+            value: _showInFeed,
+            onChanged: isSaving ? null : (v) => setState(() => _showInFeed = v),
+          ),
+          const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: isSaving ? null : _create,
             icon: const Icon(Icons.check_outlined),
@@ -120,7 +129,7 @@ class _AnnouncementsCreatePageState
     }
     final ok = await ref
         .read(communityActionControllerProvider.notifier)
-        .createAnnouncement(title: title, body: body, imageFile: _imageFile);
+        .createAnnouncement(title: title, body: body, imageFile: _imageFile, showInFeed: _showInFeed);
     if (!mounted) return;
     final state = ref.read(communityActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(

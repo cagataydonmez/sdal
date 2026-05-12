@@ -23,7 +23,8 @@ export function registerCommunityGroupRoutes(app, {
   groupUpload,
   postUpload,
   processDiskImageUpload,
-  uploadImagePresets
+  uploadImagePresets,
+  createEntityFeedPost,
 }) {
   app.get('/api/new/groups', requireAuth, async (req, res) => {
     try {
@@ -894,12 +895,24 @@ export function registerCommunityGroupRoutes(app, {
       const location = sanitizePlainUserText(String(req.body?.location || '').trim(), 180);
       const startsAt = String(req.body?.starts_at || '');
       const endsAt = String(req.body?.ends_at || '');
+      const showInFeed = req.body?.show_in_feed === false || req.body?.show_in_feed === 'false' || req.body?.show_in_feed === '0' ? 0 : 1;
       const result = await sqlRunAsync(
-        `INSERT INTO group_events (group_id, title, description, location, starts_at, ends_at, created_at, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [groupId, title, desc, location, startsAt, endsAt, now, req.session.userId]
+        `INSERT INTO group_events (group_id, title, description, location, starts_at, ends_at, created_at, created_by, show_in_feed)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [groupId, title, desc, location, startsAt, endsAt, now, req.session.userId, showInFeed]
       );
       const eventId = result?.lastInsertRowid;
+      if (showInFeed && eventId && createEntityFeedPost) {
+        createEntityFeedPost({
+          entityType: 'group_event',
+          entityId: Number(eventId),
+          title,
+          excerpt: req.body?.description || '',
+          groupId: Number(groupId),
+          userId: req.session.userId,
+          createdAt: now
+        }).catch(() => {});
+      }
       const groupForNotif = await sqlGetAsync('SELECT name FROM groups WHERE id = ?', [groupId]);
       const membersForNotif = await sqlAllAsync('SELECT user_id FROM group_members WHERE group_id = ?', [groupId]);
       for (const m of membersForNotif) {
@@ -966,12 +979,24 @@ export function registerCommunityGroupRoutes(app, {
       const body = formatUserText(req.body?.body || '');
       if (!title || isFormattedContentEmpty(body)) return res.status(400).send('Başlık ve içerik gerekli.');
       const now = new Date().toISOString();
+      const showInFeed = req.body?.show_in_feed === false || req.body?.show_in_feed === 'false' || req.body?.show_in_feed === '0' ? 0 : 1;
       const result = await sqlRunAsync(
-        `INSERT INTO group_announcements (group_id, title, body, created_at, created_by)
-         VALUES (?, ?, ?, ?, ?)`,
-        [groupId, title, body, now, req.session.userId]
+        `INSERT INTO group_announcements (group_id, title, body, created_at, created_by, show_in_feed)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [groupId, title, body, now, req.session.userId, showInFeed]
       );
       const announcementId = result?.lastInsertRowid;
+      if (showInFeed && announcementId && createEntityFeedPost) {
+        createEntityFeedPost({
+          entityType: 'group_announcement',
+          entityId: Number(announcementId),
+          title,
+          excerpt: req.body?.body || '',
+          groupId: Number(groupId),
+          userId: req.session.userId,
+          createdAt: now
+        }).catch(() => {});
+      }
       const groupForNotif = await sqlGetAsync('SELECT name FROM groups WHERE id = ?', [groupId]);
       const membersForNotif = await sqlAllAsync('SELECT user_id FROM group_members WHERE group_id = ?', [groupId]);
       for (const m of membersForNotif) {

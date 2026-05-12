@@ -239,6 +239,7 @@ class GroupsActionController extends Notifier<AsyncActionState> {
     required String location,
     required String startsAt,
     required String endsAt,
+    bool showInFeed = true,
   }) async {
     state = AsyncActionState.loading(scope: 'groups:event:$groupId');
     final result = await _repository.createEvent(
@@ -248,6 +249,7 @@ class GroupsActionController extends Notifier<AsyncActionState> {
       location: location,
       startsAt: startsAt,
       endsAt: endsAt,
+      showInFeed: showInFeed,
     );
     if (result.ok) {
       state = const AsyncActionState.success(scope: 'groups:event');
@@ -285,12 +287,14 @@ class GroupsActionController extends Notifier<AsyncActionState> {
     required int groupId,
     required String title,
     required String body,
+    bool showInFeed = true,
   }) async {
     state = AsyncActionState.loading(scope: 'groups:announcement:$groupId');
     final result = await _repository.createAnnouncement(
       groupId: groupId,
       title: title,
       body: body,
+      showInFeed: showInFeed,
     );
     if (result.ok) {
       state = const AsyncActionState.success(scope: 'groups:announcement');

@@ -250,6 +250,7 @@ class OpportunitiesRepository {
     required String workMode,
     required String link,
     File? imageFile,
+    bool showInFeed = true,
   }) {
     final fields = <String, dynamic>{
       'company': company,
@@ -259,6 +260,7 @@ class OpportunitiesRepository {
       'job_type': jobType,
       'work_mode': workMode,
       'link': link,
+      'show_in_feed': showInFeed ? '1' : '0',
     };
     if (imageFile != null) {
       return _apiClient.multipart<dynamic>(

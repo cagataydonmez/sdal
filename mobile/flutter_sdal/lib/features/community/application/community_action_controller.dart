@@ -13,12 +13,14 @@ class CommunityActionController extends Notifier<AsyncActionState> {
     required String title,
     required String body,
     File? imageFile,
+    bool showInFeed = true,
   }) async {
     state = const AsyncActionState.loading(scope: 'announcements:create');
     final result = await _repository.createAnnouncement(
       title: title,
       body: body,
       imageFile: imageFile,
+      showInFeed: showInFeed,
     );
     if (result.ok) {
       state = AsyncActionState.success(
@@ -93,6 +95,7 @@ class CommunityActionController extends Notifier<AsyncActionState> {
     required String startsAt,
     required String endsAt,
     File? imageFile,
+    bool showInFeed = true,
   }) async {
     state = const AsyncActionState.loading(scope: 'events:create');
     final result = await _repository.createEvent(
@@ -102,6 +105,7 @@ class CommunityActionController extends Notifier<AsyncActionState> {
       startsAt: startsAt,
       endsAt: endsAt,
       imageFile: imageFile,
+      showInFeed: showInFeed,
     );
     if (result.ok) {
       state = AsyncActionState.success(
