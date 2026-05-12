@@ -14,7 +14,7 @@ import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../../core/session/session_controller.dart';
 import '../application/jobs_action_controller.dart';
-import '../application/feed_action_controller.dart';
+import '../../feed/application/feed_action_controller.dart';
 import '../data/opportunities_repository.dart';
 
 class JobsPage extends ConsumerStatefulWidget {
@@ -57,7 +57,7 @@ class _JobsPageState extends ConsumerState<JobsPage> {
     final l10n = context.l10n;
     final tokens = Theme.of(context).sdal;
     final session = ref.watch(sessionControllerProvider).value;
-    final userId = session?.userId ?? 0;
+    final userId = session?.user?.id ?? 0;
     final actionState = ref.watch(jobsActionControllerProvider);
     final sortedItems = _getSortedItems();
 
@@ -674,7 +674,7 @@ class _JobEditDialogState extends ConsumerState<_JobEditDialog> {
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Hemen yayınla'),
-                subtitle: const Text(_showInFeed
+                subtitle: Text(_showInFeed
                     ? 'İlan taslak yerine yayınlanmış olarak kaydedilecek'
                     : 'İlan taslak olarak kaydedilecek, detay sayfasından yayınlayabilirsiniz'),
                 value: _showInFeed,

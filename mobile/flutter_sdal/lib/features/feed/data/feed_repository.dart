@@ -592,19 +592,27 @@ class FeedRepository {
     required String jobType,
     required String workMode,
     required String link,
+    File? imageFile,
+    bool? showInFeed,
   }) {
-    return _apiClient.patch<dynamic>(
-      '/api/new/jobs/$jobId',
-      body: {
-        'title': title,
-        'company': company,
-        'description': description,
-        'location': location,
-        'job_type': jobType,
-        'work_mode': workMode,
-        'link': link,
-      },
-    );
+    final fields = <String, dynamic>{
+      'title': title,
+      'company': company,
+      'description': description,
+      'location': location,
+      'job_type': jobType,
+      'work_mode': workMode,
+      'link': link,
+    };
+    if (showInFeed != null) fields['show_in_feed'] = showInFeed ? '1' : '0';
+    if (imageFile != null) {
+      return _apiClient.multipart<dynamic>(
+        '/api/new/jobs/$jobId/upload',
+        files: {'image': imageFile},
+        fields: fields,
+      );
+    }
+    return _apiClient.patch<dynamic>('/api/new/jobs/$jobId', body: fields);
   }
 
   Future<ApiResult<dynamic>> deleteJob(int jobId) {

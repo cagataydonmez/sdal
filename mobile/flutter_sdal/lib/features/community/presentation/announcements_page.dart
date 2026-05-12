@@ -16,7 +16,7 @@ import '../../../core/widgets/page_onboarding_card.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/community_action_controller.dart';
-import '../application/feed_action_controller.dart';
+import '../../feed/application/feed_action_controller.dart';
 import '../data/community_repository.dart';
 
 class AnnouncementsPage extends ConsumerStatefulWidget {
@@ -55,7 +55,7 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(sessionControllerProvider).value;
-    final userId = session?.userId ?? 0;
+    final userId = session?.user?.id ?? 0;
     final isAdmin = session?.hasAdminAccess ?? false;
     final l10n = context.l10n;
     final sortedItems = _getSortedItems();
@@ -623,7 +623,7 @@ class _AnnouncementEditDialogState extends ConsumerState<_AnnouncementEditDialog
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Hemen yayınla'),
-                subtitle: const Text(_showInFeed
+                subtitle: Text(_showInFeed
                     ? 'Duyuru taslak yerine yayınlanmış olarak kaydedilecek'
                     : 'Duyuru taslak olarak kaydedilecek, detay sayfasından yayınlayabilirsiniz'),
                 value: _showInFeed,

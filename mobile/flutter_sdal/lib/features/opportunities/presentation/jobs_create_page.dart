@@ -227,7 +227,7 @@ class _JobsCreatePageState extends ConsumerState<JobsCreatePage> {
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
             title: const Text('Hemen yayınla'),
-            subtitle: const Text(_showInFeed
+            subtitle: Text(_showInFeed
                 ? 'İlan taslak yerine yayınlanmış olarak kaydedilecek'
                 : 'İlan taslak olarak kaydedilecek, detay sayfasından yayınlayabilirsiniz'),
             value: _showInFeed,

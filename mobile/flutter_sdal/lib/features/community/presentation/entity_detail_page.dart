@@ -473,6 +473,9 @@ class _EntityDetailBodyState<T> extends ConsumerState<_EntityDetailBody<T>> {
   List<EntityComment> get _comments => widget.detail is EventDetail
       ? (widget.detail as EventDetail).comments
       : (widget.detail as AnnouncementDetail).comments;
+  bool get _approved => widget.detail is EventDetail
+      ? (widget.detail as EventDetail).item.approved
+      : (widget.detail as AnnouncementDetail).item.approved;
 
   @override
   void initState() {

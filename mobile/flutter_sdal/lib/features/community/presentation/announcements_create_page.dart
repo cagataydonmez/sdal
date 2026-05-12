@@ -85,7 +85,7 @@ class _AnnouncementsCreatePageState
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
             title: const Text('Hemen yayınla'),
-            subtitle: const Text(_showInFeed
+            subtitle: Text(_showInFeed
                 ? 'Duyuru taslak yerine yayınlanmış olarak kaydedilecek'
                 : 'Duyuru taslak olarak kaydedilecek, detay sayfasından yayınlayabilirsiniz'),
             value: _showInFeed,

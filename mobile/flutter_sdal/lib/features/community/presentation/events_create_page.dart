@@ -126,7 +126,7 @@ class _EventsCreatePageState extends ConsumerState<EventsCreatePage> {
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
             title: const Text('Hemen yayınla'),
-            subtitle: const Text(_showInFeed
+            subtitle: Text(_showInFeed
                 ? 'Etkinlik taslak yerine yayınlanmış olarak kaydedilecek'
                 : 'Etkinlik taslak olarak kaydedilecek, detay sayfasından yayınlayabilirsiniz'),
             value: _showInFeed,
