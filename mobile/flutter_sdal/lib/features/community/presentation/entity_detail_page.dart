@@ -12,47 +12,58 @@ import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../groups/data/groups_repository.dart';
+import '../application/community_action_controller.dart';
 import '../data/community_repository.dart';
 
 // ── Entry points ─────────────────────────────────────────────────────────────
 
-class EventDetailPage extends ConsumerWidget {
+class EventDetailPage extends ConsumerStatefulWidget {
   const EventDetailPage({super.key, required this.eventId});
   final int eventId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(sessionControllerProvider).value;
-    final futureProvider = FutureProvider.autoDispose<EventDetail?>((
-      ref,
-    ) async {
-      return ref.watch(communityRepositoryProvider).fetchEventDetail(eventId);
+  ConsumerState<EventDetailPage> createState() => _EventDetailPageState();
+}
+
+class _EventDetailPageState extends ConsumerState<EventDetailPage> {
+  late final FutureProvider<EventDetail?> _provider;
+
+  @override
+  void initState() {
+    super.initState();
+    _provider = FutureProvider.autoDispose<EventDetail?>((ref) async {
+      return ref.read(communityRepositoryProvider).fetchEventDetail(widget.eventId);
     });
-    final state = ref.watch(futureProvider);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(_provider);
+    final session = ref.watch(sessionControllerProvider).value;
     return FeatureScaffold(
       title: context.l10n.eventsTitle,
       child: state.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => const ErrorView(),
+        error: (_, _) => const ErrorView(),
         data: (detail) => detail == null
             ? const ErrorView()
             : _EntityDetailBody<EventDetail>(
                 detail: detail,
                 entityType: 'event',
-                entityId: eventId,
+                entityId: widget.eventId,
                 isOwner: detail.item.createdBy == (session?.user?.id ?? 0),
                 isAdmin: session?.hasAdminAccess ?? false,
-                onRefresh: () => ref.invalidate(futureProvider),
+                onRefresh: () => ref.invalidate(_provider),
                 onAddComment: (comment) => ref
                     .read(communityRepositoryProvider)
-                    .addEventComment(eventId: eventId, comment: comment),
+                    .addEventComment(eventId: widget.eventId, comment: comment),
                 onToggleLike: () => ref
                     .read(communityRepositoryProvider)
-                    .toggleEventLike(eventId),
+                    .toggleEventLike(widget.eventId),
                 onToggleInteraction: (ac, al) => ref
                     .read(communityRepositoryProvider)
                     .setEventInteractions(
-                      eventId: eventId,
+                      eventId: widget.eventId,
                       allowComments: ac,
                       allowLikes: al,
                     ),
@@ -62,48 +73,59 @@ class EventDetailPage extends ConsumerWidget {
   }
 }
 
-class AnnouncementDetailPage extends ConsumerWidget {
+class AnnouncementDetailPage extends ConsumerStatefulWidget {
   const AnnouncementDetailPage({super.key, required this.announcementId});
   final int announcementId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(sessionControllerProvider).value;
-    final futureProvider = FutureProvider.autoDispose<AnnouncementDetail?>((
-      ref,
-    ) async {
+  ConsumerState<AnnouncementDetailPage> createState() =>
+      _AnnouncementDetailPageState();
+}
+
+class _AnnouncementDetailPageState extends ConsumerState<AnnouncementDetailPage> {
+  late final FutureProvider<AnnouncementDetail?> _provider;
+
+  @override
+  void initState() {
+    super.initState();
+    _provider = FutureProvider.autoDispose<AnnouncementDetail?>((ref) async {
       return ref
-          .watch(communityRepositoryProvider)
-          .fetchAnnouncementDetail(announcementId);
+          .read(communityRepositoryProvider)
+          .fetchAnnouncementDetail(widget.announcementId);
     });
-    final state = ref.watch(futureProvider);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(_provider);
+    final session = ref.watch(sessionControllerProvider).value;
     return FeatureScaffold(
       title: context.l10n.announcementsTitle,
       child: state.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => const ErrorView(),
+        error: (_, _) => const ErrorView(),
         data: (detail) => detail == null
             ? const ErrorView()
             : _EntityDetailBody<AnnouncementDetail>(
                 detail: detail,
                 entityType: 'announcement',
-                entityId: announcementId,
+                entityId: widget.announcementId,
                 isOwner: detail.item.createdBy == (session?.user?.id ?? 0),
                 isAdmin: session?.hasAdminAccess ?? false,
-                onRefresh: () => ref.invalidate(futureProvider),
+                onRefresh: () => ref.invalidate(_provider),
                 onAddComment: (comment) => ref
                     .read(communityRepositoryProvider)
                     .addAnnouncementComment(
-                      announcementId: announcementId,
+                      announcementId: widget.announcementId,
                       comment: comment,
                     ),
                 onToggleLike: () => ref
                     .read(communityRepositoryProvider)
-                    .toggleAnnouncementLike(announcementId),
+                    .toggleAnnouncementLike(widget.announcementId),
                 onToggleInteraction: (ac, al) => ref
                     .read(communityRepositoryProvider)
                     .setAnnouncementInteractions(
-                      announcementId: announcementId,
+                      announcementId: widget.announcementId,
                       allowComments: ac,
                       allowLikes: al,
                     ),
@@ -142,7 +164,7 @@ class GroupEventDetailPage extends ConsumerWidget {
       title: 'Etkinlik',
       child: state.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => const ErrorView(),
+        error: (_, _) => const ErrorView(),
         data: (detail) => detail == null
             ? const ErrorView()
             : _GroupEntityBody(
@@ -224,7 +246,7 @@ class GroupAnnouncementDetailPage extends ConsumerWidget {
       title: 'Duyuru',
       child: state.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => const ErrorView(),
+        error: (_, _) => const ErrorView(),
         data: (detail) => detail == null
             ? const ErrorView()
             : _GroupEntityBody(
@@ -302,6 +324,9 @@ class _EntityDetailBody<T> extends ConsumerStatefulWidget {
 class _EntityDetailBodyState<T> extends ConsumerState<_EntityDetailBody<T>> {
   late bool _liked;
   late int _likeCount;
+  String _myResponse = '';
+  late int _attendCount;
+  late int _declineCount;
   final _commentController = TextEditingController();
   bool _submitting = false;
 
@@ -339,6 +364,15 @@ class _EntityDetailBodyState<T> extends ConsumerState<_EntityDetailBody<T>> {
     _likeCount = widget.detail is EventDetail
         ? (widget.detail as EventDetail).likeCount
         : (widget.detail as AnnouncementDetail).likeCount;
+    if (widget.detail is EventDetail) {
+      final ev = (widget.detail as EventDetail).item;
+      _myResponse = ev.myResponse;
+      _attendCount = ev.attendCount;
+      _declineCount = ev.declineCount;
+    } else {
+      _attendCount = 0;
+      _declineCount = 0;
+    }
   }
 
   @override
@@ -353,6 +387,26 @@ class _EntityDetailBodyState<T> extends ConsumerState<_EntityDetailBody<T>> {
       _likeCount += _liked ? 1 : -1;
     });
     await widget.onToggleLike();
+  }
+
+  Future<void> _respond(String response) async {
+    final previous = _myResponse;
+    setState(() {
+      if (_myResponse == response) {
+        if (response == 'attend') _attendCount--;
+        if (response == 'decline') _declineCount--;
+        _myResponse = '';
+      } else {
+        if (previous == 'attend') _attendCount--;
+        if (previous == 'decline') _declineCount--;
+        if (response == 'attend') _attendCount++;
+        if (response == 'decline') _declineCount++;
+        _myResponse = response;
+      }
+    });
+    await ref
+        .read(communityActionControllerProvider.notifier)
+        .respond(eventId: widget.entityId, response: response);
   }
 
   Future<void> _submitComment() async {
@@ -439,6 +493,25 @@ class _EntityDetailBodyState<T> extends ConsumerState<_EntityDetailBody<T>> {
                   ),
                 ],
                 if (isEvent) _buildEventExtras(context),
+                if (isEvent) ...[
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      FilterChip(
+                        label: Text('Katılacağım ($_attendCount)'),
+                        selected: _myResponse == 'attend',
+                        onSelected: (_) => _respond('attend'),
+                      ),
+                      FilterChip(
+                        label: Text('Katılamam ($_declineCount)'),
+                        selected: _myResponse == 'decline',
+                        onSelected: (_) => _respond('decline'),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 16),
                 Row(
                   children: [

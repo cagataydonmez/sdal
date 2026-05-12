@@ -32,6 +32,7 @@ class FeedPage extends ConsumerStatefulWidget {
 
 class _FeedPageState extends ConsumerState<FeedPage> {
   final List<FeedItem> _items = <FeedItem>[];
+  final Map<int, String> _entityRoutes = {};
   bool _hasMore = true;
   bool _isLoadingMore = false;
   int? _nextCursor;
@@ -49,6 +50,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
       if (previous == next || !mounted) return;
       setState(() {
         _items.clear();
+        _entityRoutes.clear();
         _hasMore = true;
         _nextCursor = null;
         _isLoadingMore = false;
@@ -61,6 +63,9 @@ class _FeedPageState extends ConsumerState<FeedPage> {
           _items
             ..clear()
             ..addAll(page.items);
+          _entityRoutes
+            ..clear()
+            ..addAll(page.entityRoutes);
           _hasMore = page.hasMore;
           _nextCursor = page.nextCursor;
           _isLoadingMore = false;
@@ -199,7 +204,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
               item.authorId != null && item.authorId! > 0;
           return InkWell(
             borderRadius: BorderRadius.circular(24),
-            onTap: () => context.push('/posts/${item.id}'),
+            onTap: () => context.push(_routeForItem(item)),
             child: Tooltip(
               message: l10n.openPostByAuthor(item.authorName),
               child: Semantics(
@@ -401,7 +406,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
                             semanticLabel: l10n.feedCommentsCount(
                               item.commentCount,
                             ),
-                            onTap: () => context.push('/posts/${item.id}'),
+                            onTap: () => context.push(_routeForItem(item)),
                           ),
                           const Spacer(),
                           if (item.updatedAt?.isNotEmpty ?? false) ...[
@@ -439,6 +444,9 @@ class _FeedPageState extends ConsumerState<FeedPage> {
     );
   }
 
+  String _routeForItem(FeedItem item) =>
+      _entityRoutes[item.id] ?? '/posts/${item.id}';
+
   Future<void> _loadMore(FeedQuery query) async {
     if (_isLoadingMore || !_hasMore) return;
     setState(() => _isLoadingMore = true);
@@ -454,6 +462,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
       if (!mounted) return;
       setState(() {
         _items.addAll(page.items);
+        _entityRoutes.addAll(page.entityRoutes);
         _hasMore = page.hasMore;
         _nextCursor = page.nextCursor;
       });

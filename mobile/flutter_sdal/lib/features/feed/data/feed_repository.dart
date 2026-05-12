@@ -261,6 +261,7 @@ class FeedPageData {
     this.offset,
     this.cursor,
     this.nextCursor,
+    this.entityRoutes = const {},
   });
 
   final List<FeedItem> items;
@@ -269,6 +270,20 @@ class FeedPageData {
   final int? offset;
   final int? cursor;
   final int? nextCursor;
+  // Maps post id → entity detail route ('/events/1', '/jobs/2', etc.)
+  final Map<int, String> entityRoutes;
+}
+
+String? _entityRouteForPost(JsonMap raw) {
+  final postType = coalesceText([raw['postType'], raw['post_type']], fallback: '');
+  final entityId = asInt(raw['entityId'] ?? raw['entity_id']);
+  if (postType.isEmpty || entityId == null || entityId <= 0) return null;
+  return switch (postType) {
+    'event' => '/events/$entityId',
+    'announcement' => '/announcements/$entityId',
+    'job' => '/jobs/$entityId',
+    _ => null,
+  };
 }
 
 class FeedRepository {
@@ -296,10 +311,17 @@ class FeedRepository {
         'filter': filter.apiValue,
       },
     );
+    final rawData = asJsonMap(result.rawData);
     final page = PagedResponse<FeedItem>.fromDynamic(
       result.rawData,
       FeedItem.fromMap,
     );
+    final entityRoutes = <int, String>{};
+    for (final raw in asJsonMapList(rawData['items'])) {
+      final id = asInt(raw['id']);
+      final route = _entityRouteForPost(raw);
+      if (id != null && route != null) entityRoutes[id] = route;
+    }
     final nextCursor =
         asInt(page.nextCursor) ??
         (page.hasMore && page.items.isNotEmpty ? page.items.last.id : null);
@@ -308,8 +330,9 @@ class FeedRepository {
       hasMore: page.hasMore,
       limit: page.limit ?? safeLimit,
       offset: safeCursor == null ? (page.offset ?? safeOffset) : null,
-      cursor: asInt(asJsonMap(result.rawData)['cursor']) ?? safeCursor,
+      cursor: asInt(rawData['cursor']) ?? safeCursor,
       nextCursor: nextCursor,
+      entityRoutes: entityRoutes,
     );
   }
 

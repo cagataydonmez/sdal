@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
 import '../../../core/network/api_client.dart';
@@ -13,7 +14,9 @@ class JobItem {
     required this.description,
     required this.location,
     required this.jobType,
+    required this.workMode,
     required this.link,
+    required this.image,
     required this.posterHandle,
     required this.createdAt,
     required this.myApplicationId,
@@ -28,7 +31,9 @@ class JobItem {
   final String description;
   final String location;
   final String jobType;
+  final String workMode;
   final String link;
+  final String image;
   final String posterHandle;
   final String createdAt;
   final int myApplicationId;
@@ -44,7 +49,9 @@ class JobItem {
       description: coalesceText([map['description']], fallback: ''),
       location: coalesceText([map['location']], fallback: ''),
       jobType: coalesceText([map['job_type']], fallback: ''),
+      workMode: coalesceText([map['work_mode']], fallback: ''),
       link: coalesceText([map['link']], fallback: ''),
+      image: coalesceText([map['image']], fallback: ''),
       posterHandle: coalesceText([map['poster_kadi']], fallback: ''),
       createdAt: coalesceText([map['created_at']], fallback: ''),
       myApplicationId: asInt(map['my_application_id']) ?? 0,
@@ -235,21 +242,27 @@ class OpportunitiesRepository {
     required String description,
     required String location,
     required String jobType,
+    required String workMode,
     required String link,
+    File? imageFile,
   }) {
-    return _apiClient.post<dynamic>(
-      '/api/new/jobs',
-      body: {
-        'company': company,
-        'title': title,
-        'description': description,
-        'city': location,
-        'location': location,
-        'type': jobType,
-        'job_type': jobType,
-        'link': link,
-      },
-    );
+    final fields = <String, dynamic>{
+      'company': company,
+      'title': title,
+      'description': description,
+      'location': location,
+      'job_type': jobType,
+      'work_mode': workMode,
+      'link': link,
+    };
+    if (imageFile != null) {
+      return _apiClient.multipart<dynamic>(
+        '/api/new/jobs/upload',
+        files: {'image': imageFile},
+        fields: fields,
+      );
+    }
+    return _apiClient.post<dynamic>('/api/new/jobs', body: fields);
   }
 
   Future<ApiResult<dynamic>> deleteJob(int jobId) {

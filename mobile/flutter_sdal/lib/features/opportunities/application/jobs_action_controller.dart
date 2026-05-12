@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/state/async_action_state.dart';
 import '../data/opportunities_repository.dart';
@@ -15,7 +16,9 @@ class JobsActionController extends Notifier<AsyncActionState> {
     required String description,
     required String location,
     required String jobType,
+    required String workMode,
     required String link,
+    File? imageFile,
   }) async {
     state = const AsyncActionState.loading(scope: 'jobs:create');
     final result = await _repository.createJob(
@@ -24,7 +27,9 @@ class JobsActionController extends Notifier<AsyncActionState> {
       description: description,
       location: location,
       jobType: jobType,
+      workMode: workMode,
       link: link,
+      imageFile: imageFile,
     );
     if (result.ok) {
       state = const AsyncActionState.success(scope: 'jobs:create');

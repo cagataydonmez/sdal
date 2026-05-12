@@ -2,6 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+TOOL_DIR="$(dirname -- "$0")"
+source "$TOOL_DIR/testflight_utils.sh"
 IOS_DIR="$ROOT_DIR/ios"
 IOS_PBXPROJ="$IOS_DIR/Runner.xcodeproj/project.pbxproj"
 FLUTTER_BIN="${FLUTTER_BIN:-$HOME/Developer/flutter/bin/flutter}"
@@ -1604,6 +1606,29 @@ PY
 
   log_testflight_signing_summary "$ipa_path"
 
+  local version current_build last_build release_notes release_notes_file
+  init_testflight_state
+  version=$(grep "^version:" "$ROOT_DIR/pubspec.yaml" | sed 's/.*: //' | sed 's/+.*//')
+  current_build=$(get_current_build_number "$ROOT_DIR")
+  last_build=$(get_last_testflight_build)
+
+  log ""
+  log "Generating release notes..."
+  log "  Current build: $current_build"
+  log "  Last uploaded build: $last_build"
+
+  if [[ "$current_build" == "$last_build" ]]; then
+    log "  ⚠️  Build number unchanged. Did you bump the version?"
+    read -r -p "Continue anyway? [y/N] " confirm < /dev/tty
+    [[ "$confirm" =~ ^[Yy]$ ]] || { log "Aborted."; exit 0; }
+  fi
+
+  release_notes=$(generate_release_notes "$ROOT_DIR" "$last_build" "HEAD")
+  release_notes=$(format_release_notes "$version" "$current_build" "$release_notes")
+  release_notes_file="$IOS_ARCHIVE_DIR/release_notes_${current_build}.txt"
+  save_release_notes "$release_notes" "$release_notes_file"
+  display_release_notes "$release_notes"
+
   log ""
   log "Step 3/3: Uploading to App Store Connect / TestFlight..."
   log "IPA: $ipa_path"
@@ -1615,6 +1640,8 @@ PY
     --apiKey "$ASC_KEY_ID" \
     --apiIssuer "$ASC_ISSUER_ID"
 
+  save_testflight_build_number "$current_build"
+
   log ""
   log "Upload complete!"
   log ""
@@ -1622,11 +1649,14 @@ PY
   log "  1. Go to: https://appstoreconnect.apple.com → Your App → TestFlight"
   log "  2. Wait for Apple to finish processing (typically 15–30 minutes)"
   log "  3. The build will appear under 'iOS Builds'"
-  log "  4. Add internal or external testers as needed"
+  log "  4. Edit the build details and add the release notes:"
+  log "     📋 Release notes file: $release_notes_file"
+  log "  5. Add internal or external testers as needed"
   log ""
   log "Artifacts saved at:"
-  log "  Archive : $archive_path"
-  log "  IPA     : $ipa_path"
+  log "  Archive       : $archive_path"
+  log "  IPA           : $ipa_path"
+  log "  Release notes : $release_notes_file"
 }
 
 print_android_github_release_instructions() {
@@ -2028,6 +2058,29 @@ PY
 
   log_testflight_signing_summary "$ipa_path"
 
+  local version current_build last_build release_notes release_notes_file
+  init_testflight_state
+  version=$(grep "^version:" "$ROOT_DIR/pubspec.yaml" | sed 's/.*: //' | sed 's/+.*//')
+  current_build=$(get_current_build_number "$ROOT_DIR")
+  last_build=$(get_last_testflight_build)
+
+  log ""
+  log "Generating release notes..."
+  log "  Current build: $current_build"
+  log "  Last uploaded build: $last_build"
+
+  if [[ "$current_build" == "$last_build" ]]; then
+    log "  ⚠️  Build number unchanged. Did you bump the version?"
+    read -r -p "Continue anyway? [y/N] " confirm < /dev/tty
+    [[ "$confirm" =~ ^[Yy]$ ]] || { log "Aborted."; exit 0; }
+  fi
+
+  release_notes=$(generate_release_notes "$ROOT_DIR" "$last_build" "HEAD")
+  release_notes=$(format_release_notes "$version" "$current_build" "$release_notes")
+  release_notes_file="$IOS_ARCHIVE_DIR/release_notes_${current_build}.txt"
+  save_release_notes "$release_notes" "$release_notes_file"
+  display_release_notes "$release_notes"
+
   log ""
   log "Step 3/3: Uploading to App Store Connect / TestFlight..."
   log "IPA: $ipa_path"
@@ -2039,6 +2092,8 @@ PY
     --apiKey "$ASC_KEY_ID" \
     --apiIssuer "$ASC_ISSUER_ID"
 
+  save_testflight_build_number "$current_build"
+
   log ""
   log "Done!"
   log ""
@@ -2046,12 +2101,15 @@ PY
   log "  1. Go to: https://appstoreconnect.apple.com -> Your App -> TestFlight"
   log "  2. Wait for Apple to finish processing (typically 15-30 minutes)"
   log "  3. The build will appear under 'iOS Builds'"
-  log "  4. SdalWatch is embedded — iPhone auto-deploys it to Apple Watch"
-  log "  5. On Watch: open the App Store app or wait for auto-install"
+  log "  4. Edit the build details and add the release notes:"
+  log "     📋 Release notes file: $release_notes_file"
+  log "  5. SdalWatch is embedded — iPhone auto-deploys it to Apple Watch"
+  log "  6. On Watch: open the App Store app or wait for auto-install"
   log ""
   log "Artifacts saved at:"
-  log "  Archive : $archive_path"
-  log "  IPA     : $ipa_path"
+  log "  Archive       : $archive_path"
+  log "  IPA           : $ipa_path"
+  log "  Release notes : $release_notes_file"
 }
 
 main() {

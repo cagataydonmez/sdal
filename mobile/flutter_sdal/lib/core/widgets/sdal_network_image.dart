@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../app/providers.dart';
 import 'image_lightbox.dart';
 import '../network/legacy_media_value.dart';
 import '../theme/sdal_theme_tokens.dart';
 
-class SdalNetworkImage extends StatelessWidget {
+class SdalNetworkImage extends ConsumerWidget {
   const SdalNetworkImage({
     super.key,
     required this.imageUrl,
@@ -36,7 +38,8 @@ class SdalNetworkImage extends StatelessWidget {
   final bool enableLightbox;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final config = ref.watch(appConfigProvider);
     final tokens = Theme.of(context).sdal;
     final fallbackPlaceholder =
         placeholder ??
@@ -68,7 +71,11 @@ class SdalNetworkImage extends StatelessWidget {
           ),
         );
 
-    final trimmed = normalizeLegacyMediaValue(imageUrl);
+    final normalized = normalizeLegacyMediaValue(imageUrl);
+    if (normalized.isEmpty) {
+      return SizedBox(width: width, height: height, child: fallbackError);
+    }
+    final trimmed = config.resolveUrl(normalized).toString();
     if (trimmed.isEmpty) {
       return SizedBox(width: width, height: height, child: fallbackError);
     }
@@ -103,9 +110,12 @@ class SdalNetworkImage extends StatelessWidget {
       child = ClipRRect(borderRadius: borderRadius!, child: child);
     }
 
-    final lightboxUrl = normalizeLegacyMediaValue(lightboxImageUrl ?? '');
+    final lightboxRaw = normalizeLegacyMediaValue(lightboxImageUrl ?? '');
+    final lightboxUrl = lightboxRaw.isEmpty
+        ? trimmed
+        : config.resolveUrl(lightboxRaw).toString();
     child = SdalLightboxImage(
-      imageProvider: NetworkImage(lightboxUrl.isEmpty ? trimmed : lightboxUrl),
+      imageProvider: NetworkImage(lightboxUrl),
       semanticLabel: semanticLabel,
       enabled: enableLightbox,
       child: child,

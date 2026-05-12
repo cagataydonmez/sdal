@@ -7,6 +7,7 @@ import '../../../core/text/sdal_date_time.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/page_onboarding_card.dart';
+import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/jobs_action_controller.dart';
 import '../data/opportunities_repository.dart';
@@ -139,9 +140,10 @@ class _JobsPageState extends ConsumerState<JobsPage> {
           else ...[
             if (sortedItems.isNotEmpty) ...[
               _buildHeroJobCard(sortedItems.first, actionState),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
             ],
-            ...sortedItems.map((job) => _buildJobCard(job, actionState)),
+            if (sortedItems.length > 1)
+              ...sortedItems.skip(1).map((job) => _buildJobCard(job, actionState)),
           ],
           const SizedBox(height: 16),
           SizedBox(
@@ -167,79 +169,120 @@ class _JobsPageState extends ConsumerState<JobsPage> {
     final tokens = Theme.of(context).sdal;
     return GestureDetector(
       onTap: () => context.push('/jobs/${job.id}'),
-      child: SurfaceCard(
-        child: Stack(
-          children: [
-            Container(
-              width: double.infinity,
-              height: 180,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                gradient: LinearGradient(
-                  colors: [
-                    tokens.accent.withValues(alpha: 0.6),
-                    tokens.accent.withValues(alpha: 0.2),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Stack(
+            children: [
+              AspectRatio(
+                aspectRatio: 16 / 9,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: job.image.isNotEmpty
+                      ? SdalNetworkImage(
+                          imageUrl: job.image,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: double.infinity,
+                          errorFallback: _buildJobPlaceholder(),
+                        )
+                      : _buildJobPlaceholder(),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        job.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineSmall
-                            ?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        job.company,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.white70,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Align(
-                    alignment: Alignment.bottomRight,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        '💼 En yeni iş',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: tokens.accent,
-                        ),
-                      ),
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.6),
+                      ],
                     ),
                   ),
-                ],
+                ),
+              ),
+              Positioned(
+                bottom: 16,
+                left: 16,
+                right: 60,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      job.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      job.company,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.white70,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: tokens.accent.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('💼', style: TextStyle(fontSize: 13)),
+                          const SizedBox(width: 5),
+                          Text(
+                            'En yeni iş',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: tokens.foregroundOnAccent,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              [
+                job.company,
+                if (job.location.isNotEmpty) job.location,
+                _formatDate(context, job.createdAt),
+              ].join(' · '),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: tokens.foregroundMuted,
               ),
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJobPlaceholder() {
+    return Container(
+      color: Theme.of(context).sdal.panelMuted,
+      child: Center(
+        child: Icon(
+          Icons.work_outline,
+          size: 48,
+          color: Theme.of(context).sdal.foregroundMuted,
         ),
       ),
     );
@@ -250,26 +293,46 @@ class _JobsPageState extends ConsumerState<JobsPage> {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: GestureDetector(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
         onTap: () => context.push('/jobs/${job.id}'),
         child: SurfaceCard(
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 96,
+                  height: 64,
+                  child: job.image.isNotEmpty
+                      ? SdalNetworkImage(
+                          imageUrl: job.image,
+                          fit: BoxFit.cover,
+                          width: 96,
+                          height: 64,
+                          errorFallback: _buildJobPlaceholder(),
+                        )
+                      : _buildJobPlaceholder(),
+                ),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       job.title,
-                      style: Theme.of(context).textTheme.titleLarge,
+                      style: Theme.of(context).textTheme.titleSmall,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Text(
                       [
                         job.company,
                         if (job.location.isNotEmpty) job.location,
+                        _formatDate(context, job.createdAt),
                       ].join(' · '),
                       style: Theme.of(context)
                           .textTheme
@@ -278,21 +341,21 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _formatDate(context, job.createdAt),
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: tokens.foregroundMuted),
-                    ),
+                    if (job.jobType.isNotEmpty || job.workMode.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        children: [
+                          if (job.jobType.isNotEmpty)
+                            _SmallChip(label: job.jobType),
+                          if (job.workMode.isNotEmpty)
+                            _SmallChip(label: job.workMode),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
-              if (job.jobType.isNotEmpty) ...[
-                const SizedBox(width: 8),
-                Chip(label: Text(job.jobType)),
-              ],
             ],
           ),
         ),
@@ -327,3 +390,26 @@ class _JobsPageState extends ConsumerState<JobsPage> {
 
 String _formatDate(BuildContext context, String raw) =>
     formatSdalTimestamp(context, raw);
+
+class _SmallChip extends StatelessWidget {
+  const _SmallChip({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: tokens.panelMuted,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: tokens.foregroundMuted,
+        ),
+      ),
+    );
+  }
+}

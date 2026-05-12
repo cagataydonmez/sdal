@@ -7,6 +7,7 @@ import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/jobs_action_controller.dart';
 import '../data/opportunities_repository.dart';
@@ -61,8 +62,26 @@ class _JobDetailPageState extends ConsumerState<JobDetailPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (job.jobType.isNotEmpty) ...[
-                            Chip(label: Text(job.jobType)),
+                          if (job.image.isNotEmpty) ...[
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: SdalNetworkImage(
+                                imageUrl: job.image,
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                height: 200,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                          if (job.jobType.isNotEmpty || job.workMode.isNotEmpty) ...[
+                            Wrap(
+                              spacing: 8,
+                              children: [
+                                if (job.jobType.isNotEmpty) Chip(label: Text(job.jobType)),
+                                if (job.workMode.isNotEmpty) Chip(label: Text(job.workMode)),
+                              ],
+                            ),
                             const SizedBox(height: 12),
                           ],
                           Text(
@@ -129,12 +148,27 @@ class _JobDetailPageState extends ConsumerState<JobDetailPage> {
                             const SizedBox(height: 12),
                             GestureDetector(
                               onTap: () => _launchUrl(job.link),
-                              child: Text(
-                                job.link,
-                                style: TextStyle(
-                                  color: tokens.accent,
-                                  decoration: TextDecoration.underline,
-                                ),
+                              child: Row(
+                                children: [
+                                  if (_isLinkedIn(job.link)) ...[
+                                    _LinkedInIcon(),
+                                    const SizedBox(width: 8),
+                                  ] else if (_isKariyer(job.link)) ...[
+                                    _KariyerIcon(),
+                                    const SizedBox(width: 8),
+                                  ],
+                                  Expanded(
+                                    child: Text(
+                                      job.link,
+                                      style: TextStyle(
+                                        color: tokens.accent,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -221,14 +255,24 @@ class _JobDetailPageState extends ConsumerState<JobDetailPage> {
     switch (status.toLowerCase()) {
       case 'pending':
         return 'Beklemede';
+      case 'reviewed':
+        return 'İnceleniyor';
+      case 'accepted':
+        return 'Kabul Edildi';
       case 'approved':
-        return 'Onaylandı';
+        return 'Kabul Edildi';
       case 'rejected':
         return 'Reddedildi';
       default:
         return status;
     }
   }
+
+  bool _isLinkedIn(String url) =>
+      url.contains('linkedin.com');
+
+  bool _isKariyer(String url) =>
+      url.contains('kariyer.net');
 
   Future<void> _apply(int jobId) async {
     final text = _applyController.text.trim();
@@ -264,5 +308,54 @@ class _JobDetailPageState extends ConsumerState<JobDetailPage> {
         );
       }
     }
+  }
+}
+
+class _LinkedInIcon extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 24,
+      height: 24,
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A66C2),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: const Center(
+        child: Text(
+          'in',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            letterSpacing: -0.5,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _KariyerIcon extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 24,
+      height: 24,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE31837),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: const Center(
+        child: Text(
+          'K',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
   }
 }
