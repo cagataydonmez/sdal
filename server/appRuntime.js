@@ -5528,6 +5528,41 @@ function ensureEntityInteractionsSchema() {
   } catch (e) { console.error('[ensureEntityInteractionsSchema]', e?.message); }
 }
 
+function ensureContentPublicationSchema() {
+  if (dbDriver !== 'sqlite') return;
+  try {
+    sqlRun(`CREATE TABLE IF NOT EXISTS content_approval_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      entity_type TEXT NOT NULL,
+      group_id INTEGER,
+      approval_required INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL,
+      updated_by INTEGER,
+      UNIQUE(entity_type, group_id)
+    )`);
+    const now = new Date().toISOString();
+    for (const type of ['event', 'announcement', 'job', 'group_event', 'group_announcement', 'group_post']) {
+      sqlRun(
+        'INSERT OR IGNORE INTO content_approval_settings (entity_type, group_id, approval_required, updated_at) VALUES (?, NULL, 0, ?)',
+        [type, now]
+      );
+    }
+    const tables = ['events', 'announcements', 'jobs', 'group_events', 'group_announcements', 'posts'];
+    for (const tbl of tables) {
+      try {
+        const cols = sqlAll(`PRAGMA table_info(${tbl})`).map(r => r.name);
+        if (!cols.includes('publication_status')) sqlRun(`ALTER TABLE ${tbl} ADD COLUMN publication_status TEXT DEFAULT 'published'`);
+        if (!cols.includes('approval_status')) sqlRun(`ALTER TABLE ${tbl} ADD COLUMN approval_status TEXT DEFAULT 'not_required'`);
+        if (!cols.includes('review_note')) sqlRun(`ALTER TABLE ${tbl} ADD COLUMN review_note TEXT`);
+        if (!cols.includes('reviewed_by')) sqlRun(`ALTER TABLE ${tbl} ADD COLUMN reviewed_by INTEGER`);
+        if (!cols.includes('reviewed_at')) sqlRun(`ALTER TABLE ${tbl} ADD COLUMN reviewed_at TEXT`);
+        if (!cols.includes('published_at')) sqlRun(`ALTER TABLE ${tbl} ADD COLUMN published_at TEXT`);
+        if (!cols.includes('show_in_feed')) sqlRun(`ALTER TABLE ${tbl} ADD COLUMN show_in_feed INTEGER DEFAULT 1`);
+      } catch { /* table may not exist yet */ }
+    }
+  } catch (e) { console.error('[ensureContentPublicationSchema]', e?.message); }
+}
+
 function ensureCohortGroupsOnStartup() {
   if (dbDriver !== 'sqlite') return;
   try {
@@ -5862,6 +5897,7 @@ async function onServerStarted() {
   await ensureRuntimeDefaults();
   await authSecurity.ensureSchema();
   ensureEntityInteractionsSchema();
+  ensureContentPublicationSchema();
   ensureCohortGroupsOnStartup();
   await rbacService.seedDefaults();
   await ensureRootBootstrapAccount();

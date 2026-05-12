@@ -129,7 +129,11 @@ class GroupPost {
   final String postType;
   final int? entityId;
 
-  bool get isEntityPost => postType == 'group_event' || postType == 'group_announcement' || postType == 'event' || postType == 'announcement';
+  bool get isEntityPost =>
+      postType == 'group_event' ||
+      postType == 'group_announcement' ||
+      postType == 'event' ||
+      postType == 'announcement';
 
   factory GroupPost.fromMap(JsonMap map) {
     return GroupPost(
@@ -312,9 +316,77 @@ class GroupEntityComment {
       createdAt: coalesceText([map['created_at']], fallback: ''),
       userId: asInt(map['user_id']) ?? 0,
       handle: handle,
-      displayName: fullName.isNotEmpty ? fullName : (handle.isNotEmpty ? '@$handle' : 'SDAL Üyesi'),
+      displayName: fullName.isNotEmpty
+          ? fullName
+          : (handle.isNotEmpty ? '@$handle' : 'SDAL Üyesi'),
       photo: coalesceText([map['resim']], fallback: ''),
       verified: asBool(map['verified']) ?? false,
+    );
+  }
+}
+
+class GroupContentApprovalSetting {
+  const GroupContentApprovalSetting({
+    required this.entityType,
+    required this.approvalRequired,
+  });
+
+  final String entityType;
+  final bool approvalRequired;
+
+  factory GroupContentApprovalSetting.fromMap(JsonMap map) {
+    return GroupContentApprovalSetting(
+      entityType: coalesceText([
+        map['entityType'],
+        map['entity_type'],
+      ], fallback: ''),
+      approvalRequired:
+          asBool(map['approvalRequired'] ?? map['approval_required']) ?? false,
+    );
+  }
+}
+
+class GroupContentApprovalItem {
+  const GroupContentApprovalItem({
+    required this.id,
+    required this.entityType,
+    required this.title,
+    required this.body,
+    required this.createdAt,
+  });
+
+  final int id;
+  final String entityType;
+  final String title;
+  final String body;
+  final String createdAt;
+
+  String get typeLabel {
+    switch (entityType) {
+      case 'group_post':
+        return 'Post';
+      case 'group_event':
+        return 'Etkinlik';
+      case 'group_announcement':
+        return 'Duyuru';
+      default:
+        return entityType;
+    }
+  }
+
+  factory GroupContentApprovalItem.fromMap(JsonMap map) {
+    return GroupContentApprovalItem(
+      id: asInt(map['id']) ?? 0,
+      entityType: coalesceText([
+        map['entity_type'],
+        map['entityType'],
+      ], fallback: ''),
+      title: coalesceText([map['title']], fallback: ''),
+      body: coalesceText([map['body']], fallback: ''),
+      createdAt: coalesceText([
+        map['created_at'],
+        map['createdAt'],
+      ], fallback: ''),
     );
   }
 }
@@ -341,7 +413,9 @@ class GroupEventDetail {
   factory GroupEventDetail.fromMap(JsonMap map, {required bool canManage}) {
     return GroupEventDetail(
       event: GroupEventItem.fromMap(map),
-      comments: asJsonMapList(map['comments']).map(GroupEntityComment.fromMap).toList(growable: false),
+      comments: asJsonMapList(
+        map['comments'],
+      ).map(GroupEntityComment.fromMap).toList(growable: false),
       likeCount: asInt(map['like_count']) ?? 0,
       liked: asBool(map['liked']) ?? false,
       allowComments: (asInt(map['allow_comments']) ?? 1) == 1,
@@ -370,10 +444,15 @@ class GroupAnnouncementDetail {
   final bool allowLikes;
   final bool canManage;
 
-  factory GroupAnnouncementDetail.fromMap(JsonMap map, {required bool canManage}) {
+  factory GroupAnnouncementDetail.fromMap(
+    JsonMap map, {
+    required bool canManage,
+  }) {
     return GroupAnnouncementDetail(
       announcement: GroupAnnouncementItem.fromMap(map),
-      comments: asJsonMapList(map['comments']).map(GroupEntityComment.fromMap).toList(growable: false),
+      comments: asJsonMapList(
+        map['comments'],
+      ).map(GroupEntityComment.fromMap).toList(growable: false),
       likeCount: asInt(map['like_count']) ?? 0,
       liked: asBool(map['liked']) ?? false,
       allowComments: (asInt(map['allow_comments']) ?? 1) == 1,
@@ -537,6 +616,54 @@ class GroupsRepository {
     );
   }
 
+  Future<List<GroupContentApprovalSetting>> fetchContentApprovalSettings({
+    required int groupId,
+  }) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/groups/$groupId/content-approval-settings',
+      decoder: asJsonMap,
+    );
+    return asJsonMapList(
+      asJsonMap(result.rawData)['settings'],
+    ).map(GroupContentApprovalSetting.fromMap).toList(growable: false);
+  }
+
+  Future<ApiResult<dynamic>> updateContentApprovalSetting({
+    required int groupId,
+    required String entityType,
+    required bool approvalRequired,
+  }) {
+    return _apiClient.put<dynamic>(
+      '/api/new/groups/$groupId/content-approval-settings',
+      body: {'entity_type': entityType, 'approval_required': approvalRequired},
+    );
+  }
+
+  Future<List<GroupContentApprovalItem>> fetchContentApprovals({
+    required int groupId,
+  }) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/groups/$groupId/approvals',
+      decoder: asJsonMap,
+    );
+    return asJsonMapList(
+      asJsonMap(result.rawData)['items'],
+    ).map(GroupContentApprovalItem.fromMap).toList(growable: false);
+  }
+
+  Future<ApiResult<dynamic>> reviewContentApproval({
+    required int groupId,
+    required String entityType,
+    required int entityId,
+    required String status,
+    String note = '',
+  }) {
+    return _apiClient.post<dynamic>(
+      '/api/new/groups/$groupId/approvals/$entityType/$entityId/review',
+      body: {'status': status, if (note.trim().isNotEmpty) 'note': note.trim()},
+    );
+  }
+
   Future<ApiResult<dynamic>> changeRole({
     required int groupId,
     required int userId,
@@ -615,7 +742,11 @@ class GroupsRepository {
   }) {
     return _apiClient.post<dynamic>(
       '/api/new/groups/$groupId/announcements',
-      body: {'title': title, 'body': body, 'show_in_feed': showInFeed ? '1' : '0'},
+      body: {
+        'title': title,
+        'body': body,
+        'show_in_feed': showInFeed ? '1' : '0',
+      },
     );
   }
 
@@ -660,7 +791,9 @@ class GroupsRepository {
     required int groupId,
     required int eventId,
   }) {
-    return _apiClient.post<dynamic>('/api/new/groups/$groupId/events/$eventId/like');
+    return _apiClient.post<dynamic>(
+      '/api/new/groups/$groupId/events/$eventId/like',
+    );
   }
 
   Future<ApiResult<dynamic>> setGroupEventInteractions({
@@ -671,10 +804,7 @@ class GroupsRepository {
   }) {
     return _apiClient.post<dynamic>(
       '/api/new/groups/$groupId/events/$eventId/interactions',
-      body: {
-        if (allowComments != null) 'allowComments': allowComments,
-        if (allowLikes != null) 'allowLikes': allowLikes,
-      },
+      body: {'allowComments': ?allowComments, 'allowLikes': ?allowLikes},
     );
   }
 
@@ -707,7 +837,9 @@ class GroupsRepository {
     required int groupId,
     required int announcementId,
   }) {
-    return _apiClient.post<dynamic>('/api/new/groups/$groupId/announcements/$announcementId/like');
+    return _apiClient.post<dynamic>(
+      '/api/new/groups/$groupId/announcements/$announcementId/like',
+    );
   }
 
   Future<ApiResult<dynamic>> setGroupAnnouncementInteractions({
@@ -718,10 +850,7 @@ class GroupsRepository {
   }) {
     return _apiClient.post<dynamic>(
       '/api/new/groups/$groupId/announcements/$announcementId/interactions',
-      body: {
-        if (allowComments != null) 'allowComments': allowComments,
-        if (allowLikes != null) 'allowLikes': allowLikes,
-      },
+      body: {'allowComments': ?allowComments, 'allowLikes': ?allowLikes},
     );
   }
 }
@@ -742,6 +871,20 @@ final groupsListProvider = FutureProvider.autoDispose<List<GroupListItem>>((
 final groupDetailProvider = FutureProvider.autoDispose
     .family<GroupDetail?, int>((ref, groupId) {
       return ref.watch(groupsRepositoryProvider).fetchGroupDetail(groupId);
+    });
+
+final groupContentApprovalSettingsProvider = FutureProvider.autoDispose
+    .family<List<GroupContentApprovalSetting>, int>((ref, groupId) {
+      return ref
+          .watch(groupsRepositoryProvider)
+          .fetchContentApprovalSettings(groupId: groupId);
+    });
+
+final groupContentApprovalsProvider = FutureProvider.autoDispose
+    .family<List<GroupContentApprovalItem>, int>((ref, groupId) {
+      return ref
+          .watch(groupsRepositoryProvider)
+          .fetchContentApprovals(groupId: groupId);
     });
 
 final groupPostsProvider = FutureProvider.autoDispose

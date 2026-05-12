@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/state/async_action_state.dart';
+import '../../feed/data/feed_repository.dart';
 import '../data/opportunities_repository.dart';
 
 class JobsActionController extends Notifier<AsyncActionState> {
@@ -20,6 +21,7 @@ class JobsActionController extends Notifier<AsyncActionState> {
     required String link,
     File? imageFile,
     bool showInFeed = true,
+    bool publish = true,
   }) async {
     state = const AsyncActionState.loading(scope: 'jobs:create');
     final result = await _repository.createJob(
@@ -32,8 +34,11 @@ class JobsActionController extends Notifier<AsyncActionState> {
       link: link,
       imageFile: imageFile,
       showInFeed: showInFeed,
+      publish: publish,
     );
     if (result.ok) {
+      ref.invalidate(feedPageProvider);
+      ref.invalidate(feedItemsProvider);
       state = const AsyncActionState.success(scope: 'jobs:create');
       return true;
     }
@@ -73,7 +78,9 @@ class JobsActionController extends Notifier<AsyncActionState> {
     }
     state = AsyncActionState.error(
       scope: 'jobs:edit:$jobId',
-      message: result.message.isNotEmpty ? result.message : 'İlan düzenlenemedi.',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'İlan düzenlenemedi.',
     );
     return false;
   }

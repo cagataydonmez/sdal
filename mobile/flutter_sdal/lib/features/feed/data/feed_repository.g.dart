@@ -50,6 +50,7 @@ _FeedItem _$FeedItemFromJson(Map<String, dynamic> json) => _FeedItem(
   updatedAt: readOptionalText(json['updatedAt']),
   postType: readOptionalText(json['postType']),
   entityId: readOptionalInt(json['entityId']),
+  groupId: readOptionalInt(json['groupId']),
 );
 
 Map<String, dynamic> _$FeedItemToJson(_FeedItem instance) => <String, dynamic>{
@@ -65,6 +66,7 @@ Map<String, dynamic> _$FeedItemToJson(_FeedItem instance) => <String, dynamic>{
   'updatedAt': instance.updatedAt,
   'postType': instance.postType,
   'entityId': instance.entityId,
+  'groupId': instance.groupId,
 };
 
 _FeedComment _$FeedCommentFromJson(Map<String, dynamic> json) => _FeedComment(

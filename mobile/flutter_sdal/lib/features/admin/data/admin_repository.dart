@@ -791,10 +791,11 @@ class AdminVerificationSettings {
     );
   }
 
-  static AdminVerificationSettings get defaults => const AdminVerificationSettings(
-    alumni: AdminVerificationTypeSettings(verificationRequired: true),
-    teacher: AdminVerificationTypeSettings(verificationRequired: true),
-  );
+  static AdminVerificationSettings get defaults =>
+      const AdminVerificationSettings(
+        alumni: AdminVerificationTypeSettings(verificationRequired: true),
+        teacher: AdminVerificationTypeSettings(verificationRequired: true),
+      );
 }
 
 class AdminBroadcastResult {
@@ -1035,6 +1036,106 @@ class AdminModerationItem {
   }
 }
 
+class AdminContentApprovalSetting {
+  const AdminContentApprovalSetting({
+    required this.entityType,
+    required this.groupId,
+    required this.approvalRequired,
+    required this.updatedAt,
+  });
+
+  final String entityType;
+  final int? groupId;
+  final bool approvalRequired;
+  final String updatedAt;
+
+  factory AdminContentApprovalSetting.fromMap(JsonMap map) {
+    return AdminContentApprovalSetting(
+      entityType: coalesceText([
+        map['entityType'],
+        map['entity_type'],
+      ], fallback: ''),
+      groupId: asInt(map['groupId'] ?? map['group_id']),
+      approvalRequired:
+          asBool(map['approvalRequired'] ?? map['approval_required']) ?? false,
+      updatedAt: coalesceText([
+        map['updatedAt'],
+        map['updated_at'],
+      ], fallback: ''),
+    );
+  }
+}
+
+class AdminContentApprovalItem {
+  const AdminContentApprovalItem({
+    required this.id,
+    required this.entityType,
+    required this.ownerId,
+    required this.title,
+    required this.body,
+    required this.createdAt,
+    required this.publicationStatus,
+    required this.approvalStatus,
+    required this.reviewNote,
+  });
+
+  final int id;
+  final String entityType;
+  final int ownerId;
+  final String title;
+  final String body;
+  final String createdAt;
+  final String publicationStatus;
+  final String approvalStatus;
+  final String reviewNote;
+
+  String get typeLabel {
+    switch (entityType) {
+      case 'event':
+        return 'Etkinlik';
+      case 'announcement':
+        return 'Duyuru';
+      case 'job':
+        return 'İş ilanı';
+      case 'group_event':
+        return 'Grup etkinliği';
+      case 'group_announcement':
+        return 'Grup duyurusu';
+      default:
+        return entityType;
+    }
+  }
+
+  factory AdminContentApprovalItem.fromMap(JsonMap map) {
+    return AdminContentApprovalItem(
+      id: asInt(map['id']) ?? 0,
+      entityType: coalesceText([
+        map['entity_type'],
+        map['entityType'],
+      ], fallback: ''),
+      ownerId: asInt(map['owner_id'] ?? map['ownerId']) ?? 0,
+      title: coalesceText([map['title']], fallback: ''),
+      body: coalesceText([map['body']], fallback: ''),
+      createdAt: coalesceText([
+        map['created_at'],
+        map['createdAt'],
+      ], fallback: ''),
+      publicationStatus: coalesceText([
+        map['publication_status'],
+        map['publicationStatus'],
+      ], fallback: ''),
+      approvalStatus: coalesceText([
+        map['approval_status'],
+        map['approvalStatus'],
+      ], fallback: ''),
+      reviewNote: coalesceText([
+        map['review_note'],
+        map['reviewNote'],
+      ], fallback: ''),
+    );
+  }
+}
+
 class AdminRequestQueueItem {
   const AdminRequestQueueItem({
     required this.id,
@@ -1184,19 +1285,27 @@ class AdminTeacherAccountItem {
     final lastName = coalesceText([map['soyisim']], fallback: '');
     final fullName = '$firstName $lastName'.trim();
     final subject = coalesceText([map['teacher_subject']], fallback: '');
-    final subjectOther = coalesceText([map['teacher_subject_other']], fallback: '');
+    final subjectOther = coalesceText([
+      map['teacher_subject_other'],
+    ], fallback: '');
     return AdminTeacherAccountItem(
       id: asInt(map['id']) ?? 0,
       handle: coalesceText([map['kadi']], fallback: ''),
-      name: fullName.isNotEmpty ? fullName : coalesceText([map['kadi']], fallback: 'SDAL Üyesi'),
+      name: fullName.isNotEmpty
+          ? fullName
+          : coalesceText([map['kadi']], fallback: 'SDAL Üyesi'),
       email: coalesceText([map['email']], fallback: ''),
-      verificationStatus: coalesceText([map['verification_status']], fallback: 'pending'),
+      verificationStatus: coalesceText([
+        map['verification_status'],
+      ], fallback: 'pending'),
       isActive: asBool(map['aktiv']) ?? false,
       isBanned: asBool(map['yasak']) ?? false,
       isVerified: asBool(map['verified']) ?? false,
       subject: subject == 'Diğer' ? subjectOther : subject,
       createdAt: coalesceText([map['ilktarih']], fallback: ''),
-      avatarPath: map['resim'] != null ? coalesceText([map['resim']], fallback: '') : null,
+      avatarPath: map['resim'] != null
+          ? coalesceText([map['resim']], fallback: '')
+          : null,
     );
   }
 }
@@ -2280,6 +2389,54 @@ class AdminRepository {
     );
   }
 
+  Future<List<AdminContentApprovalSetting>>
+  fetchContentApprovalSettings() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/admin/content-approval-settings',
+      decoder: asJsonMap,
+    );
+    return asJsonMapList(
+      asJsonMap(result.rawData)['settings'],
+    ).map(AdminContentApprovalSetting.fromMap).toList(growable: false);
+  }
+
+  Future<List<AdminContentApprovalItem>> fetchContentApprovals() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/admin/content-approvals',
+      decoder: asJsonMap,
+    );
+    return asJsonMapList(
+      asJsonMap(result.rawData)['items'],
+    ).map(AdminContentApprovalItem.fromMap).toList(growable: false);
+  }
+
+  Future<void> updateContentApprovalSetting({
+    required String entityType,
+    required bool approvalRequired,
+    int? groupId,
+  }) async {
+    await _apiClient.put<dynamic>(
+      '/api/new/admin/content-approval-settings',
+      body: {
+        'entity_type': entityType,
+        'approval_required': approvalRequired,
+        'group_id': ?groupId,
+      },
+    );
+  }
+
+  Future<void> reviewContentApproval({
+    required String entityType,
+    required int id,
+    required String status,
+    String note = '',
+  }) async {
+    await _apiClient.post<dynamic>(
+      '/api/new/admin/content-approvals/$entityType/$id/review',
+      body: {'status': status, if (note.trim().isNotEmpty) 'note': note.trim()},
+    );
+  }
+
   Future<AdminPreviewList<AdminRequestQueueItem>> fetchMemberRequestPreview({
     int limit = 6,
   }) async {
@@ -2292,7 +2449,10 @@ class AdminRepository {
   }
 
   Future<AdminPreviewList<AdminVerificationQueueItem>>
-  fetchVerificationRequestPreview({int limit = 6, String status = 'pending'}) async {
+  fetchVerificationRequestPreview({
+    int limit = 6,
+    String status = 'pending',
+  }) async {
     return _fetchPreviewList(
       path: '/api/new/admin/verification-requests',
       query: {'status': status},
@@ -3184,6 +3344,17 @@ final adminStoryPreviewProvider =
       (ref) => ref.watch(adminRepositoryProvider).fetchStoryPreview(),
     );
 
+final adminContentApprovalSettingsProvider =
+    FutureProvider<List<AdminContentApprovalSetting>>(
+      (ref) =>
+          ref.watch(adminRepositoryProvider).fetchContentApprovalSettings(),
+    );
+
+final adminContentApprovalsProvider =
+    FutureProvider<List<AdminContentApprovalItem>>(
+      (ref) => ref.watch(adminRepositoryProvider).fetchContentApprovals(),
+    );
+
 final adminMemberRequestPreviewProvider =
     FutureProvider<AdminPreviewList<AdminRequestQueueItem>>(
       (ref) => ref.watch(adminRepositoryProvider).fetchMemberRequestPreview(),
@@ -3197,10 +3368,9 @@ final adminVerificationRequestPreviewProvider =
 
 final adminApprovedVerificationRequestPreviewProvider =
     FutureProvider<AdminPreviewList<AdminVerificationQueueItem>>(
-      (ref) => ref.watch(adminRepositoryProvider).fetchVerificationRequestPreview(
-        limit: 20,
-        status: 'approved',
-      ),
+      (ref) => ref
+          .watch(adminRepositoryProvider)
+          .fetchVerificationRequestPreview(limit: 20, status: 'approved'),
     );
 
 final adminVerificationSettingsProvider =
@@ -3229,9 +3399,8 @@ final adminTeacherAccountsProvider =
       AdminPreviewList<AdminTeacherAccountItem>,
       AdminTeacherAccountsQuery
     >(
-      (ref, query) => ref
-          .watch(adminRepositoryProvider)
-          .fetchTeacherAccounts(query: query),
+      (ref, query) =>
+          ref.watch(adminRepositoryProvider).fetchTeacherAccounts(query: query),
     );
 
 final adminUserPreviewProvider =

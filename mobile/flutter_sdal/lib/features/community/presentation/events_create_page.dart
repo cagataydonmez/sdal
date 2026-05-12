@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/media/pick_cropped_image.dart';
-import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../application/community_action_controller.dart';
 
@@ -22,6 +21,7 @@ class _EventsCreatePageState extends ConsumerState<EventsCreatePage> {
   final TextEditingController _startsAtController = TextEditingController();
   final TextEditingController _endsAtController = TextEditingController();
   File? _imageFile;
+  bool _publishNow = true;
   bool _showInFeed = true;
 
   @override
@@ -101,9 +101,7 @@ class _EventsCreatePageState extends ConsumerState<EventsCreatePage> {
           ),
           const SizedBox(height: 16),
           OutlinedButton.icon(
-            onPressed: isSaving
-                ? null
-                : () => _pickImage(ImageSource.gallery),
+            onPressed: isSaving ? null : () => _pickImage(ImageSource.gallery),
             icon: const Icon(Icons.photo_library_outlined),
             label: Text(
               _imageFile == null
@@ -115,30 +113,37 @@ class _EventsCreatePageState extends ConsumerState<EventsCreatePage> {
             const SizedBox(height: 16),
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.file(
-                _imageFile!,
-                height: 200,
-                fit: BoxFit.cover,
-              ),
+              child: Image.file(_imageFile!, height: 200, fit: BoxFit.cover),
             ),
           ],
           const SizedBox(height: 8),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
             title: const Text('Hemen yayınla'),
-            subtitle: Text(_showInFeed
-                ? 'Etkinlik taslak yerine yayınlanmış olarak kaydedilecek'
-                : 'Etkinlik taslak olarak kaydedilecek, detay sayfasından yayınlayabilirsiniz'),
+            subtitle: Text(
+              _publishNow
+                  ? 'Etkinlik yayın akışına hazırlanacak'
+                  : 'Etkinlik taslaklara kaydedilecek, yalnızca siz göreceksiniz',
+            ),
+            value: _publishNow,
+            onChanged: isSaving ? null : (v) => setState(() => _publishNow = v),
+          ),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Akışta göster'),
+            subtitle: const Text(
+              'Yayınlanan etkinlik akışta görseliyle post gibi görünür',
+            ),
             value: _showInFeed,
-            onChanged: isSaving ? null : (v) => setState(() => _showInFeed = v),
+            onChanged: isSaving || !_publishNow
+                ? null
+                : (v) => setState(() => _showInFeed = v),
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: isSaving ? null : _createEvent,
             icon: const Icon(Icons.check_outlined),
-            label: Text(
-              isSaving ? 'Gönderiliyor...' : 'Etkinliği gönder',
-            ),
+            label: Text(isSaving ? 'Gönderiliyor...' : 'Etkinliği gönder'),
           ),
           const SizedBox(height: 12),
           OutlinedButton(
@@ -182,8 +187,16 @@ class _EventsCreatePageState extends ConsumerState<EventsCreatePage> {
     );
     if (time == null || !mounted) return;
 
-    final datetime = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-    setState(() => controller.text = datetime.toIso8601String().substring(0, 16));
+    final datetime = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
+    setState(
+      () => controller.text = datetime.toIso8601String().substring(0, 16),
+    );
   }
 
   Future<void> _createEvent() async {
@@ -197,6 +210,7 @@ class _EventsCreatePageState extends ConsumerState<EventsCreatePage> {
           endsAt: _endsAtController.text.trim(),
           imageFile: _imageFile,
           showInFeed: _showInFeed,
+          publish: _publishNow,
         );
     if (!mounted) return;
     final state = ref.read(communityActionControllerProvider);

@@ -139,7 +139,10 @@ class _EventsPageState extends ConsumerState<EventsPage> {
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: () => context.push('/events/create'),
+                onPressed: () async {
+                  await context.push('/events/create');
+                  if (mounted) _load(reset: true);
+                },
                 icon: const Icon(Icons.add_outlined),
                 label: const Text('Yeni etkinlik öner'),
               ),

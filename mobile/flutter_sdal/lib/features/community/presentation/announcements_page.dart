@@ -136,7 +136,10 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: () => context.push('/announcements/create'),
+                onPressed: () async {
+                  await context.push('/announcements/create');
+                  if (mounted) _load(reset: true);
+                },
                 icon: const Icon(Icons.add_outlined),
                 label: const Text('Yeni duyuru öner'),
               ),

@@ -595,6 +595,10 @@ class _AdminPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final tokens = Theme.of(context).sdal;
+    final approvalSettingsState = ref.watch(
+      groupContentApprovalSettingsProvider(groupId),
+    );
+    final approvalsState = ref.watch(groupContentApprovalsProvider(groupId));
     return Card(
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -635,6 +639,12 @@ class _AdminPanel extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
             ],
+            _GroupContentApprovalPanel(
+              groupId: groupId,
+              settingsState: approvalSettingsState,
+              approvalsState: approvalsState,
+            ),
+            const SizedBox(height: 12),
             if (detail.canReviewRequests && detail.joinRequests.isNotEmpty) ...[
               _RequestsCard(groupId: groupId, items: detail.joinRequests),
               const SizedBox(height: 12),
@@ -668,6 +678,228 @@ class _AdminPanel extends ConsumerWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+const _groupApprovalTypes = <String>[
+  'group_post',
+  'group_event',
+  'group_announcement',
+];
+
+String _groupApprovalLabel(String type) {
+  switch (type) {
+    case 'group_post':
+      return 'Post';
+    case 'group_event':
+      return 'Etkinlik';
+    case 'group_announcement':
+      return 'Duyuru';
+    default:
+      return type;
+  }
+}
+
+class _GroupContentApprovalPanel extends ConsumerWidget {
+  const _GroupContentApprovalPanel({
+    required this.groupId,
+    required this.settingsState,
+    required this.approvalsState,
+  });
+
+  final int groupId;
+  final AsyncValue<List<GroupContentApprovalSetting>> settingsState;
+  final AsyncValue<List<GroupContentApprovalItem>> approvalsState;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = Theme.of(context).sdal;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: tokens.panelMuted,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: tokens.panelBorder),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'İçerik onayı',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            settingsState.when(
+              loading: () => const LinearProgressIndicator(),
+              error: (error, _) => Text(error.toString()),
+              data: (settings) => Column(
+                children: [
+                  for (final type in _groupApprovalTypes)
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(_groupApprovalLabel(type)),
+                      value:
+                          settings
+                              .where((item) => item.entityType == type)
+                              .lastOrNull
+                              ?.approvalRequired ??
+                          false,
+                      onChanged: (value) async {
+                        final result = await ref
+                            .read(groupsRepositoryProvider)
+                            .updateContentApprovalSetting(
+                              groupId: groupId,
+                              entityType: type,
+                              approvalRequired: value,
+                            );
+                        ref.invalidate(
+                          groupContentApprovalSettingsProvider(groupId),
+                        );
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              result.ok
+                                  ? 'Onay ayarı kaydedildi.'
+                                  : 'Onay ayarı kaydedilemedi.',
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            approvalsState.when(
+              loading: () => const LinearProgressIndicator(),
+              error: (error, _) => Text(error.toString()),
+              data: (items) {
+                if (items.isEmpty) return const Text('Bekleyen içerik yok.');
+                return Column(
+                  children: [
+                    for (final item in items)
+                      _GroupApprovalTile(groupId: groupId, item: item),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupApprovalTile extends ConsumerWidget {
+  const _GroupApprovalTile({required this.groupId, required this.item});
+
+  final int groupId;
+  final GroupContentApprovalItem item;
+
+  Future<void> _review(
+    BuildContext context,
+    WidgetRef ref,
+    String status, {
+    bool askNote = false,
+  }) async {
+    var note = '';
+    if (askNote) {
+      final controller = TextEditingController();
+      final value = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('İnceleme notu'),
+          content: TextField(
+            controller: controller,
+            maxLines: 3,
+            decoration: const InputDecoration(labelText: 'Not'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Vazgeç'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(controller.text.trim()),
+              child: const Text('Gönder'),
+            ),
+          ],
+        ),
+      );
+      controller.dispose();
+      if (value == null) return;
+      note = value;
+    }
+    final result = await ref
+        .read(groupsRepositoryProvider)
+        .reviewContentApproval(
+          groupId: groupId,
+          entityType: item.entityType,
+          entityId: item.id,
+          status: status,
+          note: note,
+        );
+    ref.invalidate(groupContentApprovalsProvider(groupId));
+    ref.invalidate(groupDetailProvider(groupId));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result.ok ? 'İnceleme kaydedildi.' : 'İşlem başarısız.'),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = Theme.of(context).sdal;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tokens.panelRaised,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: tokens.panelBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('${item.typeLabel} · ${item.title}'),
+          if (item.body.trim().isNotEmpty)
+            Text(
+              item.body,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
+            ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: [
+              TextButton(
+                onPressed: () =>
+                    _review(context, ref, 'changes_requested', askNote: true),
+                child: const Text('Düzenleme iste'),
+              ),
+              TextButton(
+                onPressed: () =>
+                    _review(context, ref, 'rejected', askNote: true),
+                child: const Text('Reddet'),
+              ),
+              FilledButton(
+                onPressed: () => _review(context, ref, 'approved'),
+                child: const Text('Onayla'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -1761,7 +1993,9 @@ class _EventSheetState extends ConsumerState<_EventSheet> {
               title: const Text('Topluluk akışında göster'),
               subtitle: const Text('Etkinlik ana akışta herkese görünsün'),
               value: _showInFeed,
-              onChanged: state.isLoading ? null : (v) => setState(() => _showInFeed = v),
+              onChanged: state.isLoading
+                  ? null
+                  : (v) => setState(() => _showInFeed = v),
             ),
             const SizedBox(height: 8),
             SizedBox(
@@ -1858,7 +2092,9 @@ class _AnnouncementSheetState extends ConsumerState<_AnnouncementSheet> {
             title: const Text('Topluluk akışında göster'),
             subtitle: const Text('Duyuru ana akışta herkese görünsün'),
             value: _showInFeed,
-            onChanged: state.isLoading ? null : (v) => setState(() => _showInFeed = v),
+            onChanged: state.isLoading
+                ? null
+                : (v) => setState(() => _showInFeed = v),
           ),
           const SizedBox(height: 8),
           SizedBox(

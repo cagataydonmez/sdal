@@ -112,6 +112,7 @@ abstract class FeedItem with _$FeedItem {
     @JsonKey(fromJson: readOptionalText) String? updatedAt,
     @JsonKey(fromJson: readOptionalText) String? postType,
     @JsonKey(fromJson: readOptionalInt) int? entityId,
+    @JsonKey(fromJson: readOptionalInt) int? groupId,
   }) = _FeedItem;
 
   int? get authorId => author.id;
@@ -138,6 +139,7 @@ abstract class FeedItem with _$FeedItem {
       'updatedAt': ['updated_at'],
       'postType': ['post_type'],
       'entityId': ['entity_id'],
+      'groupId': ['group_id'],
     }),
   );
 
@@ -279,13 +281,20 @@ class FeedPageData {
 }
 
 String? _entityRouteForPost(JsonMap raw) {
-  final postType = coalesceText([raw['postType'], raw['post_type']], fallback: '');
+  final postType = coalesceText([
+    raw['postType'],
+    raw['post_type'],
+  ], fallback: '');
   final entityId = asInt(raw['entityId'] ?? raw['entity_id']);
   if (postType.isEmpty || entityId == null || entityId <= 0) return null;
   return switch (postType) {
     'event' => '/events/$entityId',
     'announcement' => '/announcements/$entityId',
     'job' => '/jobs/$entityId',
+    'group_event' =>
+      '/groups/${asInt(raw['group_id']) ?? asInt(raw['groupId']) ?? 0}/events/$entityId',
+    'group_announcement' =>
+      '/groups/${asInt(raw['group_id']) ?? asInt(raw['groupId']) ?? 0}/announcements/$entityId',
     _ => null,
   };
 }
@@ -386,8 +395,12 @@ class FeedRepository {
   }
 
   Future<ApiResult<dynamic>> togglePostLike(int postId) async {
-    final canonical = await _apiClient.post<dynamic>('/api/new/posts/$postId/react');
-    if (canonical.ok || !_shouldFallback(canonical.statusCode)) return canonical;
+    final canonical = await _apiClient.post<dynamic>(
+      '/api/new/posts/$postId/react',
+    );
+    if (canonical.ok || !_shouldFallback(canonical.statusCode)) {
+      return canonical;
+    }
     return _apiClient.post<dynamic>('/api/new/posts/$postId/like');
   }
 
@@ -396,9 +409,23 @@ class FeedRepository {
     if (item.postType == 'event' && item.entityId != null) {
       return _apiClient.post<dynamic>('/api/new/events/${item.entityId}/like');
     } else if (item.postType == 'announcement' && item.entityId != null) {
-      return _apiClient.post<dynamic>('/api/new/announcements/${item.entityId}/like');
+      return _apiClient.post<dynamic>(
+        '/api/new/announcements/${item.entityId}/like',
+      );
     } else if (item.postType == 'job' && item.entityId != null) {
       return _apiClient.post<dynamic>('/api/new/jobs/${item.entityId}/like');
+    } else if (item.postType == 'group_event' &&
+        item.entityId != null &&
+        item.groupId != null) {
+      return _apiClient.post<dynamic>(
+        '/api/new/groups/${item.groupId}/events/${item.entityId}/like',
+      );
+    } else if (item.postType == 'group_announcement' &&
+        item.entityId != null &&
+        item.groupId != null) {
+      return _apiClient.post<dynamic>(
+        '/api/new/groups/${item.groupId}/announcements/${item.entityId}/like',
+      );
     }
     // Regular post - use post like endpoint
     final canonical = await _apiClient.post<dynamic>(
@@ -542,10 +569,7 @@ class FeedRepository {
         fields: fields,
       );
     }
-    return _apiClient.patch<dynamic>(
-      '/api/new/events/$eventId',
-      body: fields,
-    );
+    return _apiClient.patch<dynamic>('/api/new/events/$eventId', body: fields);
   }
 
   Future<ApiResult<dynamic>> deleteEvent(int eventId) {
@@ -559,10 +583,7 @@ class FeedRepository {
     File? imageFile,
     bool? approved,
   }) {
-    final fields = <String, dynamic>{
-      'title': title,
-      'body': body,
-    };
+    final fields = <String, dynamic>{'title': title, 'body': body};
     if (approved != null) {
       fields['show_in_feed'] = approved ? '1' : '0';
     }

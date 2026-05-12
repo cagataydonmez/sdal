@@ -16,6 +16,10 @@ class AnnouncementItem {
     required this.creatorHandle,
     required this.createdBy,
     required this.approved,
+    required this.publicationStatus,
+    required this.approvalStatus,
+    required this.showInFeed,
+    required this.reviewNote,
   });
 
   final int id;
@@ -27,8 +31,15 @@ class AnnouncementItem {
   final String creatorHandle;
   final int createdBy;
   final bool approved;
+  final String publicationStatus;
+  final String approvalStatus;
+  final bool showInFeed;
+  final String reviewNote;
 
   bool get isEdited => updatedAt.isNotEmpty;
+  bool get isPublished => publicationStatus == 'published' || approved;
+  bool get isDraft => publicationStatus == 'draft';
+  bool get isPendingApproval => approvalStatus == 'pending';
 
   factory AnnouncementItem.fromMap(JsonMap map) {
     return AnnouncementItem(
@@ -41,6 +52,17 @@ class AnnouncementItem {
       creatorHandle: coalesceText([map['creator_kadi']], fallback: ''),
       createdBy: asInt(map['created_by']) ?? 0,
       approved: asBool(map['approved']) ?? true,
+      publicationStatus: coalesceText(
+        [map['publication_status']],
+        fallback: (asBool(map['approved']) ?? true)
+            ? 'published'
+            : 'pending_publication',
+      ),
+      approvalStatus: coalesceText([
+        map['approval_status'],
+      ], fallback: 'not_required'),
+      showInFeed: asBool(map['show_in_feed']) ?? true,
+      reviewNote: coalesceText([map['review_note']], fallback: ''),
     );
   }
 }
@@ -93,6 +115,10 @@ class EventItem {
     required this.declineCount,
     required this.canManageResponses,
     required this.visibility,
+    required this.publicationStatus,
+    required this.approvalStatus,
+    required this.showInFeed,
+    required this.reviewNote,
   });
 
   final int id;
@@ -112,8 +138,15 @@ class EventItem {
   final int declineCount;
   final bool canManageResponses;
   final EventVisibility visibility;
+  final String publicationStatus;
+  final String approvalStatus;
+  final bool showInFeed;
+  final String reviewNote;
 
   bool get isEdited => updatedAt.isNotEmpty;
+  bool get isPublished => publicationStatus == 'published' || approved;
+  bool get isDraft => publicationStatus == 'draft';
+  bool get isPendingApproval => approvalStatus == 'pending';
 
   factory EventItem.fromMap(JsonMap map) {
     final counts = asJsonMap(map['response_counts']);
@@ -137,6 +170,17 @@ class EventItem {
       visibility: EventVisibility.fromMap(
         asJsonMap(map['response_visibility']),
       ),
+      publicationStatus: coalesceText(
+        [map['publication_status']],
+        fallback: (asBool(map['approved']) ?? true)
+            ? 'published'
+            : 'pending_publication',
+      ),
+      approvalStatus: coalesceText([
+        map['approval_status'],
+      ], fallback: 'not_required'),
+      showInFeed: asBool(map['show_in_feed']) ?? true,
+      reviewNote: coalesceText([map['review_note']], fallback: ''),
     );
   }
 }
@@ -212,7 +256,9 @@ class EntityComment {
       createdAt: coalesceText([map['created_at']], fallback: ''),
       userId: asInt(map['user_id']) ?? 0,
       handle: handle,
-      displayName: fullName.isNotEmpty ? fullName : (handle.isNotEmpty ? '@$handle' : 'SDAL Üyesi'),
+      displayName: fullName.isNotEmpty
+          ? fullName
+          : (handle.isNotEmpty ? '@$handle' : 'SDAL Üyesi'),
       photo: coalesceText([map['resim']], fallback: ''),
       verified: asBool(map['verified']) ?? false,
     );
@@ -239,7 +285,9 @@ class AnnouncementDetail {
   factory AnnouncementDetail.fromMap(JsonMap map) {
     return AnnouncementDetail(
       item: AnnouncementItem.fromMap(map),
-      comments: asJsonMapList(map['comments']).map(EntityComment.fromMap).toList(growable: false),
+      comments: asJsonMapList(
+        map['comments'],
+      ).map(EntityComment.fromMap).toList(growable: false),
       likeCount: asInt(map['like_count']) ?? 0,
       liked: asBool(map['liked']) ?? false,
       allowComments: (asInt(map['allow_comments']) ?? 1) == 1,
@@ -268,7 +316,9 @@ class EventDetail {
   factory EventDetail.fromMap(JsonMap map) {
     return EventDetail(
       item: EventItem.fromMap(map),
-      comments: asJsonMapList(map['comments']).map(EntityComment.fromMap).toList(growable: false),
+      comments: asJsonMapList(
+        map['comments'],
+      ).map(EntityComment.fromMap).toList(growable: false),
       likeCount: asInt(map['like_count']) ?? 0,
       liked: asBool(map['liked']) ?? false,
       allowComments: (asInt(map['allow_comments']) ?? 1) == 1,
@@ -293,9 +343,12 @@ class CommunityRepository {
     int limit = 15,
     int offset = 0,
     bool? approved,
+    String status = '',
   }) async {
     final query = <String, dynamic>{'limit': limit, 'offset': offset};
-    if (approved != null) {
+    if (status.isNotEmpty) {
+      query['status'] = status;
+    } else if (approved != null) {
       query['approved'] = approved ? '1' : '0';
     }
     final result = await _apiClient.get<JsonMap>(
@@ -317,11 +370,13 @@ class CommunityRepository {
     required String body,
     File? imageFile,
     bool showInFeed = true,
+    bool publish = true,
   }) {
     final fields = <String, dynamic>{
       'title': title,
       'body': body,
       'show_in_feed': showInFeed ? '1' : '0',
+      'publish': publish ? '1' : '0',
     };
     if (imageFile != null) {
       return _apiClient.multipart<dynamic>(
@@ -330,10 +385,7 @@ class CommunityRepository {
         fields: fields,
       );
     }
-    return _apiClient.post<dynamic>(
-      '/api/new/announcements',
-      body: fields,
-    );
+    return _apiClient.post<dynamic>('/api/new/announcements', body: fields);
   }
 
   Future<ApiResult<dynamic>> approveAnnouncement({
@@ -354,9 +406,12 @@ class CommunityRepository {
     int limit = 15,
     int offset = 0,
     bool? approved,
+    String status = '',
   }) async {
     final query = <String, dynamic>{'limit': limit, 'offset': offset};
-    if (approved != null) {
+    if (status.isNotEmpty) {
+      query['status'] = status;
+    } else if (approved != null) {
       query['approved'] = approved ? '1' : '0';
     }
     final result = await _apiClient.get<JsonMap>(
@@ -381,6 +436,7 @@ class CommunityRepository {
     required String endsAt,
     File? imageFile,
     bool showInFeed = true,
+    bool publish = true,
   }) {
     final fields = <String, dynamic>{
       'title': title,
@@ -389,6 +445,7 @@ class CommunityRepository {
       'starts_at': startsAt,
       'ends_at': endsAt,
       'show_in_feed': showInFeed ? '1' : '0',
+      'publish': publish ? '1' : '0',
     };
     if (imageFile != null) {
       return _apiClient.multipart<dynamic>(
@@ -493,14 +550,13 @@ class CommunityRepository {
   }) {
     return _apiClient.post<dynamic>(
       '/api/new/events/$eventId/interactions',
-      body: {
-        if (allowComments != null) 'allowComments': allowComments,
-        if (allowLikes != null) 'allowLikes': allowLikes,
-      },
+      body: {'allowComments': ?allowComments, 'allowLikes': ?allowLikes},
     );
   }
 
-  Future<AnnouncementDetail?> fetchAnnouncementDetail(int announcementId) async {
+  Future<AnnouncementDetail?> fetchAnnouncementDetail(
+    int announcementId,
+  ) async {
     final result = await _apiClient.get<JsonMap>(
       '/api/new/announcements/$announcementId',
       decoder: asJsonMap,
@@ -521,7 +577,9 @@ class CommunityRepository {
   }
 
   Future<ApiResult<dynamic>> toggleAnnouncementLike(int announcementId) {
-    return _apiClient.post<dynamic>('/api/new/announcements/$announcementId/like');
+    return _apiClient.post<dynamic>(
+      '/api/new/announcements/$announcementId/like',
+    );
   }
 
   Future<ApiResult<dynamic>> setAnnouncementInteractions({
@@ -531,10 +589,7 @@ class CommunityRepository {
   }) {
     return _apiClient.post<dynamic>(
       '/api/new/announcements/$announcementId/interactions',
-      body: {
-        if (allowComments != null) 'allowComments': allowComments,
-        if (allowLikes != null) 'allowLikes': allowLikes,
-      },
+      body: {'allowComments': ?allowComments, 'allowLikes': ?allowLikes},
     );
   }
 }

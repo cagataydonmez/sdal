@@ -24,6 +24,9 @@ class JobItem {
     required this.myApplicationStatus,
     required this.myApplicationDecisionNote,
     required this.showInFeed,
+    required this.publicationStatus,
+    required this.approvalStatus,
+    required this.reviewNote,
   });
 
   final int id;
@@ -43,8 +46,14 @@ class JobItem {
   final String myApplicationStatus;
   final String myApplicationDecisionNote;
   final bool showInFeed;
+  final String publicationStatus;
+  final String approvalStatus;
+  final String reviewNote;
 
   bool get isEdited => updatedAt.isNotEmpty;
+  bool get isPublished => publicationStatus == 'published';
+  bool get isDraft => publicationStatus == 'draft';
+  bool get isPendingApproval => approvalStatus == 'pending';
 
   factory JobItem.fromMap(JsonMap map) {
     return JobItem(
@@ -69,6 +78,14 @@ class JobItem {
         map['my_application_decision_note'],
       ], fallback: ''),
       showInFeed: asBool(map['show_in_feed']) ?? true,
+      publicationStatus: coalesceText(
+        [map['publication_status']],
+        fallback: (asBool(map['show_in_feed']) ?? true) ? 'published' : 'draft',
+      ),
+      approvalStatus: coalesceText([
+        map['approval_status'],
+      ], fallback: 'not_required'),
+      reviewNote: coalesceText([map['review_note']], fallback: ''),
     );
   }
 }
@@ -225,6 +242,7 @@ class OpportunitiesRepository {
     String? type,
     int limit = 40,
     int offset = 0,
+    String status = '',
   }) async {
     final queryText = (q ?? search).trim();
     final cityText = (city ?? location).trim();
@@ -240,6 +258,7 @@ class OpportunitiesRepository {
         if (cityText.isNotEmpty) 'location': cityText,
         if (typeText.isNotEmpty) 'type': typeText,
         if (typeText.isNotEmpty) 'job_type': typeText,
+        if (status.isNotEmpty) 'status': status,
       },
       decoder: asJsonMap,
     );
@@ -272,6 +291,7 @@ class OpportunitiesRepository {
     required String link,
     File? imageFile,
     bool showInFeed = true,
+    bool publish = true,
   }) {
     final fields = <String, dynamic>{
       'company': company,
@@ -282,6 +302,7 @@ class OpportunitiesRepository {
       'work_mode': workMode,
       'link': link,
       'show_in_feed': showInFeed ? '1' : '0',
+      'publish': publish ? '1' : '0',
     };
     if (imageFile != null) {
       return _apiClient.multipart<dynamic>(

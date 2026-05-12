@@ -1,5 +1,14 @@
 import { getCacheJson, setCacheJson } from '../src/infra/performanceCache.js';
 import { createRateLimitMiddleware } from '../src/http/middleware/rateLimit.js';
+import {
+  APPROVAL_STATUS,
+  PUBLICATION_STATUS,
+  buildInitialContentState,
+  canSeeContent,
+  publicQuery,
+  wantsPublish,
+  wantsShowInFeed
+} from '../src/shared/contentState.js';
 
 const opportunityEndpointRateLimit = createRateLimitMiddleware({
   bucket: 'heavy_opportunities',
@@ -85,6 +94,22 @@ export function registerOpportunityRoutes(app, {
       where.push('LOWER(j.job_type) = ?');
       params.push(jobType);
     }
+    const currentUser = getCurrentUser(req);
+    const isAdmin = hasAdminSession(req, currentUser);
+    const status = String(req.query.status || '').trim().toLowerCase();
+    const publishedFilter = Object.prototype.hasOwnProperty.call(req.query || {}, 'published')
+      ? String(req.query.published || '') === '1'
+      : null;
+    if (status === 'drafts' || publishedFilter === false) {
+      where.push('j.poster_id = ?');
+      where.push("COALESCE(j.publication_status, CASE WHEN COALESCE(j.show_in_feed, 1) = 1 THEN 'published' ELSE 'draft' END) != 'published'");
+      params.push(req.session.userId);
+    } else if (status === 'pending' && isAdmin) {
+      where.push("COALESCE(j.approval_status, 'not_required') = 'pending'");
+    } else if (!isAdmin) {
+      where.push(`(${publicQuery('j').replace(/j\.approved/g, 'TRUE')} OR j.poster_id = ?)`);
+      params.push(req.session.userId);
+    }
 
     const rows = await sqlAllAsync(
       `SELECT j.*, u.kadi AS poster_kadi, u.isim AS poster_isim, u.soyisim AS poster_soyisim,
@@ -129,17 +154,34 @@ export function registerOpportunityRoutes(app, {
         imageUrl = processedUpload.url;
       }
       const now = new Date().toISOString();
-      const showInFeed = req.body?.show_in_feed === false || req.body?.show_in_feed === 'false' || req.body?.show_in_feed === '0' ? 0 : 1;
+      const contentState = await buildInitialContentState({
+        sqlGetAsync,
+        entityType: 'job',
+        body: req.body,
+        actorIsTrusted: hasAdminSession(req, getCurrentUser(req))
+      });
       const result = await sqlRunAsync(
-        `INSERT INTO jobs (poster_id, company, title, description, location, job_type, work_mode, link, image, created_at, show_in_feed)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [req.session.userId, company, title, description, location, jobType, workMode || null, link || null, imageUrl, now, showInFeed]
+        `INSERT INTO jobs (poster_id, company, title, description, location, job_type, work_mode, link, image, created_at, show_in_feed, publication_status, approval_status, published_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          req.session.userId,
+          company,
+          title,
+          description,
+          location,
+          jobType,
+          workMode || null,
+          link || null,
+          imageUrl,
+          now,
+          contentState.showInFeed ? 1 : 0,
+          contentState.publicationStatus,
+          contentState.approvalStatus,
+          contentState.publicationStatus === PUBLICATION_STATUS.PUBLISHED ? now : null
+        ]
       );
       const newJobId = Number(result?.lastInsertRowid || 0);
-      if (newJobId && showInFeed && createEntityFeedPost) {
-        createEntityFeedPost({ entityType: 'job', entityId: newJobId, title, excerpt: '', groupId: null, userId: Number(req.session.userId), createdAt: now }).catch(() => {});
-      }
-      return res.json({ ok: true, id: newJobId });
+      return res.json({ ok: true, id: newJobId, pending: contentState.approvalStatus === APPROVAL_STATUS.PENDING, publication_status: contentState.publicationStatus, approval_status: contentState.approvalStatus });
     } catch (err) {
       console.error('jobs.upload failed:', err);
       if (!res.headersSent) return res.status(500).send('İş ilanı oluşturulamadı.');
@@ -166,6 +208,11 @@ export function registerOpportunityRoutes(app, {
     );
 
     if (!row) return res.status(404).json({ error: 'İş ilanı bulunamadı.' });
+    const user = getCurrentUser(req);
+    const isAdmin = hasAdminSession(req, user);
+    if (!canSeeContent(row, { actorId: req.session.userId, isAdmin })) {
+      return res.status(403).send('İş ilanı yayında değil.');
+    }
     res.json(row);
   });
 
@@ -208,8 +255,19 @@ export function registerOpportunityRoutes(app, {
         updateParams.push(String(req.body.link).trim());
       }
       if (req.body.image !== undefined) {
-        updates.push('image_url = ?');
+        updates.push('image = ?');
         updateParams.push(req.body.image || null);
+      }
+      if (req.body.show_in_feed !== undefined || req.body.showInFeed !== undefined) {
+        updates.push('show_in_feed = ?');
+        updateParams.push(wantsShowInFeed(req.body) ? 1 : 0);
+      }
+      if (req.body.publish !== undefined || req.body.published !== undefined) {
+        const publish = wantsPublish(req.body);
+        updates.push('publication_status = ?');
+        updates.push('published_at = ?');
+        updateParams.push(publish ? PUBLICATION_STATUS.PUBLISHED : PUBLICATION_STATUS.DRAFT);
+        updateParams.push(publish ? new Date().toISOString() : null);
       }
 
       if (updates.length === 0) return res.status(400).send('Güncellenecek alan yok.');
@@ -219,6 +277,49 @@ export function registerOpportunityRoutes(app, {
       updateParams.push(req.params.id);
       await sqlRunAsync(`UPDATE jobs SET ${updates.join(', ')} WHERE id = ?`, updateParams);
 
+      const updated = await sqlGetAsync('SELECT * FROM jobs WHERE id = ?', [req.params.id]);
+      res.json({ ok: true, ...updated });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.post('/api/new/jobs/:id/upload', requireAuth, uploadRateLimit, postUpload.single('image'), async (req, res) => {
+    if (!ensureVerifiedSocialHubMember(req, res)) return;
+    try {
+      const user = getCurrentUser(req);
+      const isAdmin = hasAdminSession(req, user);
+      const row = await sqlGetAsync('SELECT id, poster_id FROM jobs WHERE id = ?', [req.params.id]);
+      if (!row) return res.status(404).send('İş ilanı bulunamadı.');
+      if (!isAdmin && !sameUserId(row.poster_id, req.session.userId)) return res.status(403).send('Bu ilanı düzenleme yetkin yok.');
+      let imageUrl = null;
+      if (req.file?.path) {
+        const processedUpload = await processDiskImageUpload({
+          req, res, file: req.file, bucket: 'job_image', preset: uploadImagePresets.jobImage
+        });
+        if (!processedUpload.ok) return res.status(processedUpload.statusCode).send(processedUpload.message);
+        imageUrl = processedUpload.url;
+      }
+      await sqlRunAsync(
+        `UPDATE jobs
+         SET company = ?, title = ?, description = ?, location = ?, job_type = ?, work_mode = ?, link = ?,
+             image = ?, show_in_feed = ?, updated_at = ?
+         WHERE id = ?`,
+        [
+          sanitizePlainUserText(String(req.body?.company || '').trim(), 140),
+          sanitizePlainUserText(String(req.body?.title || '').trim(), 180),
+          formatUserText(String(req.body?.description || '')),
+          sanitizePlainUserText(String(req.body?.location || '').trim(), 120),
+          sanitizePlainUserText(String(req.body?.job_type || '').trim(), 60),
+          sanitizePlainUserText(String(req.body?.work_mode || '').trim(), 60) || null,
+          sanitizePlainUserText(String(req.body?.link || '').trim(), 500) || null,
+          imageUrl || req.body?.image || null,
+          wantsShowInFeed(req.body) ? 1 : 0,
+          new Date().toISOString(),
+          req.params.id
+        ]
+      );
       const updated = await sqlGetAsync('SELECT * FROM jobs WHERE id = ?', [req.params.id]);
       res.json({ ok: true, ...updated });
     } catch (err) {
@@ -434,17 +535,33 @@ export function registerOpportunityRoutes(app, {
     }
     if (link && !/^https?:\/\//i.test(link)) return res.status(400).send('Link http:// veya https:// ile başlamalı.');
     const now = new Date().toISOString();
-    const showInFeed = req.body?.show_in_feed === false || req.body?.show_in_feed === 'false' || req.body?.show_in_feed === '0' ? 0 : 1;
+    const contentState = await buildInitialContentState({
+      sqlGetAsync,
+      entityType: 'job',
+      body: req.body,
+      actorIsTrusted: hasAdminSession(req, getCurrentUser(req))
+    });
     const result = await sqlRunAsync(
-      `INSERT INTO jobs (poster_id, company, title, description, location, job_type, work_mode, link, created_at, show_in_feed)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.session.userId, company, title, description, location, jobType, workMode || null, link || null, now, showInFeed]
+      `INSERT INTO jobs (poster_id, company, title, description, location, job_type, work_mode, link, created_at, show_in_feed, publication_status, approval_status, published_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        req.session.userId,
+        company,
+        title,
+        description,
+        location,
+        jobType,
+        workMode || null,
+        link || null,
+        now,
+        contentState.showInFeed ? 1 : 0,
+        contentState.publicationStatus,
+        contentState.approvalStatus,
+        contentState.publicationStatus === PUBLICATION_STATUS.PUBLISHED ? now : null
+      ]
     );
     const newJobId = Number(result?.lastInsertRowid || 0);
-    if (newJobId && showInFeed && createEntityFeedPost) {
-      createEntityFeedPost({ entityType: 'job', entityId: newJobId, title, excerpt: '', groupId: null, userId: Number(req.session.userId), createdAt: now }).catch(() => {});
-    }
-    res.json({ ok: true, id: newJobId });
+    res.json({ ok: true, id: newJobId, pending: contentState.approvalStatus === APPROVAL_STATUS.PENDING, publication_status: contentState.publicationStatus, approval_status: contentState.approvalStatus });
   });
 
   app.delete('/api/new/jobs/:id', requireAuth, async (req, res) => {

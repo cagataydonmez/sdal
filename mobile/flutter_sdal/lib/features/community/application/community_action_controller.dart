@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/state/async_action_state.dart';
+import '../../feed/data/feed_repository.dart';
 import '../data/community_repository.dart';
 
 class CommunityActionController extends Notifier<AsyncActionState> {
@@ -14,6 +15,7 @@ class CommunityActionController extends Notifier<AsyncActionState> {
     required String body,
     File? imageFile,
     bool showInFeed = true,
+    bool publish = true,
   }) async {
     state = const AsyncActionState.loading(scope: 'announcements:create');
     final result = await _repository.createAnnouncement(
@@ -21,8 +23,11 @@ class CommunityActionController extends Notifier<AsyncActionState> {
       body: body,
       imageFile: imageFile,
       showInFeed: showInFeed,
+      publish: publish,
     );
     if (result.ok) {
+      ref.invalidate(feedPageProvider);
+      ref.invalidate(feedItemsProvider);
       state = AsyncActionState.success(
         scope: 'announcements:create',
         message: result.message.isNotEmpty
@@ -96,6 +101,7 @@ class CommunityActionController extends Notifier<AsyncActionState> {
     required String endsAt,
     File? imageFile,
     bool showInFeed = true,
+    bool publish = true,
   }) async {
     state = const AsyncActionState.loading(scope: 'events:create');
     final result = await _repository.createEvent(
@@ -106,8 +112,11 @@ class CommunityActionController extends Notifier<AsyncActionState> {
       endsAt: endsAt,
       imageFile: imageFile,
       showInFeed: showInFeed,
+      publish: publish,
     );
     if (result.ok) {
+      ref.invalidate(feedPageProvider);
+      ref.invalidate(feedItemsProvider);
       state = AsyncActionState.success(
         scope: 'events:create',
         message: result.message.isNotEmpty

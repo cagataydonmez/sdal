@@ -21,6 +21,42 @@ String _adminTimestamp(BuildContext context, String raw) =>
 String _adminTimestampLabel(BuildContext context, String label, String raw) =>
     raw.isEmpty ? '' : '$label: ${formatSdalTimestamp(context, raw)}';
 
+const _globalContentApprovalTypes = <String>['event', 'announcement', 'job'];
+
+String _contentApprovalTypeLabel(String type) {
+  switch (type) {
+    case 'event':
+      return 'Etkinlik';
+    case 'announcement':
+      return 'Duyuru';
+    case 'job':
+      return 'İş ilanı';
+    case 'group_post':
+      return 'Grup postu';
+    case 'group_event':
+      return 'Grup etkinliği';
+    case 'group_announcement':
+      return 'Grup duyurusu';
+    default:
+      return type;
+  }
+}
+
+bool _contentApprovalSettingEnabled(
+  List<AdminContentApprovalSetting> settings,
+  String entityType, {
+  int? groupId,
+}) {
+  return settings
+          .where(
+            (setting) =>
+                setting.entityType == entityType && setting.groupId == groupId,
+          )
+          .lastOrNull
+          ?.approvalRequired ??
+      false;
+}
+
 class AdminHubPage extends ConsumerWidget {
   const AdminHubPage({super.key});
 
@@ -439,6 +475,16 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         : const AsyncValue<AdminPreviewList<AdminModerationItem>>.data(
             AdminPreviewList(total: 0, items: <AdminModerationItem>[]),
           );
+    final contentApprovalSettingsState = sectionKey == 'content'
+        ? ref.watch(adminContentApprovalSettingsProvider)
+        : const AsyncValue<List<AdminContentApprovalSetting>>.data(
+            <AdminContentApprovalSetting>[],
+          );
+    final contentApprovalsState = sectionKey == 'content'
+        ? ref.watch(adminContentApprovalsProvider)
+        : const AsyncValue<List<AdminContentApprovalItem>>.data(
+            <AdminContentApprovalItem>[],
+          );
     final memberRequestPreviewState = sectionKey == 'requests'
         ? ref.watch(adminMemberRequestPreviewProvider)
         : const AsyncValue<AdminPreviewList<AdminRequestQueueItem>>.data(
@@ -615,6 +661,8 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                 ref.invalidate(adminPostPreviewProvider);
                 ref.invalidate(adminCommentPreviewProvider);
                 ref.invalidate(adminStoryPreviewProvider);
+                ref.invalidate(adminContentApprovalSettingsProvider);
+                ref.invalidate(adminContentApprovalsProvider);
               }
               if (sectionKey == 'requests') {
                 ref.invalidate(adminMemberRequestPreviewProvider);
@@ -695,6 +743,96 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
             ),
           ),
           if (sectionKey == 'content') ...[
+            const SizedBox(height: 16),
+            SurfaceCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Entity onay ayarları',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  contentApprovalSettingsState.when(
+                    loading: () => const LinearProgressIndicator(),
+                    error: (error, _) => Text(error.toString()),
+                    data: (settings) => Column(
+                      children: [
+                        for (final type in _globalContentApprovalTypes)
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(_contentApprovalTypeLabel(type)),
+                            subtitle: const Text(
+                              'Açıksa kullanıcı gönderisi admin onayı bekler.',
+                            ),
+                            value: _contentApprovalSettingEnabled(
+                              settings,
+                              type,
+                            ),
+                            onChanged: (value) => _handleContentApprovalSetting(
+                              context,
+                              ref,
+                              entityType: type,
+                              approvalRequired: value,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            SurfaceCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Bekleyen entity onayları',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  contentApprovalsState.when(
+                    loading: () => const LinearProgressIndicator(),
+                    error: (error, _) => Text(error.toString()),
+                    data: (items) {
+                      if (items.isEmpty) {
+                        return const Text('Onay bekleyen entity yok.');
+                      }
+                      return Column(
+                        children: [
+                          for (final item in items)
+                            _ContentApprovalReviewTile(
+                              item: item,
+                              onApprove: () => _handleContentApprovalReview(
+                                context,
+                                ref,
+                                item: item,
+                                status: 'approved',
+                              ),
+                              onReject: () => _handleContentApprovalReview(
+                                context,
+                                ref,
+                                item: item,
+                                status: 'rejected',
+                                askNote: true,
+                              ),
+                              onRequestChanges: () =>
+                                  _handleContentApprovalReview(
+                                    context,
+                                    ref,
+                                    item: item,
+                                    status: 'changes_requested',
+                                    askNote: true,
+                                  ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 16),
             _AdminAsyncCard(
               title: 'Canli moderasyon kuyrugu',
@@ -2215,6 +2353,8 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         ref.invalidate(adminPostPreviewProvider);
         ref.invalidate(adminCommentPreviewProvider);
         ref.invalidate(adminStoryPreviewProvider);
+        ref.invalidate(adminContentApprovalSettingsProvider);
+        ref.invalidate(adminContentApprovalsProvider);
         break;
       case 'requests':
         ref.invalidate(adminMemberRequestPreviewProvider);
@@ -2256,6 +2396,96 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
     }
     ref.invalidate(adminSummaryProvider);
     ref.invalidate(adminLiveProvider);
+  }
+
+  Future<void> _handleContentApprovalSetting(
+    BuildContext context,
+    WidgetRef ref, {
+    required String entityType,
+    required bool approvalRequired,
+  }) async {
+    try {
+      await ref
+          .read(adminRepositoryProvider)
+          .updateContentApprovalSetting(
+            entityType: entityType,
+            approvalRequired: approvalRequired,
+          );
+      ref.invalidate(adminContentApprovalSettingsProvider);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Onay ayarı kaydedildi.')));
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  Future<void> _handleContentApprovalReview(
+    BuildContext context,
+    WidgetRef ref, {
+    required AdminContentApprovalItem item,
+    required String status,
+    bool askNote = false,
+  }) async {
+    var note = '';
+    if (askNote) {
+      final value = await _askContentReviewNote(context);
+      if (value == null) return;
+      note = value;
+    }
+    try {
+      await ref
+          .read(adminRepositoryProvider)
+          .reviewContentApproval(
+            entityType: item.entityType,
+            id: item.id,
+            status: status,
+            note: note,
+          );
+      ref.invalidate(adminContentApprovalsProvider);
+      ref.invalidate(adminSummaryProvider);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('İçerik onayı güncellendi.')),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  Future<String?> _askContentReviewNote(BuildContext context) {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('İnceleme notu'),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: 'Red veya değişiklik nedeni',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(controller.text.trim()),
+            child: const Text('Kaydet'),
+          ),
+        ],
+      ),
+    ).whenComplete(controller.dispose);
   }
 
   Future<void> _handleDeleteAction(
@@ -5166,6 +5396,81 @@ class _AdminPreviewLine extends StatelessWidget {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+class _ContentApprovalReviewTile extends StatelessWidget {
+  const _ContentApprovalReviewTile({
+    required this.item,
+    required this.onApprove,
+    required this.onReject,
+    required this.onRequestChanges,
+  });
+
+  final AdminContentApprovalItem item;
+  final VoidCallback onApprove;
+  final VoidCallback onReject;
+  final VoidCallback onRequestChanges;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    final body = item.body.trim();
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusLg),
+        border: Border.all(color: tokens.panelBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Chip(label: Text(item.typeLabel)),
+              if (item.ownerId > 0) Chip(label: Text('Üye #${item.ownerId}')),
+              if (item.createdAt.isNotEmpty)
+                Chip(label: Text(_adminTimestamp(context, item.createdAt))),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            item.title.isEmpty ? 'Başlıksız içerik' : item.title,
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          if (body.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              body,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.end,
+            children: [
+              TextButton(
+                onPressed: onRequestChanges,
+                child: const Text('Düzenleme iste'),
+              ),
+              TextButton(onPressed: onReject, child: const Text('Reddet')),
+              FilledButton(onPressed: onApprove, child: const Text('Onayla')),
+            ],
+          ),
+        ],
       ),
     );
   }

@@ -20,6 +20,7 @@ class _AnnouncementsCreatePageState
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _bodyController = TextEditingController();
   File? _imageFile;
+  bool _publishNow = true;
   bool _showInFeed = true;
 
   @override
@@ -60,44 +61,45 @@ class _AnnouncementsCreatePageState
           ),
           const SizedBox(height: 16),
           OutlinedButton.icon(
-            onPressed: isSaving
-                ? null
-                : () => _pickImage(ImageSource.gallery),
+            onPressed: isSaving ? null : () => _pickImage(ImageSource.gallery),
             icon: const Icon(Icons.photo_library_outlined),
-            label: Text(
-              _imageFile == null
-                  ? 'Görsel ekle'
-                  : 'Görsel değiştir',
-            ),
+            label: Text(_imageFile == null ? 'Görsel ekle' : 'Görsel değiştir'),
           ),
           if (_imageFile != null) ...[
             const SizedBox(height: 16),
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.file(
-                _imageFile!,
-                height: 200,
-                fit: BoxFit.cover,
-              ),
+              child: Image.file(_imageFile!, height: 200, fit: BoxFit.cover),
             ),
           ],
           const SizedBox(height: 8),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
             title: const Text('Hemen yayınla'),
-            subtitle: Text(_showInFeed
-                ? 'Duyuru taslak yerine yayınlanmış olarak kaydedilecek'
-                : 'Duyuru taslak olarak kaydedilecek, detay sayfasından yayınlayabilirsiniz'),
+            subtitle: Text(
+              _publishNow
+                  ? 'Duyuru yayın akışına hazırlanacak'
+                  : 'Duyuru taslaklara kaydedilecek, yalnızca siz göreceksiniz',
+            ),
+            value: _publishNow,
+            onChanged: isSaving ? null : (v) => setState(() => _publishNow = v),
+          ),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Akışta göster'),
+            subtitle: const Text(
+              'Yayınlanan duyuru akışta görseliyle post gibi görünür',
+            ),
             value: _showInFeed,
-            onChanged: isSaving ? null : (v) => setState(() => _showInFeed = v),
+            onChanged: isSaving || !_publishNow
+                ? null
+                : (v) => setState(() => _showInFeed = v),
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: isSaving ? null : _create,
             icon: const Icon(Icons.check_outlined),
-            label: Text(
-              isSaving ? 'Gönderiliyor...' : 'Duyuruyu gönder',
-            ),
+            label: Text(isSaving ? 'Gönderiliyor...' : 'Duyuruyu gönder'),
           ),
           const SizedBox(height: 12),
           OutlinedButton(
@@ -131,7 +133,13 @@ class _AnnouncementsCreatePageState
     }
     final ok = await ref
         .read(communityActionControllerProvider.notifier)
-        .createAnnouncement(title: title, body: body, imageFile: _imageFile, showInFeed: _showInFeed);
+        .createAnnouncement(
+          title: title,
+          body: body,
+          imageFile: _imageFile,
+          showInFeed: _showInFeed,
+          publish: _publishNow,
+        );
     if (!mounted) return;
     final state = ref.read(communityActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(

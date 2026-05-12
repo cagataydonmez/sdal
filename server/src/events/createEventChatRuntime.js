@@ -1,3 +1,5 @@
+import { buildInitialContentState } from '../shared/contentState.js';
+
 export function createEventChatRuntime({
   sqlAll,
   sqlAllAsync,
@@ -136,14 +138,23 @@ export function createEventChatRuntime({
     addColumn('image', image || null);
     addColumn('created_at', now);
     addColumn('created_by', req.session.userId);
-    addColumn('approved', toDbFlagForColumn('events', 'approved', isAdmin));
-    addColumn('approved_by', isAdmin ? req.session.userId : null);
-    addColumn('approved_at', isAdmin ? now : null);
+    const contentState = await buildInitialContentState({
+      sqlGetAsync,
+      entityType: 'event',
+      body: req.body,
+      actorIsTrusted: isAdmin
+    });
+    const legacyApproved = contentState.publicationStatus === 'published';
+    addColumn('approved', toDbFlagForColumn('events', 'approved', legacyApproved));
+    addColumn('approved_by', legacyApproved ? req.session.userId : null);
+    addColumn('approved_at', legacyApproved ? now : null);
+    addColumn('publication_status', contentState.publicationStatus);
+    addColumn('approval_status', contentState.approvalStatus);
+    addColumn('published_at', legacyApproved ? now : null);
     addColumn('show_response_counts', toDbFlagForColumn('events', 'show_response_counts', true));
     addColumn('show_attendee_names', toDbFlagForColumn('events', 'show_attendee_names', false));
     addColumn('show_decliner_names', toDbFlagForColumn('events', 'show_decliner_names', false));
-    const showInFeed = req.body?.show_in_feed === false || req.body?.show_in_feed === 'false' || req.body?.show_in_feed === '0' ? 0 : 1;
-    addColumn('show_in_feed', showInFeed);
+    addColumn('show_in_feed', contentState.showInFeed ? 1 : 0);
 
     if (!columns.length || !columns.includes('title')) {
       throw new Error('events_table_missing_required_columns');
@@ -161,19 +172,13 @@ export function createEventChatRuntime({
       message: 'Etkinlik aciklamasinda senden bahsetti.'
     });
     const eventId = Number(result?.lastInsertRowid || 0);
-    if (isAdmin && eventId && showInFeed) {
-      const groupId = req.body?.group_id ? Number(req.body.group_id) : null;
-      createEntityFeedPost({
-        entityType: 'event',
-        entityId: eventId,
-        title,
-        excerpt: descriptionRaw,
-        groupId,
-        userId: req.session.userId,
-        createdAt: now
-      }).catch(() => {});
-    }
-    return { ok: true, pending: !isAdmin, id: eventId };
+    return {
+      ok: true,
+      pending: contentState.approvalStatus === 'pending',
+      id: eventId,
+      publication_status: contentState.publicationStatus,
+      approval_status: contentState.approvalStatus
+    };
   }
 
   function broadcastChatEventLocal(payload) {

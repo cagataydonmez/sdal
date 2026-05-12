@@ -51,8 +51,9 @@ export class FeedService {
       });
     }
 
-    let whereSql = feedType === 'main' ? 'WHERE p.group_id IS NULL' : 'WHERE 1=0';
+    let whereSql = feedType === 'main' ? "WHERE p.group_id IS NULL AND COALESCE(p.post_type, 'post') = 'post'" : 'WHERE 1=0';
     const whereParams = [];
+    let resolvedGroupId = null;
 
     if (feedType === 'community') {
       let year;
@@ -80,8 +81,9 @@ export class FeedService {
           }
         }
         if (group) {
-          whereSql = 'WHERE p.group_id = ?';
+          whereSql = "WHERE p.group_id = ? AND COALESCE(p.post_type, 'post') = 'post'";
           whereParams.push(group.id);
+          resolvedGroupId = group.id;
         }
       }
     }
@@ -98,7 +100,9 @@ export class FeedService {
       offset: cursor > 0 ? 0 : offset,
       cursorId: cursor,
       filter,
-      viewerId
+      viewerId,
+      feedType,
+      groupId: resolvedGroupId
     });
 
     const nextCursor = items.length === limit

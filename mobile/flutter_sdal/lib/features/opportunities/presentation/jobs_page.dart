@@ -109,9 +109,9 @@ class _JobsPageState extends ConsumerState<JobsPage> {
               ),
               subtitle: Text(
                 l10n.jobsSearchHelper,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: tokens.foregroundMuted,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: tokens.foregroundMuted),
               ),
               children: [
                 Padding(
@@ -168,13 +168,18 @@ class _JobsPageState extends ConsumerState<JobsPage> {
               const SizedBox(height: 24),
             ],
             if (sortedItems.length > 1)
-              ...sortedItems.skip(1).map((job) => _buildJobCard(job, actionState, userId)),
+              ...sortedItems
+                  .skip(1)
+                  .map((job) => _buildJobCard(job, actionState, userId)),
           ],
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: () => context.push('/jobs/create'),
+              onPressed: () async {
+                await context.push('/jobs/create');
+                if (mounted) _load();
+              },
               icon: const Icon(Icons.add_outlined),
               label: Text(l10n.jobsCreateAction),
             ),
@@ -191,7 +196,11 @@ class _JobsPageState extends ConsumerState<JobsPage> {
     return sorted;
   }
 
-  Widget _buildHeroJobCard(JobItem job, AsyncActionState actionState, int userId) {
+  Widget _buildHeroJobCard(
+    JobItem job,
+    AsyncActionState actionState,
+    int userId,
+  ) {
     final tokens = Theme.of(context).sdal;
     final isOwner = job.posterId == userId;
     return GestureDetector(
@@ -243,23 +252,27 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                       job.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       job.company,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.white70,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: Colors.white70),
                     ),
                     const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: tokens.accent.withValues(alpha: 0.9),
                         borderRadius: BorderRadius.circular(20),
@@ -271,9 +284,8 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                           const SizedBox(width: 5),
                           Text(
                             'En yeni iş',
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: tokens.foregroundOnAccent,
-                            ),
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(color: tokens.foregroundOnAccent),
                           ),
                         ],
                       ),
@@ -303,9 +315,9 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                 if (job.location.isNotEmpty) job.location,
                 _formatDate(context, job.createdAt),
               ].join(' · '),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: tokens.foregroundMuted,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
             ),
           ),
         ],
@@ -373,10 +385,9 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                         if (job.location.isNotEmpty) job.location,
                         _formatDate(context, job.createdAt),
                       ].join(' · '),
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: tokens.foregroundMuted),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: tokens.foregroundMuted,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -412,10 +423,7 @@ class _JobsPageState extends ConsumerState<JobsPage> {
   Future<void> _editJob(JobItem job) async {
     await showDialog<void>(
       context: context,
-      builder: (context) => _JobEditDialog(
-        job: job,
-        onSave: () => _load(),
-      ),
+      builder: (context) => _JobEditDialog(job: job, onSave: () => _load()),
     );
   }
 
@@ -466,8 +474,19 @@ class _JobsPageState extends ConsumerState<JobsPage> {
             location: _searchLocationController.text.trim(),
             jobType: _searchJobTypeController.text.trim(),
           );
+      final drafts = await ref
+          .read(opportunitiesRepositoryProvider)
+          .fetchJobs(
+            search: _searchController.text.trim(),
+            location: _searchLocationController.text.trim(),
+            jobType: _searchJobTypeController.text.trim(),
+            status: 'drafts',
+          );
       if (!mounted) return;
-      setState(() => _items = published);
+      setState(() {
+        _items = published;
+        _draftItems = drafts;
+      });
     } catch (error) {
       if (!mounted) return;
       setState(() => _error = error.toString());
@@ -495,9 +514,9 @@ class _SmallChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: tokens.foregroundMuted,
-        ),
+        style: Theme.of(
+          context,
+        ).textTheme.labelSmall?.copyWith(color: tokens.foregroundMuted),
       ),
     );
   }
@@ -533,10 +552,7 @@ class _JobOwnerMenu extends StatelessWidget {
 }
 
 class _JobEditDialog extends ConsumerStatefulWidget {
-  const _JobEditDialog({
-    required this.job,
-    required this.onSave,
-  });
+  const _JobEditDialog({required this.job, required this.onSave});
 
   final JobItem job;
   final VoidCallback onSave;
@@ -561,7 +577,9 @@ class _JobEditDialogState extends ConsumerState<_JobEditDialog> {
     super.initState();
     _companyController = TextEditingController(text: widget.job.company);
     _titleController = TextEditingController(text: widget.job.title);
-    _descriptionController = TextEditingController(text: widget.job.description);
+    _descriptionController = TextEditingController(
+      text: widget.job.description,
+    );
     _locationController = TextEditingController(text: widget.job.location);
     _linkController = TextEditingController(text: widget.job.link);
     _selectedJobType = widget.job.jobType;
@@ -582,7 +600,9 @@ class _JobEditDialogState extends ConsumerState<_JobEditDialog> {
   @override
   Widget build(BuildContext context) {
     final actionState = ref.watch(feedActionControllerProvider);
-    final isSaving = actionState.isLoading && actionState.scope == 'edit-job:${widget.job.id}';
+    final isSaving =
+        actionState.isLoading &&
+        actionState.scope == 'edit-job:${widget.job.id}';
 
     return Dialog(
       child: SingleChildScrollView(
@@ -649,7 +669,9 @@ class _JobEditDialogState extends ConsumerState<_JobEditDialog> {
                 icon: const Icon(Icons.photo_library_outlined),
                 label: Text(
                   _imageFile == null
-                      ? (widget.job.image.isNotEmpty ? 'Görseli değiştir' : 'Görsel ekle')
+                      ? (widget.job.image.isNotEmpty
+                            ? 'Görseli değiştir'
+                            : 'Görsel ekle')
                       : 'Görseli değiştir',
                 ),
               ),
@@ -658,11 +680,7 @@ class _JobEditDialogState extends ConsumerState<_JobEditDialog> {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: _imageFile != null
-                      ? Image.file(
-                          _imageFile!,
-                          height: 200,
-                          fit: BoxFit.cover,
-                        )
+                      ? Image.file(_imageFile!, height: 200, fit: BoxFit.cover)
                       : Image.network(
                           widget.job.image,
                           height: 200,
@@ -674,18 +692,24 @@ class _JobEditDialogState extends ConsumerState<_JobEditDialog> {
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Hemen yayınla'),
-                subtitle: Text(_showInFeed
-                    ? 'İlan taslak yerine yayınlanmış olarak kaydedilecek'
-                    : 'İlan taslak olarak kaydedilecek, detay sayfasından yayınlayabilirsiniz'),
+                subtitle: Text(
+                  _showInFeed
+                      ? 'İlan taslak yerine yayınlanmış olarak kaydedilecek'
+                      : 'İlan taslak olarak kaydedilecek, detay sayfasından yayınlayabilirsiniz',
+                ),
                 value: _showInFeed,
-                onChanged: isSaving ? null : (v) => setState(() => _showInFeed = v),
+                onChanged: isSaving
+                    ? null
+                    : (v) => setState(() => _showInFeed = v),
               ),
               const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: isSaving ? null : () => Navigator.of(context).pop(),
+                    onPressed: isSaving
+                        ? null
+                        : () => Navigator.of(context).pop(),
                     child: const Text('Vazgeç'),
                   ),
                   const SizedBox(width: 12),

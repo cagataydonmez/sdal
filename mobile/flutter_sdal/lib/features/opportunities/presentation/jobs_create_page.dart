@@ -36,6 +36,7 @@ class _JobsCreatePageState extends ConsumerState<JobsCreatePage> {
   String? _selectedJobType;
   String? _selectedWorkMode;
   File? _imageFile;
+  bool _publishNow = true;
   bool _showInFeed = true;
 
   @override
@@ -59,7 +60,9 @@ class _JobsCreatePageState extends ConsumerState<JobsCreatePage> {
   String _normalizeLink(String raw) {
     final trimmed = raw.trim();
     if (trimmed.isEmpty) return '';
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
     return 'https://$trimmed';
   }
 
@@ -86,10 +89,11 @@ class _JobsCreatePageState extends ConsumerState<JobsCreatePage> {
     }
     final uri = Uri.tryParse(raw);
     if (uri == null) return;
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('URL açılamadı')),
-      );
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
+        mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('URL açılamadı')));
     }
   }
 
@@ -97,7 +101,8 @@ class _JobsCreatePageState extends ConsumerState<JobsCreatePage> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final actionState = ref.watch(jobsActionControllerProvider);
-    final isSaving = actionState.isLoading && actionState.scope == 'jobs:create';
+    final isSaving =
+        actionState.isLoading && actionState.scope == 'jobs:create';
 
     return FeatureScaffold(
       title: l10n.jobsCreateTitle,
@@ -144,7 +149,10 @@ class _JobsCreatePageState extends ConsumerState<JobsCreatePage> {
             decoration: InputDecoration(
               labelText: l10n.jobsTypeLabel,
               border: const OutlineInputBorder(),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
@@ -203,7 +211,9 @@ class _JobsCreatePageState extends ConsumerState<JobsCreatePage> {
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: IconButton.outlined(
-                  onPressed: _linkController.text.trim().isEmpty ? null : _previewLink,
+                  onPressed: _linkController.text.trim().isEmpty
+                      ? null
+                      : _previewLink,
                   icon: const Icon(Icons.open_in_new_outlined),
                   tooltip: 'Linki önizle',
                 ),
@@ -214,30 +224,54 @@ class _JobsCreatePageState extends ConsumerState<JobsCreatePage> {
           OutlinedButton.icon(
             onPressed: isSaving ? null : _pickImage,
             icon: const Icon(Icons.photo_library_outlined),
-            label: Text(_imageFile == null ? 'Görsel ekle (isteğe bağlı)' : 'Görseli değiştir'),
+            label: Text(
+              _imageFile == null
+                  ? 'Görsel ekle (isteğe bağlı)'
+                  : 'Görseli değiştir',
+            ),
           ),
           if (_imageFile != null) ...[
             const SizedBox(height: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.file(_imageFile!, height: 180, fit: BoxFit.cover, width: double.infinity),
+              child: Image.file(
+                _imageFile!,
+                height: 180,
+                fit: BoxFit.cover,
+                width: double.infinity,
+              ),
             ),
           ],
           const SizedBox(height: 8),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
             title: const Text('Hemen yayınla'),
-            subtitle: Text(_showInFeed
-                ? 'İlan taslak yerine yayınlanmış olarak kaydedilecek'
-                : 'İlan taslak olarak kaydedilecek, detay sayfasından yayınlayabilirsiniz'),
+            subtitle: Text(
+              _publishNow
+                  ? 'İlan yayın akışına hazırlanacak'
+                  : 'İlan taslaklara kaydedilecek, yalnızca siz göreceksiniz',
+            ),
+            value: _publishNow,
+            onChanged: isSaving ? null : (v) => setState(() => _publishNow = v),
+          ),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Akışta göster'),
+            subtitle: const Text(
+              'Yayınlanan ilan akışta görseliyle post gibi görünür',
+            ),
             value: _showInFeed,
-            onChanged: isSaving ? null : (v) => setState(() => _showInFeed = v),
+            onChanged: isSaving || !_publishNow
+                ? null
+                : (v) => setState(() => _showInFeed = v),
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: isSaving ? null : _create,
             icon: const Icon(Icons.check_outlined),
-            label: Text(isSaving ? l10n.jobsCreateInProgress : l10n.jobsCreateAction),
+            label: Text(
+              isSaving ? l10n.jobsCreateInProgress : l10n.jobsCreateAction,
+            ),
           ),
           const SizedBox(height: 12),
           OutlinedButton(
@@ -262,23 +296,29 @@ class _JobsCreatePageState extends ConsumerState<JobsCreatePage> {
     final rawLink = _linkController.text.trim();
     final link = rawLink.isEmpty ? '' : _normalizeLink(rawLink);
 
-    final ok = await ref.read(jobsActionControllerProvider.notifier).createJob(
-      company: company,
-      title: title,
-      description: description,
-      location: _locationController.text.trim(),
-      jobType: _selectedJobType ?? '',
-      workMode: _selectedWorkMode ?? '',
-      link: link,
-      imageFile: _imageFile,
-      showInFeed: _showInFeed,
-    );
+    final ok = await ref
+        .read(jobsActionControllerProvider.notifier)
+        .createJob(
+          company: company,
+          title: title,
+          description: description,
+          location: _locationController.text.trim(),
+          jobType: _selectedJobType ?? '',
+          workMode: _selectedWorkMode ?? '',
+          link: link,
+          imageFile: _imageFile,
+          showInFeed: _showInFeed,
+          publish: _publishNow,
+        );
     if (!mounted) return;
     final state = ref.read(jobsActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          state.message ?? (ok ? context.l10n.jobsCreateSuccess : context.l10n.jobsCreateFailed),
+          state.message ??
+              (ok
+                  ? context.l10n.jobsCreateSuccess
+                  : context.l10n.jobsCreateFailed),
         ),
       ),
     );
