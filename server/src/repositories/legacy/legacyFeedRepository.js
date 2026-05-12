@@ -44,8 +44,15 @@ export class LegacyFeedRepository extends FeedRepository {
         `SELECT p.id, p.user_id, p.content, p.image, p.image_record_id, p.created_at, p.updated_at, p.group_id,
                 p.post_type, p.entity_id,
                 u.kadi, u.isim, u.soyisim, u.resim, u.verified,
-                COALESCE(plc.like_count, 0) AS like_count,
-                COALESCE(pcc.comment_count, 0) AS comment_count,
+                CASE
+                  WHEN p.post_type IN ('event', 'announcement') THEN COALESCE(erc.like_count, 0)
+                  ELSE COALESCE(plc.like_count, 0)
+                END AS like_count,
+                CASE
+                  WHEN p.post_type = 'event' THEN COALESCE(ec.comment_count, 0)
+                  WHEN p.post_type = 'announcement' THEN COALESCE(ac.comment_count, 0)
+                  ELSE COALESCE(pcc.comment_count, 0)
+                END AS comment_count,
                 CASE WHEN vl.post_id IS NULL THEN 0 ELSE 1 END AS liked_by_viewer
          FROM posts p
          LEFT JOIN uyeler u ON ${this.joinUserOnPostAuthorExpr}
@@ -61,6 +68,21 @@ export class LegacyFeedRepository extends FeedRepository {
            GROUP BY post_id
          ) pcc ON pcc.post_id = p.id
          LEFT JOIN (
+           SELECT entity_type, entity_id, COUNT(*) AS like_count
+           FROM entity_reactions
+           GROUP BY entity_type, entity_id
+         ) erc ON erc.entity_type = p.post_type AND erc.entity_id = p.entity_id
+         LEFT JOIN (
+           SELECT event_id, COUNT(*) AS comment_count
+           FROM event_comments
+           GROUP BY event_id
+         ) ec ON ec.event_id = p.entity_id AND p.post_type = 'event'
+         LEFT JOIN (
+           SELECT announcement_id, COUNT(*) AS comment_count
+           FROM announcement_comments
+           GROUP BY announcement_id
+         ) ac ON ac.announcement_id = p.entity_id AND p.post_type = 'announcement'
+         LEFT JOIN (
            SELECT DISTINCT post_id
            FROM post_likes
            WHERE user_id = ?
@@ -74,8 +96,15 @@ export class LegacyFeedRepository extends FeedRepository {
       `SELECT p.id, p.user_id, p.content, p.image, p.image_record_id, p.created_at, p.updated_at, p.group_id,
               p.post_type, p.entity_id,
               u.kadi, u.isim, u.soyisim, u.resim, u.verified,
-              COALESCE(plc.like_count, 0) AS like_count,
-              COALESCE(pcc.comment_count, 0) AS comment_count,
+              CASE
+                WHEN p.post_type IN ('event', 'announcement') THEN COALESCE(erc.like_count, 0)
+                ELSE COALESCE(plc.like_count, 0)
+              END AS like_count,
+              CASE
+                WHEN p.post_type = 'event' THEN COALESCE(ec.comment_count, 0)
+                WHEN p.post_type = 'announcement' THEN COALESCE(ac.comment_count, 0)
+                ELSE COALESCE(pcc.comment_count, 0)
+              END AS comment_count,
               CASE WHEN vl.post_id IS NULL THEN 0 ELSE 1 END AS liked_by_viewer
        FROM posts p
        LEFT JOIN uyeler u ON ${this.joinUserOnPostAuthorExpr}
@@ -90,6 +119,21 @@ export class LegacyFeedRepository extends FeedRepository {
          FROM post_comments
          GROUP BY post_id
        ) pcc ON pcc.post_id = p.id
+       LEFT JOIN (
+         SELECT entity_type, entity_id, COUNT(*) AS like_count
+         FROM entity_reactions
+         GROUP BY entity_type, entity_id
+       ) erc ON erc.entity_type = p.post_type AND erc.entity_id = p.entity_id
+       LEFT JOIN (
+         SELECT event_id, COUNT(*) AS comment_count
+         FROM event_comments
+         GROUP BY event_id
+       ) ec ON ec.event_id = p.entity_id AND p.post_type = 'event'
+       LEFT JOIN (
+         SELECT announcement_id, COUNT(*) AS comment_count
+         FROM announcement_comments
+         GROUP BY announcement_id
+       ) ac ON ac.announcement_id = p.entity_id AND p.post_type = 'announcement'
        LEFT JOIN (
          SELECT DISTINCT post_id
          FROM post_likes
