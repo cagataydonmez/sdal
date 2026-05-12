@@ -92,11 +92,22 @@ class JobsActionController extends Notifier<AsyncActionState> {
     return false;
   }
 
-  Future<bool> apply({required int jobId, required String coverLetter}) async {
+  Future<bool> apply({
+    required int jobId,
+    String coverLetter = '',
+    String cvLink = '',
+    String contactChannel = '',
+    String contactValue = '',
+    String city = '',
+  }) async {
     state = AsyncActionState.loading(scope: 'jobs:apply:$jobId');
     final result = await _repository.applyToJob(
       jobId: jobId,
       coverLetter: coverLetter,
+      cvLink: cvLink,
+      contactChannel: contactChannel,
+      contactValue: contactValue,
+      city: city,
     );
     if (result.ok) {
       state = const AsyncActionState.success(scope: 'jobs:apply');

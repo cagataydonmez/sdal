@@ -40,6 +40,9 @@ import '../../features/profile/presentation/profile_verification_page.dart';
 import '../../features/opportunities/presentation/jobs_page.dart';
 import '../../features/opportunities/presentation/jobs_create_page.dart';
 import '../../features/opportunities/presentation/job_detail_page.dart';
+import '../../features/opportunities/presentation/job_apply_page.dart';
+import '../../features/opportunities/presentation/job_applications_page.dart';
+import '../../features/opportunities/presentation/job_application_detail_page.dart';
 import '../../features/requests/presentation/requests_page.dart';
 import '../../features/requests/presentation/module_access_request_page.dart';
 import '../../features/stories/presentation/expired_stories_page.dart';
@@ -437,6 +440,64 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                                 0,
                       ),
                     ),
+                    routes: [
+                      GoRoute(
+                        path: 'apply',
+                        pageBuilder: (context, state) {
+                          final extra = state.extra is Map
+                              ? state.extra as Map
+                              : const {};
+                          return _slidePage(
+                            JobApplyPage(
+                              jobId: int.tryParse(
+                                      state.pathParameters['jobId'] ?? '') ??
+                                  0,
+                              jobTitle: (extra['jobTitle'] ?? '').toString(),
+                            ),
+                          );
+                        },
+                      ),
+                      GoRoute(
+                        path: 'applications',
+                        pageBuilder: (context, state) {
+                          final extra = state.extra is Map
+                              ? state.extra as Map
+                              : const {};
+                          return _slidePage(
+                            JobApplicationsPage(
+                              jobId: int.tryParse(
+                                      state.pathParameters['jobId'] ?? '') ??
+                                  0,
+                              jobTitle: (extra['jobTitle'] ?? '').toString(),
+                            ),
+                          );
+                        },
+                        routes: [
+                          GoRoute(
+                            path: ':appId',
+                            pageBuilder: (context, state) {
+                              final extra = state.extra is Map
+                                  ? state.extra as Map
+                                  : const {};
+                              return _liftPage(
+                                JobApplicationDetailPage(
+                                  jobId: int.tryParse(
+                                          state.pathParameters['jobId'] ??
+                                              '') ??
+                                      0,
+                                  applicationId: int.tryParse(
+                                          state.pathParameters['appId'] ??
+                                              '') ??
+                                      0,
+                                  jobTitle:
+                                      (extra['jobTitle'] ?? '').toString(),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ],
               ),

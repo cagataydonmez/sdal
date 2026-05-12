@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/state/async_action_state.dart';
@@ -26,7 +27,6 @@ class JobDetailPage extends ConsumerStatefulWidget {
 
 class _JobDetailPageState extends ConsumerState<JobDetailPage> {
   late final FutureProvider<JobItem?> _jobProvider;
-  final TextEditingController _applyController = TextEditingController();
 
   @override
   void initState() {
@@ -34,12 +34,6 @@ class _JobDetailPageState extends ConsumerState<JobDetailPage> {
     _jobProvider = FutureProvider.autoDispose<JobItem?>((ref) async {
       return ref.read(opportunitiesRepositoryProvider).fetchJob(widget.jobId);
     });
-  }
-
-  @override
-  void dispose() {
-    _applyController.dispose();
-    super.dispose();
   }
 
   @override
@@ -68,7 +62,6 @@ class _JobDetailPageState extends ConsumerState<JobDetailPage> {
                   l10n: l10n,
                   ref: ref,
                   onRefresh: () => ref.invalidate(_jobProvider),
-                  applyController: _applyController,
                 ),
               ),
       ),
@@ -86,7 +79,6 @@ class _JobDetailContent extends ConsumerStatefulWidget {
     required this.l10n,
     required this.ref,
     required this.onRefresh,
-    required this.applyController,
   });
 
   final JobItem job;
@@ -97,7 +89,6 @@ class _JobDetailContent extends ConsumerStatefulWidget {
   final AppLocalizations l10n;
   final WidgetRef ref;
   final VoidCallback onRefresh;
-  final TextEditingController applyController;
 
   @override
   ConsumerState<_JobDetailContent> createState() => _JobDetailContentState();
@@ -182,16 +173,33 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent> {
               ],
               if (widget.isOwner || widget.isAdmin) ...[
                 const SizedBox(height: 12),
-                PopupMenuButton(
-                  onSelected: (value) => _handleMenuAction(value),
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Text('Düzenle'),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => context.push(
+                        '/jobs/${widget.jobId}/applications',
+                        extra: {'jobTitle': widget.job.title},
+                      ),
+                      icon: const Icon(Icons.people_outline, size: 18),
+                      label: const Text('Başvuranlar'),
                     ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Text('Sil'),
+                    PopupMenuButton<String>(
+                      onSelected: _handleMenuAction,
+                      child: const Chip(
+                        label: Text('Diğer'),
+                        avatar: Icon(Icons.more_horiz, size: 16),
+                      ),
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: Text('Düzenle'),
+                        ),
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Text('Yayından kaldır'),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -253,62 +261,42 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent> {
             ),
           ),
         ],
-        if (widget.job.myApplicationId > 0)
-          ...[
-            const SizedBox(height: 20),
-            SurfaceCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.l10n.jobsApplicationStatus(
-                      _applicationStatusLabel(
-                        context,
-                        widget.job.myApplicationStatus,
-                      ),
-                    ),
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  if (widget.job.myApplicationDecisionNote.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Text(widget.job.myApplicationDecisionNote),
-                  ],
-                ],
-              ),
+        if (widget.job.myApplicationId > 0) ...[
+          const SizedBox(height: 20),
+          SurfaceCard(
+            child: Row(
+              children: [
+                Icon(
+                  widget.job.myApplicationStatus == 'pending'
+                      ? Icons.hourglass_top_outlined
+                      : Icons.check_circle_outline,
+                  size: 20,
+                  color: widget.job.myApplicationStatus == 'pending'
+                      ? Theme.of(context).colorScheme.onSurfaceVariant
+                      : Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Başvuru durumu: ${_applicationStatusLabel(context, widget.job.myApplicationStatus)}',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
             ),
-          ]
-        else
-          ...[
-            const SizedBox(height: 20),
-            SurfaceCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: widget.applyController,
-                    minLines: 3,
-                    maxLines: 6,
-                    decoration: InputDecoration(
-                      labelText: widget.l10n.jobsShortNoteLabel,
-                      border: const OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: FilledButton(
-                      onPressed: widget.actionState.isLoading &&
-                              widget.actionState.scope ==
-                                  'jobs:apply:${widget.jobId}'
-                          ? null
-                          : () => _apply(widget.job.id),
-                      child: Text(widget.l10n.jobsApplyAction),
-                    ),
-                  ),
-                ],
+          ),
+        ] else if (!widget.isOwner && !widget.isAdmin) ...[
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => context.push(
+                '/jobs/${widget.jobId}/apply',
+                extra: {'jobTitle': widget.job.title},
               ),
+              icon: const Icon(Icons.send_outlined),
+              label: Text(widget.l10n.jobsApplyAction),
             ),
-          ],
+          ),
+        ],
       ],
     );
   }
@@ -352,8 +340,8 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('İlanı sil'),
-        content: const Text('Bu ilanı silmek istediğinizden emin misiniz?'),
+        title: const Text('İlanı yayından kaldır'),
+        content: const Text('Bu ilan kalıcı olarak silinecek. Devam edilsin mi?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -361,7 +349,7 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Sil'),
+            child: const Text('Kaldır'),
           ),
         ],
       ),
@@ -390,20 +378,7 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent> {
   }
 
   String _applicationStatusLabel(BuildContext context, String status) {
-    switch (status.toLowerCase()) {
-      case 'pending':
-        return 'Beklemede';
-      case 'reviewed':
-        return 'İnceleniyor';
-      case 'accepted':
-        return 'Kabul Edildi';
-      case 'approved':
-        return 'Kabul Edildi';
-      case 'rejected':
-        return 'Reddedildi';
-      default:
-        return status;
-    }
+    return status == 'pending' ? 'Beklemede' : 'İncelendi';
   }
 
   bool _isLinkedIn(String url) =>
@@ -411,30 +386,6 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent> {
 
   bool _isKariyer(String url) =>
       url.contains('kariyer.net');
-
-  Future<void> _apply(int jobId) async {
-    final text = widget.applyController.text.trim();
-    if (text.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Lütfen bir not ekleyin')),
-        );
-      }
-      return;
-    }
-
-    final ok = await widget.ref
-        .read(jobsActionControllerProvider.notifier)
-        .apply(jobId: jobId, coverLetter: text);
-
-    if (ok && mounted) {
-      widget.applyController.clear();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Başvurunuz gönderildi')),
-      );
-      widget.onRefresh();
-    }
-  }
 
   Future<void> _launchUrl(String url) async {
     final uri = Uri.tryParse(url);

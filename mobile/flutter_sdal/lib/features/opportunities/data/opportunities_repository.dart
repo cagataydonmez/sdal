@@ -76,22 +76,35 @@ class JobApplicationItem {
     required this.jobId,
     required this.applicantId,
     required this.coverLetter,
+    required this.cvLink,
+    required this.contactChannel,
+    required this.contactValue,
+    required this.city,
     required this.createdAt,
     required this.status,
     required this.decisionNote,
     required this.handle,
     required this.displayName,
+    required this.photo,
   });
 
   final int id;
   final int jobId;
   final int applicantId;
   final String coverLetter;
+  final String cvLink;
+  final String contactChannel;
+  final String contactValue;
+  final String city;
   final String createdAt;
   final String status;
   final String decisionNote;
   final String handle;
   final String displayName;
+  final String photo;
+
+  bool get isPending => status == 'pending';
+  bool get isReviewed => status != 'pending';
 
   factory JobApplicationItem.fromMap(JsonMap map) {
     return JobApplicationItem(
@@ -99,6 +112,10 @@ class JobApplicationItem {
       jobId: asInt(map['job_id']) ?? 0,
       applicantId: asInt(map['applicant_id']) ?? 0,
       coverLetter: coalesceText([map['cover_letter']], fallback: ''),
+      cvLink: coalesceText([map['cv_link']], fallback: ''),
+      contactChannel: coalesceText([map['contact_channel']], fallback: ''),
+      contactValue: coalesceText([map['contact_value']], fallback: ''),
+      city: coalesceText([map['city']], fallback: ''),
       createdAt: coalesceText([map['created_at']], fallback: ''),
       status: coalesceText([map['status']], fallback: 'pending'),
       decisionNote: coalesceText([map['decision_note']], fallback: ''),
@@ -108,6 +125,7 @@ class JobApplicationItem {
             .trim(),
         map['kadi'],
       ], fallback: 'SDAL Üyesi'),
+      photo: coalesceText([map['resim']], fallback: ''),
     );
   }
 }
@@ -300,11 +318,21 @@ class OpportunitiesRepository {
 
   Future<ApiResult<dynamic>> applyToJob({
     required int jobId,
-    required String coverLetter,
+    String coverLetter = '',
+    String cvLink = '',
+    String contactChannel = '',
+    String contactValue = '',
+    String city = '',
   }) {
     return _apiClient.post<dynamic>(
       '/api/new/jobs/$jobId/apply',
-      body: {'coverLetter': coverLetter, 'cover_letter': coverLetter},
+      body: {
+        'cover_letter': coverLetter,
+        if (cvLink.isNotEmpty) 'cv_link': cvLink,
+        if (contactChannel.isNotEmpty) 'contact_channel': contactChannel,
+        if (contactValue.isNotEmpty) 'contact_value': contactValue,
+        if (city.isNotEmpty) 'city': city,
+      },
     );
   }
 
@@ -316,6 +344,23 @@ class OpportunitiesRepository {
     return asJsonMapList(
       asJsonMap(result.rawData)['items'],
     ).map(JobApplicationItem.fromMap).toList(growable: false);
+  }
+
+  Future<JobApplicationItem?> fetchApplicationDetail({
+    required int jobId,
+    required int applicationId,
+  }) async {
+    try {
+      final result = await _apiClient.get<JsonMap>(
+        '/api/new/jobs/$jobId/applications/$applicationId',
+        decoder: asJsonMap,
+      );
+      final map = asJsonMap(result.rawData);
+      if (map.isEmpty) return null;
+      return JobApplicationItem.fromMap(map);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<ApiResult<dynamic>> reviewApplication({

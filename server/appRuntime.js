@@ -5037,6 +5037,18 @@ function ensureJobApplicationsTable() {
   if (!hasColumn('jobs', 'work_mode')) {
     try { sqlRun('ALTER TABLE jobs ADD COLUMN work_mode TEXT'); } catch {}
   }
+  if (!hasColumn('job_applications', 'cv_link')) {
+    try { sqlRun('ALTER TABLE job_applications ADD COLUMN cv_link TEXT'); } catch {}
+  }
+  if (!hasColumn('job_applications', 'contact_channel')) {
+    try { sqlRun('ALTER TABLE job_applications ADD COLUMN contact_channel TEXT'); } catch {}
+  }
+  if (!hasColumn('job_applications', 'contact_value')) {
+    try { sqlRun('ALTER TABLE job_applications ADD COLUMN contact_value TEXT'); } catch {}
+  }
+  if (!hasColumn('job_applications', 'city')) {
+    try { sqlRun('ALTER TABLE job_applications ADD COLUMN city TEXT'); } catch {}
+  }
 }
 
 registerNetworkRequestRoutes(app, {

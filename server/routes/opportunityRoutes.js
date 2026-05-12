@@ -246,10 +246,14 @@ export function registerOpportunityRoutes(app, {
     }
 
     const coverLetter = formatUserText(String(req.body?.cover_letter || ''));
+    const cvLink = sanitizePlainUserText(String(req.body?.cv_link || '').trim(), 500) || null;
+    const contactChannel = sanitizePlainUserText(String(req.body?.contact_channel || '').trim(), 40) || null;
+    const contactValue = sanitizePlainUserText(String(req.body?.contact_value || '').trim(), 200) || null;
+    const city = sanitizePlainUserText(String(req.body?.city || '').trim(), 100) || null;
     const now = new Date().toISOString();
     const result = await sqlRunAsync(
-      'INSERT INTO job_applications (job_id, applicant_id, cover_letter, status, created_at) VALUES (?, ?, ?, ?, ?)',
-      [jobId, req.session.userId, isFormattedContentEmpty(coverLetter) ? null : coverLetter, 'pending', now]
+      'INSERT INTO job_applications (job_id, applicant_id, cover_letter, cv_link, contact_channel, contact_value, city, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [jobId, req.session.userId, isFormattedContentEmpty(coverLetter) ? null : coverLetter, cvLink, contactChannel, contactValue, city, 'pending', now]
     );
 
     addNotification({
@@ -278,10 +282,11 @@ export function registerOpportunityRoutes(app, {
     }
 
     const rows = await sqlAllAsync(
-      `SELECT ja.id, ja.job_id, ja.applicant_id, ja.cover_letter, ja.created_at,
-              ja.status, ja.reviewed_at, ja.reviewed_by, ja.decision_note,
-              u.kadi, u.isim, u.soyisim, u.sirket, u.unvan, u.linkedin_url,
-              reviewer.kadi AS reviewed_by_kadi, reviewer.isim AS reviewed_by_isim, reviewer.soyisim AS reviewed_by_soyisim
+      `SELECT ja.id, ja.job_id, ja.applicant_id, ja.cover_letter, ja.cv_link,
+              ja.contact_channel, ja.contact_value, ja.city,
+              ja.created_at, ja.status, ja.reviewed_at, ja.reviewed_by, ja.decision_note,
+              u.kadi, u.isim, u.soyisim, u.resim, u.sirket, u.unvan,
+              reviewer.kadi AS reviewed_by_kadi
        FROM job_applications ja
        LEFT JOIN uyeler u ON u.id = ja.applicant_id
        LEFT JOIN uyeler reviewer ON reviewer.id = ja.reviewed_by
@@ -291,6 +296,52 @@ export function registerOpportunityRoutes(app, {
     );
 
     res.json({ items: rows });
+  });
+
+  app.get('/api/new/jobs/:jobId/applications/:applicationId', requireAuth, async (req, res) => {
+    const jobId = Number(req.params.jobId || 0);
+    const applicationId = Number(req.params.applicationId || 0);
+    if (!jobId || !applicationId) return res.status(400).send('Geçersiz başvuru kimliği.');
+
+    ensureJobApplicationsTable();
+
+    const user = getCurrentUser(req);
+    const isAdmin = hasAdminSession(req, user);
+    const job = await sqlGetAsync('SELECT id, poster_id FROM jobs WHERE id = ?', [jobId]);
+    if (!job) return res.status(404).send('İş ilanı bulunamadı.');
+    const isPoster = isAdmin || sameUserId(job.poster_id, req.session.userId);
+
+    const row = await sqlGetAsync(
+      `SELECT ja.id, ja.job_id, ja.applicant_id, ja.cover_letter, ja.cv_link,
+              ja.contact_channel, ja.contact_value, ja.city,
+              ja.created_at, ja.status, ja.reviewed_at, ja.reviewed_by, ja.decision_note,
+              u.kadi, u.isim, u.soyisim, u.resim, u.sirket, u.unvan
+       FROM job_applications ja
+       LEFT JOIN uyeler u ON u.id = ja.applicant_id
+       WHERE ja.id = ? AND ja.job_id = ?`,
+      [applicationId, jobId]
+    );
+    if (!row) return res.status(404).send('Başvuru bulunamadı.');
+
+    const isOwnApplication = sameUserId(row.applicant_id, req.session.userId);
+    if (!isPoster && !isOwnApplication) return res.status(403).send('Bu başvuruyu görüntüleme yetkin yok.');
+
+    if (isPoster && row.status === 'pending') {
+      await sqlRunAsync(
+        `UPDATE job_applications SET status = 'reviewed', reviewed_at = ?, reviewed_by = ? WHERE id = ?`,
+        [new Date().toISOString(), req.session.userId, applicationId]
+      );
+      row.status = 'reviewed';
+      addNotification({
+        userId: Number(row.applicant_id),
+        type: 'job_application_reviewed',
+        sourceUserId: Number(req.session.userId),
+        entityId: applicationId,
+        message: `Başvurunuz incelendi.`
+      });
+    }
+
+    res.json(row);
   });
 
   app.post('/api/new/jobs/:jobId/applications/:applicationId/review', requireAuth, async (req, res) => {

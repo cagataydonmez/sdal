@@ -34,7 +34,11 @@ class _FakeOpportunitiesRepository extends OpportunitiesRepository {
   @override
   Future<ApiResult<dynamic>> applyToJob({
     required int jobId,
-    required String coverLetter,
+    String coverLetter = '',
+    String cvLink = '',
+    String contactChannel = '',
+    String contactValue = '',
+    String city = '',
   }) async {
     return const ApiResult<dynamic>(
       ok: false,
