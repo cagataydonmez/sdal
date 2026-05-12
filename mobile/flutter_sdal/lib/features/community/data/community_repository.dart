@@ -292,10 +292,15 @@ class CommunityRepository {
   Future<CommunityPageData<AnnouncementItem>> fetchAnnouncements({
     int limit = 15,
     int offset = 0,
+    bool? approved,
   }) async {
+    final query = <String, dynamic>{'limit': limit, 'offset': offset};
+    if (approved != null) {
+      query['approved'] = approved ? '1' : '0';
+    }
     final result = await _apiClient.get<JsonMap>(
       '/api/new/announcements',
-      query: {'limit': limit, 'offset': offset},
+      query: query,
       decoder: asJsonMap,
     );
     final payload = asJsonMap(result.rawData);
@@ -348,10 +353,15 @@ class CommunityRepository {
   Future<CommunityPageData<EventItem>> fetchEvents({
     int limit = 15,
     int offset = 0,
+    bool? approved,
   }) async {
+    final query = <String, dynamic>{'limit': limit, 'offset': offset};
+    if (approved != null) {
+      query['approved'] = approved ? '1' : '0';
+    }
     final result = await _apiClient.get<JsonMap>(
       '/api/new/events',
-      query: {'limit': limit, 'offset': offset},
+      query: query,
       decoder: asJsonMap,
     );
     final payload = asJsonMap(result.rawData);

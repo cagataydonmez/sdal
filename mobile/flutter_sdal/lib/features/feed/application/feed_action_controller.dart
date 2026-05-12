@@ -225,6 +225,7 @@ class FeedActionController extends Notifier<AsyncActionState> {
     required String location,
     required String startsAt,
     required String endsAt,
+    File? imageFile,
   }) async {
     state = AsyncActionState.loading(scope: 'edit-event:$eventId');
     final result = await _repository.editEvent(
@@ -234,6 +235,7 @@ class FeedActionController extends Notifier<AsyncActionState> {
       location: location,
       startsAt: startsAt,
       endsAt: endsAt,
+      imageFile: imageFile,
     );
     if (result.ok) {
       ref.invalidate(feedPageProvider);
@@ -266,12 +268,16 @@ class FeedActionController extends Notifier<AsyncActionState> {
     required int announcementId,
     required String title,
     required String body,
+    File? imageFile,
+    bool? approved,
   }) async {
     state = AsyncActionState.loading(scope: 'edit-announcement:$announcementId');
     final result = await _repository.editAnnouncement(
       announcementId: announcementId,
       title: title,
       body: body,
+      imageFile: imageFile,
+      approved: approved,
     );
     if (result.ok) {
       ref.invalidate(feedPageProvider);
@@ -309,6 +315,8 @@ class FeedActionController extends Notifier<AsyncActionState> {
     required String jobType,
     required String workMode,
     required String link,
+    File? imageFile,
+    bool? showInFeed,
   }) async {
     state = AsyncActionState.loading(scope: 'edit-job:$jobId');
     final result = await _repository.editJob(
@@ -320,6 +328,8 @@ class FeedActionController extends Notifier<AsyncActionState> {
       jobType: jobType,
       workMode: workMode,
       link: link,
+      imageFile: imageFile,
+      showInFeed: showInFeed,
     );
     if (result.ok) {
       ref.invalidate(feedPageProvider);

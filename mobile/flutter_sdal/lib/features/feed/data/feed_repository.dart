@@ -526,16 +526,25 @@ class FeedRepository {
     required String location,
     required String startsAt,
     required String endsAt,
+    File? imageFile,
   }) {
+    final fields = <String, dynamic>{
+      'title': title,
+      'description': description,
+      'location': location,
+      'starts_at': startsAt,
+      'ends_at': endsAt,
+    };
+    if (imageFile != null) {
+      return _apiClient.multipart<dynamic>(
+        '/api/new/events/$eventId/upload',
+        files: {'image': imageFile},
+        fields: fields,
+      );
+    }
     return _apiClient.patch<dynamic>(
       '/api/new/events/$eventId',
-      body: {
-        'title': title,
-        'description': description,
-        'location': location,
-        'startsAt': startsAt,
-        'endsAt': endsAt,
-      },
+      body: fields,
     );
   }
 
@@ -547,13 +556,26 @@ class FeedRepository {
     required int announcementId,
     required String title,
     required String body,
+    File? imageFile,
+    bool? approved,
   }) {
+    final fields = <String, dynamic>{
+      'title': title,
+      'body': body,
+    };
+    if (approved != null) {
+      fields['show_in_feed'] = approved ? '1' : '0';
+    }
+    if (imageFile != null) {
+      return _apiClient.multipart<dynamic>(
+        '/api/new/announcements/$announcementId/upload',
+        files: {'image': imageFile},
+        fields: fields,
+      );
+    }
     return _apiClient.patch<dynamic>(
       '/api/new/announcements/$announcementId',
-      body: {
-        'title': title,
-        'body': body,
-      },
+      body: fields,
     );
   }
 

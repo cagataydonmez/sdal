@@ -75,23 +75,25 @@ class _EventsCreatePageState extends ConsumerState<EventsCreatePage> {
           Row(
             children: [
               Expanded(
-                child: TextField(
-                  controller: _startsAtController,
-                  decoration: const InputDecoration(
-                    labelText: 'Başlangıç tarihi',
-                    hintText: '2026-04-04T19:30',
-                    border: OutlineInputBorder(),
+                child: OutlinedButton.icon(
+                  onPressed: isSaving ? null : () => _pickDateTime(true),
+                  icon: const Icon(Icons.calendar_today_outlined),
+                  label: Text(
+                    _startsAtController.text.isEmpty
+                        ? 'Başlangıç tarihi'
+                        : _startsAtController.text,
                   ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: TextField(
-                  controller: _endsAtController,
-                  decoration: const InputDecoration(
-                    labelText: 'Bitiş tarihi',
-                    hintText: '2026-04-04T22:00',
-                    border: OutlineInputBorder(),
+                child: OutlinedButton.icon(
+                  onPressed: isSaving ? null : () => _pickDateTime(false),
+                  icon: const Icon(Icons.calendar_today_outlined),
+                  label: Text(
+                    _endsAtController.text.isEmpty
+                        ? 'Bitiş tarihi'
+                        : _endsAtController.text,
                   ),
                 ),
               ),
@@ -123,8 +125,10 @@ class _EventsCreatePageState extends ConsumerState<EventsCreatePage> {
           const SizedBox(height: 8),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Ana akışta göster'),
-            subtitle: const Text('Etkinlik herkese açık akışta görünsün'),
+            title: const Text('Hemen yayınla'),
+            subtitle: const Text(_showInFeed
+                ? 'Etkinlik taslak yerine yayınlanmış olarak kaydedilecek'
+                : 'Etkinlik taslak olarak kaydedilecek, detay sayfasından yayınlayabilirsiniz'),
             value: _showInFeed,
             onChanged: isSaving ? null : (v) => setState(() => _showInFeed = v),
           ),
@@ -155,6 +159,31 @@ class _EventsCreatePageState extends ConsumerState<EventsCreatePage> {
     );
     if (picked == null || !mounted) return;
     setState(() => _imageFile = picked);
+  }
+
+  Future<void> _pickDateTime(bool isStart) async {
+    final controller = isStart ? _startsAtController : _endsAtController;
+    final now = DateTime.now();
+    final initialDate = controller.text.isEmpty
+        ? now.add(Duration(days: isStart ? 0 : 3))
+        : DateTime.parse(controller.text);
+
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (date == null || !mounted) return;
+
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initialDate),
+    );
+    if (time == null || !mounted) return;
+
+    final datetime = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    setState(() => controller.text = datetime.toIso8601String().substring(0, 16));
   }
 
   Future<void> _createEvent() async {

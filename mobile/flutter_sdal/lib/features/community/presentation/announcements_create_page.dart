@@ -84,8 +84,10 @@ class _AnnouncementsCreatePageState
           const SizedBox(height: 8),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Ana akışta göster'),
-            subtitle: const Text('Duyuru herkese açık akışta görünsün'),
+            title: const Text('Hemen yayınla'),
+            subtitle: const Text(_showInFeed
+                ? 'Duyuru taslak yerine yayınlanmış olarak kaydedilecek'
+                : 'Duyuru taslak olarak kaydedilecek, detay sayfasından yayınlayabilirsiniz'),
             value: _showInFeed,
             onChanged: isSaving ? null : (v) => setState(() => _showInFeed = v),
           ),

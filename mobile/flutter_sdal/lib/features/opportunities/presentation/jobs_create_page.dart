@@ -226,8 +226,10 @@ class _JobsCreatePageState extends ConsumerState<JobsCreatePage> {
           const SizedBox(height: 8),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Ana akışta göster'),
-            subtitle: const Text('İlan herkese açık akışta görünsün'),
+            title: const Text('Hemen yayınla'),
+            subtitle: const Text(_showInFeed
+                ? 'İlan taslak yerine yayınlanmış olarak kaydedilecek'
+                : 'İlan taslak olarak kaydedilecek, detay sayfasından yayınlayabilirsiniz'),
             value: _showInFeed,
             onChanged: isSaving ? null : (v) => setState(() => _showInFeed = v),
           ),

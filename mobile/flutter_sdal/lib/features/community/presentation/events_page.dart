@@ -1,9 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/l10n/context_l10n.dart';
+import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/text/sdal_date_time.dart';
+import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
@@ -13,6 +17,7 @@ import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/community_action_controller.dart';
 import '../data/community_repository.dart';
+import '../../feed/application/feed_action_controller.dart';
 
 class EventsPage extends ConsumerStatefulWidget {
   const EventsPage({super.key});
@@ -24,11 +29,13 @@ class EventsPage extends ConsumerStatefulWidget {
 class _EventsPageState extends ConsumerState<EventsPage> {
   final ScrollController _scrollController = ScrollController();
   final List<EventItem> _items = <EventItem>[];
+  final List<EventItem> _draftItems = <EventItem>[];
 
   bool _isLoadingInitial = true;
   bool _isLoadingMore = false;
   bool _hasMore = true;
   String _error = '';
+  bool _showDrafts = false;
 
   @override
   void initState() {
@@ -49,6 +56,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
   Widget build(BuildContext context) {
     final session = ref.watch(sessionControllerProvider).value;
     final isAdmin = session?.hasAdminAccess ?? false;
+    final userId = session?.user?.id ?? 0;
     final l10n = context.l10n;
     final sortedItems = _getSortedItems();
     final heroItem = sortedItems.isNotEmpty ? sortedItems.first : null;
@@ -70,6 +78,26 @@ class _EventsPageState extends ConsumerState<EventsPage> {
               title: 'Etkinlikler topluluğa öneriyle başlar.',
               message:
                   'Etkinlik önerirken başlık, zaman, konum ve kapak görselini net ver. Yayına alınan etkinliklerde yanıtlar ve yorumlar burada görünür.',
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: FilterChip(
+                    selected: !_showDrafts,
+                    label: const Text('Yayınlanan'),
+                    onSelected: (_) => setState(() => _showDrafts = false),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilterChip(
+                    selected: _showDrafts,
+                    label: const Text('Taslaklar'),
+                    onSelected: (_) => setState(() => _showDrafts = true),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 20),
             if (_isLoadingInitial)
@@ -97,10 +125,10 @@ class _EventsPageState extends ConsumerState<EventsPage> {
               )
             else ...[
               if (heroItem != null) ...[
-                _buildHeroEventCard(heroItem, isAdmin),
+                _buildHeroEventCard(heroItem, isAdmin, userId),
                 const SizedBox(height: 24),
               ],
-              ...otherItems.map((item) => _buildEventCard(item, isAdmin)),
+              ...otherItems.map((item) => _buildEventCard(item, isAdmin, userId)),
             ],
             if (_isLoadingMore)
               const Padding(
@@ -123,7 +151,8 @@ class _EventsPageState extends ConsumerState<EventsPage> {
   }
 
   List<EventItem> _getSortedItems() {
-    final sorted = [..._items];
+    final items = _showDrafts ? _draftItems : _items;
+    final sorted = [...items];
     sorted.sort((a, b) {
       final aScore = a.attendCount + a.declineCount;
       final bScore = b.attendCount + b.declineCount;
@@ -132,7 +161,8 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     return sorted;
   }
 
-  Widget _buildHeroEventCard(EventItem item, bool isAdmin) {
+  Widget _buildHeroEventCard(EventItem item, bool isAdmin, int userId) {
+    final isOwner = item.createdBy == userId;
     return GestureDetector(
       onTap: () => context.push('/events/${item.id}'),
       child: Column(
@@ -206,7 +236,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                   ],
                 ),
               ),
-              if (isAdmin)
+              if (isAdmin || isOwner)
                 Positioned(
                   top: 10,
                   right: 10,
@@ -214,6 +244,8 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                     item: item,
                     onApprove: (approved) => _approveEvent(item.id, approved: approved),
                     onDelete: () => _deleteEvent(item.id),
+                    onEdit: isOwner ? () => _editEvent(item) : null,
+                    isOwner: isOwner,
                     dark: true,
                   ),
                 ),
@@ -234,7 +266,8 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     );
   }
 
-  Widget _buildEventCard(EventItem item, bool isAdmin) {
+  Widget _buildEventCard(EventItem item, bool isAdmin, int userId) {
+    final isOwner = item.createdBy == userId;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: InkWell(
@@ -294,11 +327,13 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                   ],
                 ),
               ),
-              if (isAdmin)
+              if (isAdmin || isOwner)
                 _EventAdminMenu(
                   item: item,
                   onApprove: (approved) => _approveEvent(item.id, approved: approved),
                   onDelete: () => _deleteEvent(item.id),
+                  onEdit: isOwner ? () => _editEvent(item) : null,
+                  isOwner: isOwner,
                   dark: false,
                 ),
             ],
@@ -355,6 +390,35 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     if (ok) _load(reset: true);
   }
 
+  Future<void> _editEvent(EventItem item) async {
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => _EventEditDialog(event: item),
+    );
+    if (result == null || !mounted) return;
+
+    final ok = await ref
+        .read(feedActionControllerProvider.notifier)
+        .editEvent(
+          eventId: item.id,
+          title: result['title'] ?? '',
+          description: result['description'] ?? '',
+          location: result['location'] ?? '',
+          startsAt: result['startsAt'] ?? '',
+          endsAt: result['endsAt'] ?? '',
+          imageFile: result['imageFile'] as File?,
+        );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok ? 'Etkinlik güncellendi.' : 'Etkinlik düzenlenemedi.',
+        ),
+      ),
+    );
+    if (ok) _load(reset: true);
+  }
+
   Future<void> _deleteEvent(int eventId) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -404,19 +468,26 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     }
 
     try {
-      final page = await ref
+      final publishedPage = await ref
           .read(communityRepositoryProvider)
-          .fetchEvents(offset: reset ? 0 : _items.length);
+          .fetchEvents(offset: reset ? 0 : _items.length, approved: true);
+      final draftPage = await ref
+          .read(communityRepositoryProvider)
+          .fetchEvents(offset: reset ? 0 : _draftItems.length, approved: false);
       if (!mounted) return;
       setState(() {
         if (reset) {
           _items
             ..clear()
-            ..addAll(page.items);
+            ..addAll(publishedPage.items);
+          _draftItems
+            ..clear()
+            ..addAll(draftPage.items);
         } else {
-          _items.addAll(page.items);
+          _items.addAll(publishedPage.items);
+          _draftItems.addAll(draftPage.items);
         }
-        _hasMore = page.hasMore;
+        _hasMore = publishedPage.hasMore;
         _error = '';
       });
     } catch (error) {
@@ -449,12 +520,16 @@ class _EventAdminMenu extends StatelessWidget {
     required this.onApprove,
     required this.onDelete,
     required this.dark,
+    this.onEdit,
+    this.isOwner = false,
   });
 
   final EventItem item;
   final void Function(bool approved) onApprove;
   final VoidCallback onDelete;
+  final VoidCallback? onEdit;
   final bool dark;
+  final bool isOwner;
 
   @override
   Widget build(BuildContext context) {
@@ -464,19 +539,25 @@ class _EventAdminMenu extends StatelessWidget {
         color: dark ? Colors.white : null,
       ),
       onSelected: (value) {
+        if (value == 'edit' && onEdit != null) onEdit!();
         if (value == 'approve') onApprove(true);
         if (value == 'reject') onApprove(false);
         if (value == 'delete') onDelete();
       },
       itemBuilder: (context) => [
-        if (!item.approved)
-          const PopupMenuItem<String>(value: 'approve', child: Text('Onayla')),
-        if (item.approved)
-          const PopupMenuItem<String>(
-            value: 'reject',
-            child: Text('Yayından kaldır'),
-          ),
-        const PopupMenuItem<String>(value: 'delete', child: Text('Sil')),
+        if (isOwner) ...[
+          const PopupMenuItem<String>(value: 'edit', child: Text('Düzenle')),
+          const PopupMenuItem<String>(value: 'delete', child: Text('Sil')),
+        ] else ...[
+          if (!item.approved)
+            const PopupMenuItem<String>(value: 'approve', child: Text('Onayla')),
+          if (item.approved)
+            const PopupMenuItem<String>(
+              value: 'reject',
+              child: Text('Yayından kaldır'),
+            ),
+          const PopupMenuItem<String>(value: 'delete', child: Text('Sil')),
+        ],
       ],
     );
   }
@@ -491,4 +572,173 @@ String _eventMeta(BuildContext context, EventItem item) {
   if (item.creatorHandle.isNotEmpty) parts.add('@${item.creatorHandle}');
   if (!item.approved) parts.add('Onay bekliyor');
   return parts.join(' · ');
+}
+
+class _EventEditDialog extends StatefulWidget {
+  const _EventEditDialog({required this.event});
+  final EventItem event;
+
+  @override
+  State<_EventEditDialog> createState() => _EventEditDialogState();
+}
+
+class _EventEditDialogState extends State<_EventEditDialog> {
+  late TextEditingController _titleController;
+  late TextEditingController _descriptionController;
+  late TextEditingController _locationController;
+  late TextEditingController _startsAtController;
+  late TextEditingController _endsAtController;
+  File? _imageFile;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.event.title);
+    _descriptionController = TextEditingController(text: plainTextFromRichContent(widget.event.description));
+    _locationController = TextEditingController(text: widget.event.location);
+    _startsAtController = TextEditingController(text: widget.event.startsAt);
+    _endsAtController = TextEditingController(text: widget.event.endsAt);
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _locationController.dispose();
+    _startsAtController.dispose();
+    _endsAtController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Etkinliği Düzenle'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _titleController,
+              decoration: const InputDecoration(labelText: 'Başlık'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _descriptionController,
+              minLines: 2,
+              maxLines: 4,
+              decoration: const InputDecoration(labelText: 'Açıklama'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _locationController,
+              decoration: const InputDecoration(labelText: 'Konum'),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => _pickDateTime(true),
+              icon: const Icon(Icons.calendar_today_outlined),
+              label: Text(
+                _startsAtController.text.isEmpty
+                    ? 'Başlangıç tarihi'
+                    : _startsAtController.text,
+              ),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => _pickDateTime(false),
+              icon: const Icon(Icons.calendar_today_outlined),
+              label: Text(
+                _endsAtController.text.isEmpty
+                    ? 'Bitiş tarihi'
+                    : _endsAtController.text,
+              ),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => _pickImage(ImageSource.gallery),
+              icon: const Icon(Icons.photo_library_outlined),
+              label: Text(
+                _imageFile == null
+                    ? 'Görsel ${widget.event.image.isEmpty ? 'ekle' : 'değiştir'}'
+                    : 'Yeni görsel seçildi',
+              ),
+            ),
+            if (_imageFile != null || widget.event.image.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: _imageFile != null
+                    ? Image.file(
+                        _imageFile!,
+                        height: 150,
+                        fit: BoxFit.cover,
+                      )
+                    : SizedBox(
+                        height: 150,
+                        child: SdalNetworkImage(
+                          imageUrl: widget.event.image,
+                          borderRadius: BorderRadius.zero,
+                        ),
+                      ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('İptal'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, {
+            'title': _titleController.text,
+            'description': _descriptionController.text,
+            'location': _locationController.text,
+            'startsAt': _startsAtController.text,
+            'endsAt': _endsAtController.text,
+            'imageFile': _imageFile,
+          }),
+          child: const Text('Kaydet'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final picked = await pickAndCropImage(
+      context,
+      source: source,
+      aspectPreset: CropAspectPreset.wide169,
+      title: 'Etkinlik görselini hazırla',
+    );
+    if (picked == null) return;
+    setState(() => _imageFile = picked);
+  }
+
+  Future<void> _pickDateTime(bool isStart) async {
+    final controller = isStart ? _startsAtController : _endsAtController;
+    final now = DateTime.now();
+    final initialDate = controller.text.isEmpty
+        ? now.add(Duration(days: isStart ? 0 : 3))
+        : DateTime.parse(controller.text);
+
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (date == null) return;
+
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initialDate),
+    );
+    if (time == null) return;
+
+    final datetime = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    setState(() => controller.text = datetime.toIso8601String().substring(0, 16));
+  }
 }

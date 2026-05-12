@@ -1,7 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
+import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/text/sdal_date_time.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
@@ -70,7 +73,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                     ),
                 onEdit: detail.item.createdBy == (session?.user?.id ?? 0) || session?.hasAdminAccess == true
                     ? () async {
-                        final result = await showDialog<Map<String, String>>(
+                        final result = await showDialog<Map<String, dynamic>>(
                           context: context,
                           builder: (ctx) => _EventEditDialog(event: detail.item),
                         );
@@ -84,6 +87,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                                 location: result['location'] ?? '',
                                 startsAt: result['startsAt'] ?? '',
                                 endsAt: result['endsAt'] ?? '',
+                                imageFile: result['imageFile'] as File?,
                               );
                           if (success && mounted) {
                             ref.invalidate(_provider);
@@ -535,6 +539,30 @@ class _EntityDetailBodyState<T> extends ConsumerState<_EntityDetailBody<T>> {
     widget.onRefresh();
   }
 
+  Future<void> _togglePublish(bool publish) async {
+    final ok = await ref
+        .read(communityActionControllerProvider.notifier)
+        .approveEvent(
+          eventId: widget.entityId,
+          approved: publish,
+        );
+    if (!mounted) return;
+    if (ok) {
+      widget.onRefresh();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            publish ? 'Etkinlik yayınlandı.' : 'Etkinlik taslağa geri alındı.',
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('İşlem başarısız oldu.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final config = ref.watch(appConfigProvider);
@@ -681,9 +709,35 @@ class _EntityDetailBodyState<T> extends ConsumerState<_EntityDetailBody<T>> {
               ],
             ),
           ),
-          // Owner interaction settings
+          // Owner publish/unpublish and interaction settings
           if (widget.isOwner || widget.isAdmin) ...[
             const SizedBox(height: 12),
+            if (widget.isOwner && widget.entityType == 'event') ...[
+              SurfaceCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (isEvent && !_approved) ...[
+                      FilledButton(
+                        onPressed: () => _togglePublish(true),
+                        child: const Text('Yayınla'),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Etkinlik taslak olarak kaydedilmiş. Yayınlamak için bu butona basın.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ] else if (isEvent && _approved) ...[
+                      OutlinedButton(
+                        onPressed: () => _togglePublish(false),
+                        child: const Text('Taslağa geri al'),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             _InteractionSettingsCard(
               allowComments: _allowComments,
               allowLikes: _allowLikes,
@@ -1234,6 +1288,7 @@ class _EventEditDialogState extends State<_EventEditDialog> {
   late TextEditingController _locationController;
   late TextEditingController _startsAtController;
   late TextEditingController _endsAtController;
+  File? _imageFile;
 
   @override
   void initState() {
@@ -1280,15 +1335,54 @@ class _EventEditDialogState extends State<_EventEditDialog> {
               decoration: const InputDecoration(labelText: 'Konum'),
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: _startsAtController,
-              decoration: const InputDecoration(labelText: 'Başlama Tarihi/Saati'),
+            OutlinedButton.icon(
+              onPressed: () => _pickDateTime(true),
+              icon: const Icon(Icons.calendar_today_outlined),
+              label: Text(
+                _startsAtController.text.isEmpty
+                    ? 'Başlangıç tarihi'
+                    : _startsAtController.text,
+              ),
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: _endsAtController,
-              decoration: const InputDecoration(labelText: 'Bitme Tarihi/Saati'),
+            OutlinedButton.icon(
+              onPressed: () => _pickDateTime(false),
+              icon: const Icon(Icons.calendar_today_outlined),
+              label: Text(
+                _endsAtController.text.isEmpty
+                    ? 'Bitiş tarihi'
+                    : _endsAtController.text,
+              ),
             ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => _pickImage(ImageSource.gallery),
+              icon: const Icon(Icons.photo_library_outlined),
+              label: Text(
+                _imageFile == null
+                    ? 'Görsel ${widget.event.image.isEmpty ? 'ekle' : 'değiştir'}'
+                    : 'Yeni görsel seçildi',
+              ),
+            ),
+            if (_imageFile != null || widget.event.image.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: _imageFile != null
+                    ? Image.file(
+                        _imageFile!,
+                        height: 150,
+                        fit: BoxFit.cover,
+                      )
+                    : SizedBox(
+                        height: 150,
+                        child: SdalNetworkImage(
+                          imageUrl: widget.event.image,
+                          borderRadius: BorderRadius.zero,
+                        ),
+                      ),
+              ),
+            ],
           ],
         ),
       ),
@@ -1304,11 +1398,48 @@ class _EventEditDialogState extends State<_EventEditDialog> {
             'location': _locationController.text,
             'startsAt': _startsAtController.text,
             'endsAt': _endsAtController.text,
+            'imageFile': _imageFile,
           }),
           child: const Text('Kaydet'),
         ),
       ],
     );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final picked = await pickAndCropImage(
+      context,
+      source: source,
+      aspectPreset: CropAspectPreset.wide169,
+      title: 'Etkinlik görselini hazırla',
+    );
+    if (picked == null) return;
+    setState(() => _imageFile = picked);
+  }
+
+  Future<void> _pickDateTime(bool isStart) async {
+    final controller = isStart ? _startsAtController : _endsAtController;
+    final now = DateTime.now();
+    final initialDate = controller.text.isEmpty
+        ? now.add(Duration(days: isStart ? 0 : 3))
+        : DateTime.parse(controller.text);
+
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (date == null) return;
+
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initialDate),
+    );
+    if (time == null) return;
+
+    final datetime = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    setState(() => controller.text = datetime.toIso8601String().substring(0, 16));
   }
 }
 

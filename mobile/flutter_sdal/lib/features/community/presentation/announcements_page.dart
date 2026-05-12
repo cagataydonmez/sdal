@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/l10n/context_l10n.dart';
+import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/session/session_controller.dart';
+import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/text/sdal_date_time.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/empty_state_view.dart';
@@ -12,6 +16,7 @@ import '../../../core/widgets/page_onboarding_card.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/community_action_controller.dart';
+import '../application/feed_action_controller.dart';
 import '../data/community_repository.dart';
 
 class AnnouncementsPage extends ConsumerStatefulWidget {
@@ -24,10 +29,12 @@ class AnnouncementsPage extends ConsumerStatefulWidget {
 class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
   final ScrollController _scrollController = ScrollController();
   final List<AnnouncementItem> _items = <AnnouncementItem>[];
+  final List<AnnouncementItem> _draftItems = <AnnouncementItem>[];
 
   bool _isLoadingInitial = true;
   bool _isLoadingMore = false;
   bool _hasMore = true;
+  bool _showDrafts = false;
   String _error = '';
 
   @override
@@ -48,6 +55,7 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(sessionControllerProvider).value;
+    final userId = session?.userId ?? 0;
     final isAdmin = session?.hasAdminAccess ?? false;
     final l10n = context.l10n;
     final sortedItems = _getSortedItems();
@@ -73,12 +81,28 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                   'Önemli gelişmeleri buradan takip et; duyuru önerilerin incelenir ve uygun olduğunda tüm SDAL topluluğuyla paylaşılır.',
             ),
             const SizedBox(height: 20),
+            Wrap(
+              spacing: 8,
+              children: [
+                FilterChip(
+                  label: const Text('Yayınlanan'),
+                  selected: !_showDrafts,
+                  onSelected: (selected) => setState(() => _showDrafts = false),
+                ),
+                FilterChip(
+                  label: const Text('Taslaklar'),
+                  selected: _showDrafts,
+                  onSelected: (selected) => setState(() => _showDrafts = true),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
             if (_isLoadingInitial)
               const Padding(
                 padding: EdgeInsets.only(top: 60),
                 child: Center(child: CircularProgressIndicator()),
               )
-            else if (_error.isNotEmpty && _items.isEmpty)
+            else if (_error.isNotEmpty && _getSortedItems().isEmpty)
               SurfaceCard(
                 child: ErrorView(
                   message: _error,
@@ -86,7 +110,7 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                   onRetry: () => _load(reset: true),
                 ),
               )
-            else if (_items.isEmpty)
+            else if (_getSortedItems().isEmpty)
               SurfaceCard(
                 child: EmptyStateView(
                   icon: Icons.campaign_outlined,
@@ -98,10 +122,10 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
               )
             else ...[
               if (heroItem != null) ...[
-                _buildHeroCard(heroItem, isAdmin),
+                _buildHeroCard(heroItem, isAdmin, userId),
                 const SizedBox(height: 24),
               ],
-              ...otherItems.map((item) => _buildCard(item, isAdmin)),
+              ...otherItems.map((item) => _buildCard(item, isAdmin, userId)),
             ],
             if (_isLoadingMore)
               const Padding(
@@ -124,12 +148,14 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
   }
 
   List<AnnouncementItem> _getSortedItems() {
-    final sorted = [..._items];
+    final items = _showDrafts ? _draftItems : _items;
+    final sorted = [...items];
     sorted.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return sorted;
   }
 
-  Widget _buildHeroCard(AnnouncementItem item, bool isAdmin) {
+  Widget _buildHeroCard(AnnouncementItem item, bool isAdmin, int userId) {
+    final isOwner = item.createdBy == userId;
     return GestureDetector(
       onTap: () => context.push('/announcements/${item.id}'),
       child: Column(
@@ -203,14 +229,16 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                   ],
                 ),
               ),
-              if (isAdmin)
+              if (isAdmin || isOwner)
                 Positioned(
                   top: 10,
                   right: 10,
                   child: _AnnouncementAdminMenu(
                     item: item,
+                    isOwner: isOwner,
                     onApprove: (approved) =>
                         _approveAnnouncement(item.id, approved: approved),
+                    onEdit: () => _editAnnouncement(item),
                     onDelete: () => _deleteAnnouncement(item.id),
                     dark: true,
                   ),
@@ -232,7 +260,8 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
     );
   }
 
-  Widget _buildCard(AnnouncementItem item, bool isAdmin) {
+  Widget _buildCard(AnnouncementItem item, bool isAdmin, int userId) {
+    final isOwner = item.createdBy == userId;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: InkWell(
@@ -278,11 +307,13 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                   ],
                 ),
               ),
-              if (isAdmin)
+              if (isAdmin || isOwner)
                 _AnnouncementAdminMenu(
                   item: item,
+                  isOwner: isOwner,
                   onApprove: (approved) =>
                       _approveAnnouncement(item.id, approved: approved),
+                  onEdit: () => _editAnnouncement(item),
                   onDelete: () => _deleteAnnouncement(item.id),
                   dark: false,
                 ),
@@ -346,6 +377,16 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
     if (ok) _load(reset: true);
   }
 
+  Future<void> _editAnnouncement(AnnouncementItem item) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => _AnnouncementEditDialog(
+        item: item,
+        onSave: () => _load(reset: true),
+      ),
+    );
+  }
+
   Future<void> _deleteAnnouncement(int announcementId) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -392,19 +433,26 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
       setState(() => _isLoadingMore = true);
     }
     try {
-      final page = await ref
+      final approved = await ref
           .read(communityRepositoryProvider)
-          .fetchAnnouncements(offset: reset ? 0 : _items.length);
+          .fetchAnnouncements(offset: reset ? 0 : _items.length, approved: true);
+      final drafts = await ref
+          .read(communityRepositoryProvider)
+          .fetchAnnouncements(offset: reset ? 0 : _draftItems.length, approved: false);
       if (!mounted) return;
       setState(() {
         if (reset) {
           _items
             ..clear()
-            ..addAll(page.items);
+            ..addAll(approved.items);
+          _draftItems
+            ..clear()
+            ..addAll(drafts.items);
         } else {
-          _items.addAll(page.items);
+          _items.addAll(approved.items);
+          _draftItems.addAll(drafts.items);
         }
-        _hasMore = page.hasMore;
+        _hasMore = approved.hasMore || drafts.hasMore;
         _error = '';
       });
     } catch (error) {
@@ -434,13 +482,17 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
 class _AnnouncementAdminMenu extends StatelessWidget {
   const _AnnouncementAdminMenu({
     required this.item,
+    required this.isOwner,
     required this.onApprove,
+    required this.onEdit,
     required this.onDelete,
     required this.dark,
   });
 
   final AnnouncementItem item;
+  final bool isOwner;
   final void Function(bool approved) onApprove;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
   final bool dark;
 
@@ -451,19 +503,192 @@ class _AnnouncementAdminMenu extends StatelessWidget {
       onSelected: (value) {
         if (value == 'approve') onApprove(true);
         if (value == 'reject') onApprove(false);
+        if (value == 'edit') onEdit();
         if (value == 'delete') onDelete();
       },
       itemBuilder: (context) => [
-        if (!item.approved)
+        if (!item.approved && !isOwner)
           const PopupMenuItem<String>(value: 'approve', child: Text('Onayla')),
-        if (item.approved)
+        if (item.approved && !isOwner)
           const PopupMenuItem<String>(
             value: 'reject',
             child: Text('Yayından kaldır'),
           ),
+        if (isOwner) const PopupMenuItem<String>(value: 'edit', child: Text('Düzenle')),
         const PopupMenuItem<String>(value: 'delete', child: Text('Sil')),
       ],
     );
+  }
+}
+
+class _AnnouncementEditDialog extends ConsumerStatefulWidget {
+  const _AnnouncementEditDialog({
+    required this.item,
+    required this.onSave,
+  });
+
+  final AnnouncementItem item;
+  final VoidCallback onSave;
+
+  @override
+  ConsumerState<_AnnouncementEditDialog> createState() => _AnnouncementEditDialogState();
+}
+
+class _AnnouncementEditDialogState extends ConsumerState<_AnnouncementEditDialog> {
+  late final TextEditingController _titleController;
+  late final TextEditingController _bodyController;
+  File? _imageFile;
+  bool _showInFeed = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.item.title);
+    _bodyController = TextEditingController(text: widget.item.body);
+    _showInFeed = widget.item.approved;
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _bodyController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final actionState = ref.watch(communityActionControllerProvider);
+    final isSaving = actionState.isLoading && actionState.scope == 'announcements:edit';
+
+    return Dialog(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Duyuruyu Düzenle',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 24),
+              TextField(
+                controller: _titleController,
+                enabled: !isSaving,
+                decoration: const InputDecoration(
+                  labelText: 'Başlık',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _bodyController,
+                enabled: !isSaving,
+                minLines: 4,
+                maxLines: 8,
+                decoration: const InputDecoration(
+                  labelText: 'İçerik',
+                  alignLabelWithHint: true,
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: isSaving ? null : () => _pickImage(ImageSource.gallery),
+                icon: const Icon(Icons.photo_library_outlined),
+                label: Text(
+                  _imageFile == null
+                      ? (widget.item.image.isNotEmpty ? 'Görsel değiştir' : 'Görsel ekle')
+                      : 'Görsel değiştir',
+                ),
+              ),
+              if (_imageFile != null || widget.item.image.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: _imageFile != null
+                      ? Image.file(
+                          _imageFile!,
+                          height: 200,
+                          fit: BoxFit.cover,
+                        )
+                      : Image.network(
+                          widget.item.image,
+                          height: 200,
+                          fit: BoxFit.cover,
+                        ),
+                ),
+              ],
+              const SizedBox(height: 8),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Hemen yayınla'),
+                subtitle: const Text(_showInFeed
+                    ? 'Duyuru taslak yerine yayınlanmış olarak kaydedilecek'
+                    : 'Duyuru taslak olarak kaydedilecek, detay sayfasından yayınlayabilirsiniz'),
+                value: _showInFeed,
+                onChanged: isSaving ? null : (v) => setState(() => _showInFeed = v),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: isSaving ? null : () => Navigator.of(context).pop(),
+                    child: const Text('Vazgeç'),
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton(
+                    onPressed: isSaving ? null : _save,
+                    child: Text(isSaving ? 'Kaydediliyor...' : 'Kaydet'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final picked = await pickAndCropImage(
+      context,
+      source: source,
+      aspectPreset: CropAspectPreset.wide169,
+      title: 'Duyuru görselini hazırla',
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _imageFile = picked);
+  }
+
+  Future<void> _save() async {
+    final title = _titleController.text.trim();
+    final body = _bodyController.text.trim();
+    if (title.isEmpty || body.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Başlık ve içerik gerekli.')),
+      );
+      return;
+    }
+    final ok = await ref
+        .read(feedActionControllerProvider.notifier)
+        .editAnnouncement(
+          announcementId: widget.item.id,
+          title: title,
+          body: body,
+          imageFile: _imageFile,
+          approved: _showInFeed,
+        );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(ok ? 'Duyuru güncellendi.' : 'Güncellenemedi.')),
+    );
+    if (ok) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      widget.onSave();
+    }
   }
 }
 

@@ -23,6 +23,7 @@ class JobItem {
     required this.myApplicationId,
     required this.myApplicationStatus,
     required this.myApplicationDecisionNote,
+    required this.showInFeed,
   });
 
   final int id;
@@ -41,6 +42,7 @@ class JobItem {
   final int myApplicationId;
   final String myApplicationStatus;
   final String myApplicationDecisionNote;
+  final bool showInFeed;
 
   bool get isEdited => updatedAt.isNotEmpty;
 
@@ -66,6 +68,7 @@ class JobItem {
       myApplicationDecisionNote: coalesceText([
         map['my_application_decision_note'],
       ], fallback: ''),
+      showInFeed: asBool(map['show_in_feed']) ?? true,
     );
   }
 }
@@ -299,6 +302,8 @@ class OpportunitiesRepository {
     required String jobType,
     required String workMode,
     required String link,
+    File? imageFile,
+    bool? showInFeed,
   }) {
     final fields = <String, dynamic>{
       'company': company,
@@ -309,6 +314,16 @@ class OpportunitiesRepository {
       'work_mode': workMode,
       'link': link,
     };
+    if (showInFeed != null) {
+      fields['show_in_feed'] = showInFeed ? '1' : '0';
+    }
+    if (imageFile != null) {
+      return _apiClient.multipart<dynamic>(
+        '/api/new/jobs/$jobId/upload',
+        files: {'image': imageFile},
+        fields: fields,
+      );
+    }
     return _apiClient.patch<dynamic>('/api/new/jobs/$jobId', body: fields);
   }
 
