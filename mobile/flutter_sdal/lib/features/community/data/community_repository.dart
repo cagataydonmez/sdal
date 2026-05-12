@@ -12,6 +12,7 @@ class AnnouncementItem {
     required this.body,
     required this.image,
     required this.createdAt,
+    required this.updatedAt,
     required this.creatorHandle,
     required this.createdBy,
     required this.approved,
@@ -22,9 +23,12 @@ class AnnouncementItem {
   final String body;
   final String image;
   final String createdAt;
+  final String updatedAt;
   final String creatorHandle;
   final int createdBy;
   final bool approved;
+
+  bool get isEdited => updatedAt.isNotEmpty;
 
   factory AnnouncementItem.fromMap(JsonMap map) {
     return AnnouncementItem(
@@ -33,6 +37,7 @@ class AnnouncementItem {
       body: coalesceText([map['body']], fallback: ''),
       image: coalesceText([map['image']], fallback: ''),
       createdAt: coalesceText([map['created_at']], fallback: ''),
+      updatedAt: coalesceText([map['updated_at']], fallback: ''),
       creatorHandle: coalesceText([map['creator_kadi']], fallback: ''),
       createdBy: asInt(map['created_by']) ?? 0,
       approved: asBool(map['approved']) ?? true,
@@ -77,6 +82,7 @@ class EventItem {
     required this.location,
     required this.image,
     required this.createdAt,
+    required this.updatedAt,
     required this.startsAt,
     required this.endsAt,
     required this.createdBy,
@@ -95,6 +101,7 @@ class EventItem {
   final String location;
   final String image;
   final String createdAt;
+  final String updatedAt;
   final String startsAt;
   final String endsAt;
   final int createdBy;
@@ -106,6 +113,8 @@ class EventItem {
   final bool canManageResponses;
   final EventVisibility visibility;
 
+  bool get isEdited => updatedAt.isNotEmpty;
+
   factory EventItem.fromMap(JsonMap map) {
     final counts = asJsonMap(map['response_counts']);
     return EventItem(
@@ -115,6 +124,7 @@ class EventItem {
       location: coalesceText([map['location']], fallback: ''),
       image: coalesceText([map['image']], fallback: ''),
       createdAt: coalesceText([map['created_at']], fallback: ''),
+      updatedAt: coalesceText([map['updated_at']], fallback: ''),
       startsAt: coalesceText([map['starts_at']], fallback: ''),
       endsAt: coalesceText([map['ends_at']], fallback: ''),
       createdBy: asInt(map['created_by']) ?? 0,

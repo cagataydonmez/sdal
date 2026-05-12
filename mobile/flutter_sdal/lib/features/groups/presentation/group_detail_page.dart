@@ -1130,7 +1130,7 @@ class _GroupPostTileState extends ConsumerState<_GroupPostTile> {
     });
     await ref
         .read(feedActionControllerProvider.notifier)
-        .toggleLike(widget.post.id);
+        .toggleLikeForPost(widget.post.id);
     if (!mounted) return;
     final actionState = ref.read(feedActionControllerProvider);
     if (actionState.isError) {

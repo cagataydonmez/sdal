@@ -48,6 +48,8 @@ _FeedItem _$FeedItemFromJson(Map<String, dynamic> json) => _FeedItem(
   commentCount: readRequiredInt(json['commentCount']),
   liked: readRequiredBool(json['liked']),
   updatedAt: readOptionalText(json['updatedAt']),
+  postType: readOptionalText(json['postType']),
+  entityId: readOptionalInt(json['entityId']),
 );
 
 Map<String, dynamic> _$FeedItemToJson(_FeedItem instance) => <String, dynamic>{
@@ -61,6 +63,8 @@ Map<String, dynamic> _$FeedItemToJson(_FeedItem instance) => <String, dynamic>{
   'commentCount': instance.commentCount,
   'liked': instance.liked,
   'updatedAt': instance.updatedAt,
+  'postType': instance.postType,
+  'entityId': instance.entityId,
 };
 
 _FeedComment _$FeedCommentFromJson(Map<String, dynamic> json) => _FeedComment(

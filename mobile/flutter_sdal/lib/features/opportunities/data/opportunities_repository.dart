@@ -19,6 +19,7 @@ class JobItem {
     required this.image,
     required this.posterHandle,
     required this.createdAt,
+    required this.updatedAt,
     required this.myApplicationId,
     required this.myApplicationStatus,
     required this.myApplicationDecisionNote,
@@ -36,9 +37,12 @@ class JobItem {
   final String image;
   final String posterHandle;
   final String createdAt;
+  final String updatedAt;
   final int myApplicationId;
   final String myApplicationStatus;
   final String myApplicationDecisionNote;
+
+  bool get isEdited => updatedAt.isNotEmpty;
 
   factory JobItem.fromMap(JsonMap map) {
     return JobItem(
@@ -54,6 +58,7 @@ class JobItem {
       image: coalesceText([map['image']], fallback: ''),
       posterHandle: coalesceText([map['poster_kadi']], fallback: ''),
       createdAt: coalesceText([map['created_at']], fallback: ''),
+      updatedAt: coalesceText([map['updated_at']], fallback: ''),
       myApplicationId: asInt(map['my_application_id']) ?? 0,
       myApplicationStatus: coalesceText([
         map['my_application_status'],
@@ -263,6 +268,28 @@ class OpportunitiesRepository {
       );
     }
     return _apiClient.post<dynamic>('/api/new/jobs', body: fields);
+  }
+
+  Future<ApiResult<dynamic>> editJob({
+    required int jobId,
+    required String company,
+    required String title,
+    required String description,
+    required String location,
+    required String jobType,
+    required String workMode,
+    required String link,
+  }) {
+    final fields = <String, dynamic>{
+      'company': company,
+      'title': title,
+      'description': description,
+      'location': location,
+      'job_type': jobType,
+      'work_mode': workMode,
+      'link': link,
+    };
+    return _apiClient.patch<dynamic>('/api/new/jobs/$jobId', body: fields);
   }
 
   Future<ApiResult<dynamic>> deleteJob(int jobId) {

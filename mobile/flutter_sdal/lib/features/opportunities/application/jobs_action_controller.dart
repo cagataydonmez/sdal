@@ -44,6 +44,38 @@ class JobsActionController extends Notifier<AsyncActionState> {
     return false;
   }
 
+  Future<bool> editJob({
+    required int jobId,
+    required String title,
+    required String company,
+    required String description,
+    required String location,
+    required String jobType,
+    required String workMode,
+    required String link,
+  }) async {
+    state = AsyncActionState.loading(scope: 'jobs:edit:$jobId');
+    final result = await _repository.editJob(
+      jobId: jobId,
+      title: title,
+      company: company,
+      description: description,
+      location: location,
+      jobType: jobType,
+      workMode: workMode,
+      link: link,
+    );
+    if (result.ok) {
+      state = const AsyncActionState.success(scope: 'jobs:edit');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'jobs:edit:$jobId',
+      message: result.message.isNotEmpty ? result.message : 'İlan düzenlenemedi.',
+    );
+    return false;
+  }
+
   Future<bool> deleteJob(int jobId) async {
     state = AsyncActionState.loading(scope: 'jobs:delete:$jobId');
     final result = await _repository.deleteJob(jobId);

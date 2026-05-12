@@ -356,7 +356,7 @@ class _PostCard extends ConsumerWidget {
                 onPressed: () async {
                   await ref
                       .read(feedActionControllerProvider.notifier)
-                      .toggleLike(postId);
+                      .toggleLike(post);
                 },
                 icon: Icon(post.liked ? Icons.favorite : Icons.favorite_border),
                 label: Text(l10n.feedLikesCount(post.likeCount)),

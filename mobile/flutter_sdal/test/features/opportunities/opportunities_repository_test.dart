@@ -48,6 +48,7 @@ void main() {
         description: 'Build Flutter surfaces',
         location: 'Ankara',
         jobType: 'hybrid',
+        workMode: 'remote',
         link: 'https://example.com/job',
       );
 

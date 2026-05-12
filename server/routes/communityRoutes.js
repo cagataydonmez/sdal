@@ -602,6 +602,8 @@ export function registerCommunityRoutes(app, {
 
       if (updates.length === 0) return res.status(400).send('Güncellenecek alan yok.');
 
+      updates.push('updated_at = ?');
+      updateParams.push(new Date().toISOString());
       updateParams.push(req.params.id);
       await sqlRunAsync(`UPDATE events SET ${updates.join(', ')} WHERE id = ?`, updateParams);
 
@@ -742,6 +744,8 @@ export function registerCommunityRoutes(app, {
 
       if (updates.length === 0) return res.status(400).send('Güncellenecek alan yok.');
 
+      updates.push('updated_at = ?');
+      updateParams.push(new Date().toISOString());
       updateParams.push(req.params.id);
       await sqlRunAsync(`UPDATE announcements SET ${updates.join(', ')} WHERE id = ?`, updateParams);
 

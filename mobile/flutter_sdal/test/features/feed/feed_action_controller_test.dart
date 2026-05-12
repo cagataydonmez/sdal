@@ -69,7 +69,19 @@ class _FakeFeedRepository extends FeedRepository {
   }
 
   @override
-  Future<ApiResult<dynamic>> toggleReaction(int postId) async {
+  Future<ApiResult<dynamic>> togglePostLike(int postId) async {
+    return ApiResult<dynamic>(
+      ok: true,
+      statusCode: 200,
+      message: '',
+      code: '',
+      data: null,
+      rawData: null,
+    );
+  }
+
+  @override
+  Future<ApiResult<dynamic>> toggleReaction(FeedItem item) async {
     return ApiResult<dynamic>(
       ok: true,
       statusCode: 200,

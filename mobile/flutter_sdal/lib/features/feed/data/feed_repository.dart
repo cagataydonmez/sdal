@@ -385,6 +385,12 @@ class FeedRepository {
     );
   }
 
+  Future<ApiResult<dynamic>> togglePostLike(int postId) async {
+    final canonical = await _apiClient.post<dynamic>('/api/new/posts/$postId/react');
+    if (canonical.ok || !_shouldFallback(canonical.statusCode)) return canonical;
+    return _apiClient.post<dynamic>('/api/new/posts/$postId/like');
+  }
+
   Future<ApiResult<dynamic>> toggleReaction(FeedItem item) async {
     // Route to entity-specific like endpoints for entity posts
     if (item.postType == 'event' && item.entityId != null) {

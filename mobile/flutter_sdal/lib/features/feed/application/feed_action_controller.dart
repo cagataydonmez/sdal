@@ -61,6 +61,24 @@ class FeedActionController extends Notifier<AsyncActionState> {
     return false;
   }
 
+  Future<bool> toggleLikeForPost(int postId) async {
+    state = AsyncActionState.loading(scope: 'like:$postId');
+    final result = await _repository.togglePostLike(postId);
+    if (result.ok) {
+      ref.invalidate(feedItemsProvider);
+      ref.invalidate(feedPageProvider);
+      ref.invalidate(postDetailProvider(postId));
+      ref.invalidate(postLikesProvider(postId));
+      state = const AsyncActionState.success(scope: 'like');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'like:$postId',
+      message: result.message,
+    );
+    return false;
+  }
+
   Future<bool> deletePost(int postId) async {
     state = AsyncActionState.loading(scope: 'delete:$postId');
     final result = await _repository.deletePost(postId);

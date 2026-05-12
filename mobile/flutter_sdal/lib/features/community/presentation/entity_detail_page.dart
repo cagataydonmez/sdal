@@ -14,6 +14,7 @@ import '../../../core/widgets/surface_card.dart';
 import '../../groups/data/groups_repository.dart';
 import '../application/community_action_controller.dart';
 import '../data/community_repository.dart';
+import '../../feed/application/feed_action_controller.dart';
 
 // ── Entry points ─────────────────────────────────────────────────────────────
 
@@ -67,6 +68,61 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                       allowComments: ac,
                       allowLikes: al,
                     ),
+                onEdit: detail.item.createdBy == (session?.user?.id ?? 0) || session?.hasAdminAccess == true
+                    ? () async {
+                        final result = await showDialog<Map<String, String>>(
+                          context: context,
+                          builder: (ctx) => _EventEditDialog(event: detail.item),
+                        );
+                        if (result != null && mounted) {
+                          final success = await ref
+                              .read(feedActionControllerProvider.notifier)
+                              .editEvent(
+                                eventId: widget.eventId,
+                                title: result['title'] ?? '',
+                                description: result['description'] ?? '',
+                                location: result['location'] ?? '',
+                                startsAt: result['startsAt'] ?? '',
+                                endsAt: result['endsAt'] ?? '',
+                              );
+                          if (success && mounted) {
+                            ref.invalidate(_provider);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Etkinlik güncellendi')),
+                            );
+                          }
+                        }
+                      }
+                    : null,
+                onDelete: detail.item.createdBy == (session?.user?.id ?? 0) || session?.hasAdminAccess == true
+                    ? () async {
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Etkinliği sil'),
+                            content: const Text('Bu etkinliği silmek istediğinizden emin misiniz?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('İptal'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text('Sil'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirmed == true && mounted) {
+                          final success = await ref
+                              .read(feedActionControllerProvider.notifier)
+                              .deleteEvent(widget.eventId);
+                          if (success && mounted) {
+                            Navigator.pop(context);
+                          }
+                        }
+                      }
+                    : null,
               ),
       ),
     );
@@ -129,6 +185,58 @@ class _AnnouncementDetailPageState extends ConsumerState<AnnouncementDetailPage>
                       allowComments: ac,
                       allowLikes: al,
                     ),
+                onEdit: detail.item.createdBy == (session?.user?.id ?? 0) || session?.hasAdminAccess == true
+                    ? () async {
+                        final result = await showDialog<Map<String, String>>(
+                          context: context,
+                          builder: (ctx) => _AnnouncementEditDialog(announcement: detail.item),
+                        );
+                        if (result != null && mounted) {
+                          final success = await ref
+                              .read(feedActionControllerProvider.notifier)
+                              .editAnnouncement(
+                                announcementId: widget.announcementId,
+                                title: result['title'] ?? '',
+                                body: result['body'] ?? '',
+                              );
+                          if (success && mounted) {
+                            ref.invalidate(_provider);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Duyuru güncellendi')),
+                            );
+                          }
+                        }
+                      }
+                    : null,
+                onDelete: detail.item.createdBy == (session?.user?.id ?? 0) || session?.hasAdminAccess == true
+                    ? () async {
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Duyuruyu sil'),
+                            content: const Text('Bu duyuruyu silmek istediğinizden emin misiniz?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('İptal'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text('Sil'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirmed == true && mounted) {
+                          final success = await ref
+                              .read(feedActionControllerProvider.notifier)
+                              .deleteAnnouncement(widget.announcementId);
+                          if (success && mounted) {
+                            Navigator.pop(context);
+                          }
+                        }
+                      }
+                    : null,
               ),
       ),
     );
@@ -303,6 +411,8 @@ class _EntityDetailBody<T> extends ConsumerStatefulWidget {
     required this.onAddComment,
     required this.onToggleLike,
     required this.onToggleInteraction,
+    this.onEdit,
+    this.onDelete,
   });
 
   final T detail;
@@ -315,6 +425,8 @@ class _EntityDetailBody<T> extends ConsumerStatefulWidget {
   final Future<dynamic> Function() onToggleLike;
   final Future<dynamic> Function(bool? allowComments, bool? allowLikes)
   onToggleInteraction;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   @override
   ConsumerState<_EntityDetailBody<T>> createState() =>
@@ -351,6 +463,9 @@ class _EntityDetailBodyState<T> extends ConsumerState<_EntityDetailBody<T>> {
   bool get _allowLikes => widget.detail is EventDetail
       ? (widget.detail as EventDetail).allowLikes
       : (widget.detail as AnnouncementDetail).allowLikes;
+  bool get _isEdited => widget.detail is EventDetail
+      ? (widget.detail as EventDetail).item.isEdited
+      : (widget.detail as AnnouncementDetail).item.isEdited;
   List<EntityComment> get _comments => widget.detail is EventDetail
       ? (widget.detail as EventDetail).comments
       : (widget.detail as AnnouncementDetail).comments;
@@ -460,6 +575,29 @@ class _EntityDetailBodyState<T> extends ConsumerState<_EntityDetailBody<T>> {
                         ),
                       ),
                     ),
+                    const Spacer(),
+                    if (widget.onEdit != null || widget.onDelete != null)
+                      PopupMenuButton(
+                        onSelected: (value) {
+                          if (value == 'edit' && widget.onEdit != null) {
+                            widget.onEdit!();
+                          } else if (value == 'delete' && widget.onDelete != null) {
+                            widget.onDelete!();
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          if (widget.onEdit != null)
+                            const PopupMenuItem(
+                              value: 'edit',
+                              child: Text('Düzenle'),
+                            ),
+                          if (widget.onDelete != null)
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Sil'),
+                            ),
+                        ],
+                      ),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -490,6 +628,16 @@ class _EntityDetailBodyState<T> extends ConsumerState<_EntityDetailBody<T>> {
                   Text(
                     plainTextFromRichContent(_body),
                     style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                ],
+                if (_isEdited) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '(düzenlendi)',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: tokens.foregroundMuted,
+                      fontStyle: FontStyle.italic,
+                    ),
                   ),
                 ],
                 if (isEvent) _buildEventExtras(context),
@@ -1066,6 +1214,167 @@ class _GroupCommentRow extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── Event edit dialog ────────────────────────────────────────────────────────
+
+class _EventEditDialog extends StatefulWidget {
+  const _EventEditDialog({required this.event});
+  final EventItem event;
+
+  @override
+  State<_EventEditDialog> createState() => _EventEditDialogState();
+}
+
+class _EventEditDialogState extends State<_EventEditDialog> {
+  late TextEditingController _titleController;
+  late TextEditingController _descriptionController;
+  late TextEditingController _locationController;
+  late TextEditingController _startsAtController;
+  late TextEditingController _endsAtController;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.event.title);
+    _descriptionController = TextEditingController(text: plainTextFromRichContent(widget.event.description));
+    _locationController = TextEditingController(text: widget.event.location);
+    _startsAtController = TextEditingController(text: widget.event.startsAt);
+    _endsAtController = TextEditingController(text: widget.event.endsAt);
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _locationController.dispose();
+    _startsAtController.dispose();
+    _endsAtController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Etkinliği Düzenle'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _titleController,
+              decoration: const InputDecoration(labelText: 'Başlık'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _descriptionController,
+              minLines: 2,
+              maxLines: 4,
+              decoration: const InputDecoration(labelText: 'Açıklama'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _locationController,
+              decoration: const InputDecoration(labelText: 'Konum'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _startsAtController,
+              decoration: const InputDecoration(labelText: 'Başlama Tarihi/Saati'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _endsAtController,
+              decoration: const InputDecoration(labelText: 'Bitme Tarihi/Saati'),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('İptal'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, {
+            'title': _titleController.text,
+            'description': _descriptionController.text,
+            'location': _locationController.text,
+            'startsAt': _startsAtController.text,
+            'endsAt': _endsAtController.text,
+          }),
+          child: const Text('Kaydet'),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Announcement edit dialog ─────────────────────────────────────────────────
+
+class _AnnouncementEditDialog extends StatefulWidget {
+  const _AnnouncementEditDialog({required this.announcement});
+  final AnnouncementItem announcement;
+
+  @override
+  State<_AnnouncementEditDialog> createState() => _AnnouncementEditDialogState();
+}
+
+class _AnnouncementEditDialogState extends State<_AnnouncementEditDialog> {
+  late TextEditingController _titleController;
+  late TextEditingController _bodyController;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.announcement.title);
+    _bodyController = TextEditingController(text: plainTextFromRichContent(widget.announcement.body));
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _bodyController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Duyuruyu Düzenle'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _titleController,
+              decoration: const InputDecoration(labelText: 'Başlık'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _bodyController,
+              minLines: 3,
+              maxLines: 6,
+              decoration: const InputDecoration(labelText: 'İçerik'),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('İptal'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, {
+            'title': _titleController.text,
+            'body': _bodyController.text,
+          }),
+          child: const Text('Kaydet'),
+        ),
+      ],
     );
   }
 }
