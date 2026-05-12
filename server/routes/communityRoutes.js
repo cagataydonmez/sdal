@@ -564,6 +564,55 @@ export function registerCommunityRoutes(app, {
     }
   });
 
+  // ── Edit event ────────────────────────────────────────────────────────────
+  app.patch('/api/new/events/:id', requireAuth, async (req, res) => {
+    try {
+      const user = getCurrentUser(req);
+      const isAdmin = hasAdminSession(req, user);
+      const row = await sqlGetAsync('SELECT id, created_by FROM events WHERE id = ?', [req.params.id]);
+      if (!row) return res.status(404).send('Etkinlik bulunamadı.');
+      if (!isAdmin && !sameUserId(row.created_by, req.session.userId)) return res.status(403).send('Bu etkinliği düzenleme yetkin yok.');
+
+      const updates = [];
+      const updateParams = [];
+      if (req.body.title !== undefined && req.body.title !== null) {
+        updates.push('title = ?');
+        updateParams.push(String(req.body.title).trim());
+      }
+      if (req.body.description !== undefined && req.body.description !== null) {
+        updates.push('description = ?');
+        updateParams.push(String(req.body.description).trim());
+      }
+      if (req.body.location !== undefined && req.body.location !== null) {
+        updates.push('location = ?');
+        updateParams.push(String(req.body.location).trim());
+      }
+      if (req.body.startsAt !== undefined && req.body.startsAt !== null) {
+        updates.push('starts_at = ?');
+        updateParams.push(String(req.body.startsAt).trim());
+      }
+      if (req.body.endsAt !== undefined && req.body.endsAt !== null) {
+        updates.push('ends_at = ?');
+        updateParams.push(String(req.body.endsAt).trim());
+      }
+      if (req.body.image !== undefined) {
+        updates.push('image = ?');
+        updateParams.push(req.body.image || null);
+      }
+
+      if (updates.length === 0) return res.status(400).send('Güncellenecek alan yok.');
+
+      updateParams.push(req.params.id);
+      await sqlRunAsync(`UPDATE events SET ${updates.join(', ')} WHERE id = ?`, updateParams);
+
+      const updated = await sqlGetAsync('SELECT * FROM events WHERE id = ?', [req.params.id]);
+      res.json({ ok: true, ...updated });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
   // ── Like/unlike event ─────────────────────────────────────────────────────
   app.post('/api/new/events/:id/like', requireAuth, async (req, res) => {
     try {
@@ -661,6 +710,43 @@ export function registerCommunityRoutes(app, {
         addNotification({ userId: ann.created_by, type: 'announcement_comment', sourceUserId: req.session.userId, entityId: req.params.id, message: 'Duyuruya yorum yaptı.' });
       }
       res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  // ── Edit announcement ─────────────────────────────────────────────────────
+  app.patch('/api/new/announcements/:id', requireAuth, async (req, res) => {
+    try {
+      const user = getCurrentUser(req);
+      const isAdmin = hasAdminSession(req, user);
+      const row = await sqlGetAsync('SELECT id, created_by FROM announcements WHERE id = ?', [req.params.id]);
+      if (!row) return res.status(404).send('Duyuru bulunamadı.');
+      if (!isAdmin && !sameUserId(row.created_by, req.session.userId)) return res.status(403).send('Bu duyuruyu düzenleme yetkin yok.');
+
+      const updates = [];
+      const updateParams = [];
+      if (req.body.title !== undefined && req.body.title !== null) {
+        updates.push('title = ?');
+        updateParams.push(String(req.body.title).trim());
+      }
+      if (req.body.body !== undefined && req.body.body !== null) {
+        updates.push('body = ?');
+        updateParams.push(String(req.body.body).trim());
+      }
+      if (req.body.image !== undefined) {
+        updates.push('image = ?');
+        updateParams.push(req.body.image || null);
+      }
+
+      if (updates.length === 0) return res.status(400).send('Güncellenecek alan yok.');
+
+      updateParams.push(req.params.id);
+      await sqlRunAsync(`UPDATE announcements SET ${updates.join(', ')} WHERE id = ?`, updateParams);
+
+      const updated = await sqlGetAsync('SELECT * FROM announcements WHERE id = ?', [req.params.id]);
+      res.json({ ok: true, ...updated });
     } catch (err) {
       console.error(err);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');

@@ -396,7 +396,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
                             onTap: () async {
                               await ref
                                   .read(feedActionControllerProvider.notifier)
-                                  .toggleLike(item.id);
+                                  .toggleLike(item);
                             },
                           ),
                           const SizedBox(width: 10),

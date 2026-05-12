@@ -168,6 +168,62 @@ export function registerOpportunityRoutes(app, {
     res.json(row);
   });
 
+  app.patch('/api/new/jobs/:id', requireAuth, async (req, res) => {
+    try {
+      const user = getCurrentUser(req);
+      const isAdmin = hasAdminSession(req, user);
+      const row = await sqlGetAsync('SELECT id, poster_id FROM jobs WHERE id = ?', [req.params.id]);
+      if (!row) return res.status(404).send('İş ilanı bulunamadı.');
+      if (!isAdmin && !sameUserId(row.poster_id, req.session.userId)) return res.status(403).send('Bu ilanı düzenleme yetkin yok.');
+
+      const updates = [];
+      const updateParams = [];
+      if (req.body.title !== undefined && req.body.title !== null) {
+        updates.push('title = ?');
+        updateParams.push(String(req.body.title).trim());
+      }
+      if (req.body.company !== undefined && req.body.company !== null) {
+        updates.push('company = ?');
+        updateParams.push(String(req.body.company).trim());
+      }
+      if (req.body.description !== undefined && req.body.description !== null) {
+        updates.push('description = ?');
+        updateParams.push(String(req.body.description).trim());
+      }
+      if (req.body.location !== undefined && req.body.location !== null) {
+        updates.push('location = ?');
+        updateParams.push(String(req.body.location).trim());
+      }
+      if (req.body.job_type !== undefined && req.body.job_type !== null) {
+        updates.push('job_type = ?');
+        updateParams.push(String(req.body.job_type).trim());
+      }
+      if (req.body.work_mode !== undefined && req.body.work_mode !== null) {
+        updates.push('work_mode = ?');
+        updateParams.push(String(req.body.work_mode).trim());
+      }
+      if (req.body.link !== undefined && req.body.link !== null) {
+        updates.push('link = ?');
+        updateParams.push(String(req.body.link).trim());
+      }
+      if (req.body.image !== undefined) {
+        updates.push('image_url = ?');
+        updateParams.push(req.body.image || null);
+      }
+
+      if (updates.length === 0) return res.status(400).send('Güncellenecek alan yok.');
+
+      updateParams.push(req.params.id);
+      await sqlRunAsync(`UPDATE jobs SET ${updates.join(', ')} WHERE id = ?`, updateParams);
+
+      const updated = await sqlGetAsync('SELECT * FROM jobs WHERE id = ?', [req.params.id]);
+      res.json({ ok: true, ...updated });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
   app.post('/api/new/jobs/:id/apply', requireAuth, async (req, res) => {
     if (!ensureVerifiedSocialHubMember(req, res)) return;
     const jobId = Number(req.params.id || 0);
@@ -345,6 +401,27 @@ export function registerOpportunityRoutes(app, {
       if (!isAdmin && !sameUserId(row.poster_id, req.session.userId)) return res.status(403).send('Bu ilanı silme yetkin yok.');
       await sqlRunAsync('DELETE FROM jobs WHERE id = ?', [req.params.id]);
       res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.post('/api/new/jobs/:id/like', requireAuth, async (req, res) => {
+    try {
+      const job = await sqlGetAsync('SELECT id, poster_id FROM jobs WHERE id = ?', [req.params.id]);
+      if (!job) return res.status(404).send('İş ilanı bulunamadı.');
+      const existing = await sqlGetAsync('SELECT id FROM entity_reactions WHERE entity_type = ? AND entity_id = ? AND user_id = ?', ['job', req.params.id, req.session.userId]);
+      if (existing) {
+        await sqlRunAsync('DELETE FROM entity_reactions WHERE id = ?', [existing.id]);
+      } else {
+        await sqlRunAsync('INSERT INTO entity_reactions (user_id, entity_type, entity_id, created_at) VALUES (?, ?, ?, ?)', [req.session.userId, 'job', req.params.id, new Date().toISOString()]);
+        if (job.poster_id && !sameUserId(job.poster_id, req.session.userId)) {
+          addNotification({ userId: job.poster_id, type: 'job_like', sourceUserId: req.session.userId, entityId: req.params.id, message: 'İş ilanını beğendi.' });
+        }
+      }
+      const likeCount = (await sqlGetAsync('SELECT COUNT(*) AS cnt FROM entity_reactions WHERE entity_type = ? AND entity_id = ?', ['job', req.params.id]))?.cnt || 0;
+      res.json({ ok: true, liked: !existing, likeCount });
     } catch (err) {
       console.error(err);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');

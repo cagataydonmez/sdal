@@ -110,6 +110,8 @@ abstract class FeedItem with _$FeedItem {
     @JsonKey(fromJson: readRequiredInt) required int commentCount,
     @JsonKey(fromJson: readRequiredBool) required bool liked,
     @JsonKey(fromJson: readOptionalText) String? updatedAt,
+    @JsonKey(fromJson: readOptionalText) String? postType,
+    @JsonKey(fromJson: readOptionalInt) int? entityId,
   }) = _FeedItem;
 
   int? get authorId => author.id;
@@ -134,6 +136,8 @@ abstract class FeedItem with _$FeedItem {
       'likeCount': const [],
       'commentCount': const [],
       'updatedAt': ['updated_at'],
+      'postType': ['post_type'],
+      'entityId': ['entity_id'],
     }),
   );
 
@@ -381,14 +385,23 @@ class FeedRepository {
     );
   }
 
-  Future<ApiResult<dynamic>> toggleReaction(int postId) async {
+  Future<ApiResult<dynamic>> toggleReaction(FeedItem item) async {
+    // Route to entity-specific like endpoints for entity posts
+    if (item.postType == 'event' && item.entityId != null) {
+      return _apiClient.post<dynamic>('/api/new/events/${item.entityId}/like');
+    } else if (item.postType == 'announcement' && item.entityId != null) {
+      return _apiClient.post<dynamic>('/api/new/announcements/${item.entityId}/like');
+    } else if (item.postType == 'job' && item.entityId != null) {
+      return _apiClient.post<dynamic>('/api/new/jobs/${item.entityId}/like');
+    }
+    // Regular post - use post like endpoint
     final canonical = await _apiClient.post<dynamic>(
-      '/api/new/posts/$postId/react',
+      '/api/new/posts/${item.id}/react',
     );
     if (canonical.ok || !_shouldFallback(canonical.statusCode)) {
       return canonical;
     }
-    return _apiClient.post<dynamic>('/api/new/posts/$postId/like');
+    return _apiClient.post<dynamic>('/api/new/posts/${item.id}/like');
   }
 
   Future<ApiResult<dynamic>> createComment({
@@ -498,6 +511,76 @@ class FeedRepository {
     return asJsonMapList(
       payload['items'] ?? payload['rows'],
     ).map(FeedOnlineMember.fromMap).toList(growable: false);
+  }
+
+  Future<ApiResult<dynamic>> editEvent({
+    required int eventId,
+    required String title,
+    required String description,
+    required String location,
+    required String startsAt,
+    required String endsAt,
+  }) {
+    return _apiClient.patch<dynamic>(
+      '/api/new/events/$eventId',
+      body: {
+        'title': title,
+        'description': description,
+        'location': location,
+        'startsAt': startsAt,
+        'endsAt': endsAt,
+      },
+    );
+  }
+
+  Future<ApiResult<dynamic>> deleteEvent(int eventId) {
+    return _apiClient.delete<dynamic>('/api/new/events/$eventId');
+  }
+
+  Future<ApiResult<dynamic>> editAnnouncement({
+    required int announcementId,
+    required String title,
+    required String body,
+  }) {
+    return _apiClient.patch<dynamic>(
+      '/api/new/announcements/$announcementId',
+      body: {
+        'title': title,
+        'body': body,
+      },
+    );
+  }
+
+  Future<ApiResult<dynamic>> deleteAnnouncement(int announcementId) {
+    return _apiClient.delete<dynamic>('/api/new/announcements/$announcementId');
+  }
+
+  Future<ApiResult<dynamic>> editJob({
+    required int jobId,
+    required String title,
+    required String company,
+    required String description,
+    required String location,
+    required String jobType,
+    required String workMode,
+    required String link,
+  }) {
+    return _apiClient.patch<dynamic>(
+      '/api/new/jobs/$jobId',
+      body: {
+        'title': title,
+        'company': company,
+        'description': description,
+        'location': location,
+        'job_type': jobType,
+        'work_mode': workMode,
+        'link': link,
+      },
+    );
+  }
+
+  Future<ApiResult<dynamic>> deleteJob(int jobId) {
+    return _apiClient.delete<dynamic>('/api/new/jobs/$jobId');
   }
 
   bool _shouldFallback(int statusCode) =>

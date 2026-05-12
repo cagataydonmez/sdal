@@ -43,19 +43,19 @@ class FeedActionController extends Notifier<AsyncActionState> {
     return false;
   }
 
-  Future<bool> toggleLike(int postId) async {
-    state = AsyncActionState.loading(scope: 'like:$postId');
-    final result = await _repository.toggleReaction(postId);
+  Future<bool> toggleLike(FeedItem item) async {
+    state = AsyncActionState.loading(scope: 'like:${item.id}');
+    final result = await _repository.toggleReaction(item);
     if (result.ok) {
       ref.invalidate(feedItemsProvider);
       ref.invalidate(feedPageProvider);
-      ref.invalidate(postDetailProvider(postId));
-      ref.invalidate(postLikesProvider(postId));
+      ref.invalidate(postDetailProvider(item.id));
+      ref.invalidate(postLikesProvider(item.id));
       state = const AsyncActionState.success(scope: 'like');
       return true;
     }
     state = AsyncActionState.error(
-      scope: 'like:$postId',
+      scope: 'like:${item.id}',
       message: result.message,
     );
     return false;
@@ -196,6 +196,136 @@ class FeedActionController extends Notifier<AsyncActionState> {
     state = AsyncActionState.error(
       scope: 'edit-comment:$commentId',
       message: result.message.isNotEmpty ? result.message : 'Yorum düzenlenemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> editEvent({
+    required int eventId,
+    required String title,
+    required String description,
+    required String location,
+    required String startsAt,
+    required String endsAt,
+  }) async {
+    state = AsyncActionState.loading(scope: 'edit-event:$eventId');
+    final result = await _repository.editEvent(
+      eventId: eventId,
+      title: title,
+      description: description,
+      location: location,
+      startsAt: startsAt,
+      endsAt: endsAt,
+    );
+    if (result.ok) {
+      ref.invalidate(feedPageProvider);
+      state = const AsyncActionState.success(scope: 'edit-event');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'edit-event:$eventId',
+      message: result.message ?? 'Etkinlik düzenlenemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> deleteEvent(int eventId) async {
+    state = AsyncActionState.loading(scope: 'delete-event:$eventId');
+    final result = await _repository.deleteEvent(eventId);
+    if (result.ok) {
+      ref.invalidate(feedPageProvider);
+      state = const AsyncActionState.success(scope: 'delete-event');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'delete-event:$eventId',
+      message: result.message ?? 'Etkinlik silinemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> editAnnouncement({
+    required int announcementId,
+    required String title,
+    required String body,
+  }) async {
+    state = AsyncActionState.loading(scope: 'edit-announcement:$announcementId');
+    final result = await _repository.editAnnouncement(
+      announcementId: announcementId,
+      title: title,
+      body: body,
+    );
+    if (result.ok) {
+      ref.invalidate(feedPageProvider);
+      state = const AsyncActionState.success(scope: 'edit-announcement');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'edit-announcement:$announcementId',
+      message: result.message ?? 'Duyuru düzenlenemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> deleteAnnouncement(int announcementId) async {
+    state = AsyncActionState.loading(scope: 'delete-announcement:$announcementId');
+    final result = await _repository.deleteAnnouncement(announcementId);
+    if (result.ok) {
+      ref.invalidate(feedPageProvider);
+      state = const AsyncActionState.success(scope: 'delete-announcement');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'delete-announcement:$announcementId',
+      message: result.message ?? 'Duyuru silinemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> editJob({
+    required int jobId,
+    required String title,
+    required String company,
+    required String description,
+    required String location,
+    required String jobType,
+    required String workMode,
+    required String link,
+  }) async {
+    state = AsyncActionState.loading(scope: 'edit-job:$jobId');
+    final result = await _repository.editJob(
+      jobId: jobId,
+      title: title,
+      company: company,
+      description: description,
+      location: location,
+      jobType: jobType,
+      workMode: workMode,
+      link: link,
+    );
+    if (result.ok) {
+      ref.invalidate(feedPageProvider);
+      state = const AsyncActionState.success(scope: 'edit-job');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'edit-job:$jobId',
+      message: result.message ?? 'İş ilanı düzenlenemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> deleteJob(int jobId) async {
+    state = AsyncActionState.loading(scope: 'delete-job:$jobId');
+    final result = await _repository.deleteJob(jobId);
+    if (result.ok) {
+      ref.invalidate(feedPageProvider);
+      state = const AsyncActionState.success(scope: 'delete-job');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'delete-job:$jobId',
+      message: result.message ?? 'İş ilanı silinemedi.',
     );
     return false;
   }
