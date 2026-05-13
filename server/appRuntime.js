@@ -5547,17 +5547,49 @@ function ensureContentPublicationSchema() {
         [type, now]
       );
     }
-    const tables = ['events', 'announcements', 'jobs', 'group_events', 'group_announcements', 'posts'];
-    for (const tbl of tables) {
+    const tableColumns = {
+      events: [
+        'image TEXT',
+        'created_by INTEGER',
+        'approved INTEGER DEFAULT 1',
+        'approved_by INTEGER',
+        'approved_at TEXT',
+        'allow_comments INTEGER DEFAULT 1',
+        'allow_likes INTEGER DEFAULT 1',
+        'show_response_counts INTEGER DEFAULT 1',
+        'show_attendee_names INTEGER DEFAULT 0',
+        'show_decliner_names INTEGER DEFAULT 0'
+      ],
+      announcements: [
+        'image TEXT',
+        'created_by INTEGER',
+        'approved INTEGER DEFAULT 1',
+        'approved_by INTEGER',
+        'approved_at TEXT',
+        'allow_comments INTEGER DEFAULT 1',
+        'allow_likes INTEGER DEFAULT 1'
+      ],
+      jobs: ['work_mode TEXT', 'image TEXT'],
+      group_events: [],
+      group_announcements: [],
+      posts: []
+    };
+    const commonColumns = [
+      "publication_status TEXT DEFAULT 'published'",
+      "approval_status TEXT DEFAULT 'not_required'",
+      'review_note TEXT',
+      'reviewed_by INTEGER',
+      'reviewed_at TEXT',
+      'published_at TEXT',
+      'show_in_feed INTEGER DEFAULT 1'
+    ];
+    for (const [tbl, extraColumns] of Object.entries(tableColumns)) {
       try {
         const cols = sqlAll(`PRAGMA table_info(${tbl})`).map(r => r.name);
-        if (!cols.includes('publication_status')) sqlRun(`ALTER TABLE ${tbl} ADD COLUMN publication_status TEXT DEFAULT 'published'`);
-        if (!cols.includes('approval_status')) sqlRun(`ALTER TABLE ${tbl} ADD COLUMN approval_status TEXT DEFAULT 'not_required'`);
-        if (!cols.includes('review_note')) sqlRun(`ALTER TABLE ${tbl} ADD COLUMN review_note TEXT`);
-        if (!cols.includes('reviewed_by')) sqlRun(`ALTER TABLE ${tbl} ADD COLUMN reviewed_by INTEGER`);
-        if (!cols.includes('reviewed_at')) sqlRun(`ALTER TABLE ${tbl} ADD COLUMN reviewed_at TEXT`);
-        if (!cols.includes('published_at')) sqlRun(`ALTER TABLE ${tbl} ADD COLUMN published_at TEXT`);
-        if (!cols.includes('show_in_feed')) sqlRun(`ALTER TABLE ${tbl} ADD COLUMN show_in_feed INTEGER DEFAULT 1`);
+        for (const definition of [...extraColumns, ...commonColumns]) {
+          const name = definition.split(/\s+/)[0];
+          if (!cols.includes(name)) sqlRun(`ALTER TABLE ${tbl} ADD COLUMN ${definition}`);
+        }
       } catch { /* table may not exist yet */ }
     }
   } catch (e) { console.error('[ensureContentPublicationSchema]', e?.message); }
