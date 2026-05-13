@@ -106,7 +106,11 @@ SET publication_status = CASE
     WHEN COALESCE(show_in_feed, 1) = 0 THEN 'not_required'
     ELSE 'pending'
   END,
-  published_at = CASE WHEN LOWER(COALESCE(CAST(approved AS TEXT), 'true')) IN ('1', 'true', 'evet', 'yes') THEN COALESCE(approved_at, created_at) ELSE published_at END;
+  published_at = CASE
+    WHEN LOWER(COALESCE(CAST(approved AS TEXT), 'true')) IN ('1', 'true', 'evet', 'yes')
+      THEN COALESCE(CAST(approved_at AS TEXT), CAST(created_at AS TEXT))
+    ELSE published_at
+  END;
 
 UPDATE announcements
 SET publication_status = CASE
@@ -119,27 +123,31 @@ SET publication_status = CASE
     WHEN COALESCE(show_in_feed, 1) = 0 THEN 'not_required'
     ELSE 'pending'
   END,
-  published_at = CASE WHEN LOWER(COALESCE(CAST(approved AS TEXT), 'true')) IN ('1', 'true', 'evet', 'yes') THEN COALESCE(approved_at, created_at) ELSE published_at END;
+  published_at = CASE
+    WHEN LOWER(COALESCE(CAST(approved AS TEXT), 'true')) IN ('1', 'true', 'evet', 'yes')
+      THEN COALESCE(CAST(approved_at AS TEXT), CAST(created_at AS TEXT))
+    ELSE published_at
+  END;
 
 UPDATE jobs
 SET publication_status = CASE WHEN COALESCE(show_in_feed, 1) = 0 THEN 'draft' ELSE 'published' END,
   approval_status = 'not_required',
-  published_at = CASE WHEN COALESCE(show_in_feed, 1) = 1 THEN created_at ELSE published_at END;
+  published_at = CASE WHEN COALESCE(show_in_feed, 1) = 1 THEN CAST(created_at AS TEXT) ELSE published_at END;
 
 UPDATE group_events
 SET publication_status = CASE WHEN COALESCE(show_in_feed, 1) = 0 THEN 'draft' ELSE 'published' END,
   approval_status = 'not_required',
-  published_at = CASE WHEN COALESCE(show_in_feed, 1) = 1 THEN created_at ELSE published_at END;
+  published_at = CASE WHEN COALESCE(show_in_feed, 1) = 1 THEN CAST(created_at AS TEXT) ELSE published_at END;
 
 UPDATE group_announcements
 SET publication_status = CASE WHEN COALESCE(show_in_feed, 1) = 0 THEN 'draft' ELSE 'published' END,
   approval_status = 'not_required',
-  published_at = CASE WHEN COALESCE(show_in_feed, 1) = 1 THEN created_at ELSE published_at END;
+  published_at = CASE WHEN COALESCE(show_in_feed, 1) = 1 THEN CAST(created_at AS TEXT) ELSE published_at END;
 
 UPDATE posts
 SET publication_status = 'published',
   approval_status = 'not_required',
-  published_at = COALESCE(published_at, created_at)
+  published_at = COALESCE(published_at, CAST(created_at AS TEXT))
 WHERE group_id IS NOT NULL;
 
 COMMIT;
