@@ -10,14 +10,23 @@ CREATE TABLE IF NOT EXISTS content_approval_settings (
   UNIQUE(entity_type, group_id)
 );
 
-INSERT OR IGNORE INTO content_approval_settings (entity_type, group_id, approval_required, updated_at)
-VALUES
-  ('event', NULL, 0, CURRENT_TIMESTAMP),
-  ('announcement', NULL, 0, CURRENT_TIMESTAMP),
-  ('job', NULL, 0, CURRENT_TIMESTAMP),
-  ('group_event', NULL, 0, CURRENT_TIMESTAMP),
-  ('group_announcement', NULL, 0, CURRENT_TIMESTAMP),
-  ('group_post', NULL, 0, CURRENT_TIMESTAMP);
+INSERT INTO content_approval_settings (entity_type, group_id, approval_required, updated_at)
+SELECT seed.entity_type, seed.group_id, seed.approval_required, seed.updated_at
+FROM (
+  VALUES
+    ('event', NULL::INTEGER, 0, CURRENT_TIMESTAMP),
+    ('announcement', NULL::INTEGER, 0, CURRENT_TIMESTAMP),
+    ('job', NULL::INTEGER, 0, CURRENT_TIMESTAMP),
+    ('group_event', NULL::INTEGER, 0, CURRENT_TIMESTAMP),
+    ('group_announcement', NULL::INTEGER, 0, CURRENT_TIMESTAMP),
+    ('group_post', NULL::INTEGER, 0, CURRENT_TIMESTAMP)
+) AS seed(entity_type, group_id, approval_required, updated_at)
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM content_approval_settings existing
+  WHERE existing.entity_type = seed.entity_type
+    AND existing.group_id IS NOT DISTINCT FROM seed.group_id
+);
 
 ALTER TABLE events ADD COLUMN IF NOT EXISTS publication_status TEXT NOT NULL DEFAULT 'published';
 ALTER TABLE events ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'not_required';
