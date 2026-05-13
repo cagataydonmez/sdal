@@ -152,6 +152,6 @@ class _AnnouncementsCreatePageState
     );
     if (!ok) return;
     if (!mounted) return;
-    context.pop();
+    context.pop(true);
   }
 }

@@ -36,7 +36,9 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
   void initState() {
     super.initState();
     _provider = FutureProvider.autoDispose<EventDetail?>((ref) async {
-      return ref.read(communityRepositoryProvider).fetchEventDetail(widget.eventId);
+      return ref
+          .read(communityRepositoryProvider)
+          .fetchEventDetail(widget.eventId);
     });
   }
 
@@ -71,11 +73,14 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                       allowComments: ac,
                       allowLikes: al,
                     ),
-                onEdit: detail.item.createdBy == (session?.user?.id ?? 0) || session?.hasAdminAccess == true
+                onEdit:
+                    detail.item.createdBy == (session?.user?.id ?? 0) ||
+                        session?.hasAdminAccess == true
                     ? () async {
                         final result = await showDialog<Map<String, dynamic>>(
                           context: context,
-                          builder: (ctx) => _EventEditDialog(event: detail.item),
+                          builder: (ctx) =>
+                              _EventEditDialog(event: detail.item),
                         );
                         if (result != null && mounted) {
                           final success = await ref
@@ -89,22 +94,28 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                                 endsAt: result['endsAt'] ?? '',
                                 imageFile: result['imageFile'] as File?,
                               );
-                          if (success && mounted) {
+                          if (success && context.mounted) {
                             ref.invalidate(_provider);
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Etkinlik güncellendi')),
+                              const SnackBar(
+                                content: Text('Etkinlik güncellendi'),
+                              ),
                             );
                           }
                         }
                       }
                     : null,
-                onDelete: detail.item.createdBy == (session?.user?.id ?? 0) || session?.hasAdminAccess == true
+                onDelete:
+                    detail.item.createdBy == (session?.user?.id ?? 0) ||
+                        session?.hasAdminAccess == true
                     ? () async {
                         final confirmed = await showDialog<bool>(
                           context: context,
                           builder: (ctx) => AlertDialog(
                             title: const Text('Etkinliği sil'),
-                            content: const Text('Bu etkinliği silmek istediğinizden emin misiniz?'),
+                            content: const Text(
+                              'Bu etkinliği silmek istediğinizden emin misiniz?',
+                            ),
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(ctx, false),
@@ -121,8 +132,8 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                           final success = await ref
                               .read(feedActionControllerProvider.notifier)
                               .deleteEvent(widget.eventId);
-                          if (success && mounted) {
-                            Navigator.pop(context);
+                          if (success && context.mounted) {
+                            Navigator.pop(context, true);
                           }
                         }
                       }
@@ -142,7 +153,8 @@ class AnnouncementDetailPage extends ConsumerStatefulWidget {
       _AnnouncementDetailPageState();
 }
 
-class _AnnouncementDetailPageState extends ConsumerState<AnnouncementDetailPage> {
+class _AnnouncementDetailPageState
+    extends ConsumerState<AnnouncementDetailPage> {
   late final FutureProvider<AnnouncementDetail?> _provider;
 
   @override
@@ -189,11 +201,15 @@ class _AnnouncementDetailPageState extends ConsumerState<AnnouncementDetailPage>
                       allowComments: ac,
                       allowLikes: al,
                     ),
-                onEdit: detail.item.createdBy == (session?.user?.id ?? 0) || session?.hasAdminAccess == true
+                onEdit:
+                    detail.item.createdBy == (session?.user?.id ?? 0) ||
+                        session?.hasAdminAccess == true
                     ? () async {
                         final result = await showDialog<Map<String, String>>(
                           context: context,
-                          builder: (ctx) => _AnnouncementEditDialog(announcement: detail.item),
+                          builder: (ctx) => _AnnouncementEditDialog(
+                            announcement: detail.item,
+                          ),
                         );
                         if (result != null && mounted) {
                           final success = await ref
@@ -203,22 +219,28 @@ class _AnnouncementDetailPageState extends ConsumerState<AnnouncementDetailPage>
                                 title: result['title'] ?? '',
                                 body: result['body'] ?? '',
                               );
-                          if (success && mounted) {
+                          if (success && context.mounted) {
                             ref.invalidate(_provider);
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Duyuru güncellendi')),
+                              const SnackBar(
+                                content: Text('Duyuru güncellendi'),
+                              ),
                             );
                           }
                         }
                       }
                     : null,
-                onDelete: detail.item.createdBy == (session?.user?.id ?? 0) || session?.hasAdminAccess == true
+                onDelete:
+                    detail.item.createdBy == (session?.user?.id ?? 0) ||
+                        session?.hasAdminAccess == true
                     ? () async {
                         final confirmed = await showDialog<bool>(
                           context: context,
                           builder: (ctx) => AlertDialog(
                             title: const Text('Duyuruyu sil'),
-                            content: const Text('Bu duyuruyu silmek istediğinizden emin misiniz?'),
+                            content: const Text(
+                              'Bu duyuruyu silmek istediğinizden emin misiniz?',
+                            ),
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(ctx, false),
@@ -235,8 +257,8 @@ class _AnnouncementDetailPageState extends ConsumerState<AnnouncementDetailPage>
                           final success = await ref
                               .read(feedActionControllerProvider.notifier)
                               .deleteAnnouncement(widget.announcementId);
-                          if (success && mounted) {
-                            Navigator.pop(context);
+                          if (success && context.mounted) {
+                            Navigator.pop(context, true);
                           }
                         }
                       }
@@ -545,10 +567,7 @@ class _EntityDetailBodyState<T> extends ConsumerState<_EntityDetailBody<T>> {
   Future<void> _togglePublish(bool publish) async {
     final ok = await ref
         .read(communityActionControllerProvider.notifier)
-        .approveEvent(
-          eventId: widget.entityId,
-          approved: publish,
-        );
+        .approveEvent(eventId: widget.entityId, approved: publish);
     if (!mounted) return;
     if (ok) {
       widget.onRefresh();
@@ -560,9 +579,9 @@ class _EntityDetailBodyState<T> extends ConsumerState<_EntityDetailBody<T>> {
         ),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('İşlem başarısız oldu.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('İşlem başarısız oldu.')));
     }
   }
 
@@ -612,7 +631,8 @@ class _EntityDetailBodyState<T> extends ConsumerState<_EntityDetailBody<T>> {
                         onSelected: (value) {
                           if (value == 'edit' && widget.onEdit != null) {
                             widget.onEdit!();
-                          } else if (value == 'delete' && widget.onDelete != null) {
+                          } else if (value == 'delete' &&
+                              widget.onDelete != null) {
                             widget.onDelete!();
                           }
                         },
@@ -1297,7 +1317,9 @@ class _EventEditDialogState extends State<_EventEditDialog> {
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.event.title);
-    _descriptionController = TextEditingController(text: plainTextFromRichContent(widget.event.description));
+    _descriptionController = TextEditingController(
+      text: plainTextFromRichContent(widget.event.description),
+    );
     _locationController = TextEditingController(text: widget.event.location);
     _startsAtController = TextEditingController(text: widget.event.startsAt);
     _endsAtController = TextEditingController(text: widget.event.endsAt);
@@ -1372,11 +1394,7 @@ class _EventEditDialogState extends State<_EventEditDialog> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: _imageFile != null
-                    ? Image.file(
-                        _imageFile!,
-                        height: 150,
-                        fit: BoxFit.cover,
-                      )
+                    ? Image.file(_imageFile!, height: 150, fit: BoxFit.cover)
                     : SizedBox(
                         height: 150,
                         child: SdalNetworkImage(
@@ -1434,6 +1452,7 @@ class _EventEditDialogState extends State<_EventEditDialog> {
       lastDate: now.add(const Duration(days: 365)),
     );
     if (date == null) return;
+    if (!mounted) return;
 
     final time = await showTimePicker(
       context: context,
@@ -1441,8 +1460,16 @@ class _EventEditDialogState extends State<_EventEditDialog> {
     );
     if (time == null) return;
 
-    final datetime = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-    setState(() => controller.text = datetime.toIso8601String().substring(0, 16));
+    final datetime = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
+    setState(
+      () => controller.text = datetime.toIso8601String().substring(0, 16),
+    );
   }
 }
 
@@ -1453,7 +1480,8 @@ class _AnnouncementEditDialog extends StatefulWidget {
   final AnnouncementItem announcement;
 
   @override
-  State<_AnnouncementEditDialog> createState() => _AnnouncementEditDialogState();
+  State<_AnnouncementEditDialog> createState() =>
+      _AnnouncementEditDialogState();
 }
 
 class _AnnouncementEditDialogState extends State<_AnnouncementEditDialog> {
@@ -1464,7 +1492,9 @@ class _AnnouncementEditDialogState extends State<_AnnouncementEditDialog> {
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.announcement.title);
-    _bodyController = TextEditingController(text: plainTextFromRichContent(widget.announcement.body));
+    _bodyController = TextEditingController(
+      text: plainTextFromRichContent(widget.announcement.body),
+    );
   }
 
   @override

@@ -60,8 +60,9 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     final l10n = context.l10n;
     final sortedItems = _getSortedItems();
     final heroItem = sortedItems.isNotEmpty ? sortedItems.first : null;
-    final otherItems =
-        sortedItems.length > 1 ? sortedItems.skip(1).toList() : <EventItem>[];
+    final otherItems = sortedItems.length > 1
+        ? sortedItems.skip(1).toList()
+        : <EventItem>[];
 
     return FeatureScaffold(
       title: l10n.eventsTitle,
@@ -113,12 +114,16 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                   onRetry: () => _load(reset: true),
                 ),
               )
-            else if (_items.isEmpty)
+            else if (sortedItems.isEmpty)
               SurfaceCard(
                 child: EmptyStateView(
                   icon: Icons.event_busy_outlined,
-                  title: l10n.eventsEmptyTitle,
-                  message: l10n.eventsEmptyMessage,
+                  title: _showDrafts
+                      ? 'Taslak etkinlik yok'
+                      : l10n.eventsEmptyTitle,
+                  message: _showDrafts
+                      ? 'Yayınlanmamış veya onay bekleyen etkinlikler burada görünür.'
+                      : l10n.eventsEmptyMessage,
                   actionLabel: l10n.refreshAction,
                   onAction: () => _load(reset: true),
                 ),
@@ -128,7 +133,9 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                 _buildHeroEventCard(heroItem, isAdmin, userId),
                 const SizedBox(height: 24),
               ],
-              ...otherItems.map((item) => _buildEventCard(item, isAdmin, userId)),
+              ...otherItems.map(
+                (item) => _buildEventCard(item, isAdmin, userId),
+              ),
             ],
             if (_isLoadingMore)
               const Padding(
@@ -140,8 +147,8 @@ class _EventsPageState extends ConsumerState<EventsPage> {
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: () async {
-                  await context.push('/events/create');
-                  if (mounted) _load(reset: true);
+                  final result = await context.push('/events/create');
+                  if (mounted && result == true) _load(reset: true);
                 },
                 icon: const Icon(Icons.add_outlined),
                 label: const Text('Yeni etkinlik öner'),
@@ -164,10 +171,15 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     return sorted;
   }
 
+  Future<void> _openEventDetail(int eventId) async {
+    await context.push('/events/$eventId');
+    if (mounted) _load(reset: true);
+  }
+
   Widget _buildHeroEventCard(EventItem item, bool isAdmin, int userId) {
     final isOwner = item.createdBy == userId;
     return GestureDetector(
-      onTap: () => context.push('/events/${item.id}'),
+      onTap: () => _openEventDetail(item.id),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -205,10 +217,11 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                   children: [
                     Text(
                       item.title,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -219,7 +232,9 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).sdal.accent.withValues(alpha: 0.9),
+                        color: Theme.of(
+                          context,
+                        ).sdal.accent.withValues(alpha: 0.9),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(
@@ -229,9 +244,12 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                           const SizedBox(width: 5),
                           Text(
                             '${item.attendCount} katılacak',
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: Theme.of(context).sdal.foregroundOnAccent,
-                            ),
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).sdal.foregroundOnAccent,
+                                ),
                           ),
                         ],
                       ),
@@ -245,7 +263,8 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                   right: 10,
                   child: _EventAdminMenu(
                     item: item,
-                    onApprove: (approved) => _approveEvent(item.id, approved: approved),
+                    onApprove: (approved) =>
+                        _approveEvent(item.id, approved: approved),
                     onDelete: () => _deleteEvent(item.id),
                     onEdit: isOwner ? () => _editEvent(item) : null,
                     isOwner: isOwner,
@@ -275,7 +294,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
       padding: const EdgeInsets.only(bottom: 12),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => context.push('/events/${item.id}'),
+        onTap: () => _openEventDetail(item.id),
         child: SurfaceCard(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -313,17 +332,19 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                       children: [
                         Text(
                           '${item.attendCount}',
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: Theme.of(context).sdal.accent,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: Theme.of(context).sdal.accent,
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
                         const SizedBox(width: 3),
                         Text(
                           'katılacak',
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: Theme.of(context).sdal.foregroundMuted,
-                          ),
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: Theme.of(context).sdal.foregroundMuted,
+                              ),
                         ),
                       ],
                     ),
@@ -333,7 +354,8 @@ class _EventsPageState extends ConsumerState<EventsPage> {
               if (isAdmin || isOwner)
                 _EventAdminMenu(
                   item: item,
-                  onApprove: (approved) => _approveEvent(item.id, approved: approved),
+                  onApprove: (approved) =>
+                      _approveEvent(item.id, approved: approved),
                   onDelete: () => _deleteEvent(item.id),
                   onEdit: isOwner ? () => _editEvent(item) : null,
                   isOwner: isOwner,
@@ -414,9 +436,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          ok ? 'Etkinlik güncellendi.' : 'Etkinlik düzenlenemedi.',
-        ),
+        content: Text(ok ? 'Etkinlik güncellendi.' : 'Etkinlik düzenlenemedi.'),
       ),
     );
     if (ok) _load(reset: true);
@@ -473,10 +493,13 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     try {
       final publishedPage = await ref
           .read(communityRepositoryProvider)
-          .fetchEvents(offset: reset ? 0 : _items.length, approved: true);
+          .fetchEvents(offset: reset ? 0 : _items.length, status: 'published');
       final draftPage = await ref
           .read(communityRepositoryProvider)
-          .fetchEvents(offset: reset ? 0 : _draftItems.length, approved: false);
+          .fetchEvents(
+            offset: reset ? 0 : _draftItems.length,
+            status: 'drafts',
+          );
       if (!mounted) return;
       setState(() {
         if (reset) {
@@ -537,10 +560,7 @@ class _EventAdminMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<String>(
-      icon: Icon(
-        Icons.more_vert,
-        color: dark ? Colors.white : null,
-      ),
+      icon: Icon(Icons.more_vert, color: dark ? Colors.white : null),
       onSelected: (value) {
         if (value == 'edit' && onEdit != null) onEdit!();
         if (value == 'approve') onApprove(true);
@@ -553,7 +573,10 @@ class _EventAdminMenu extends StatelessWidget {
           const PopupMenuItem<String>(value: 'delete', child: Text('Sil')),
         ] else ...[
           if (!item.approved)
-            const PopupMenuItem<String>(value: 'approve', child: Text('Onayla')),
+            const PopupMenuItem<String>(
+              value: 'approve',
+              child: Text('Onayla'),
+            ),
           if (item.approved)
             const PopupMenuItem<String>(
               value: 'reject',
@@ -597,7 +620,9 @@ class _EventEditDialogState extends State<_EventEditDialog> {
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.event.title);
-    _descriptionController = TextEditingController(text: plainTextFromRichContent(widget.event.description));
+    _descriptionController = TextEditingController(
+      text: plainTextFromRichContent(widget.event.description),
+    );
     _locationController = TextEditingController(text: widget.event.location);
     _startsAtController = TextEditingController(text: widget.event.startsAt);
     _endsAtController = TextEditingController(text: widget.event.endsAt);
@@ -672,11 +697,7 @@ class _EventEditDialogState extends State<_EventEditDialog> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: _imageFile != null
-                    ? Image.file(
-                        _imageFile!,
-                        height: 150,
-                        fit: BoxFit.cover,
-                      )
+                    ? Image.file(_imageFile!, height: 150, fit: BoxFit.cover)
                     : SizedBox(
                         height: 150,
                         child: SdalNetworkImage(
@@ -734,6 +755,7 @@ class _EventEditDialogState extends State<_EventEditDialog> {
       lastDate: now.add(const Duration(days: 365)),
     );
     if (date == null) return;
+    if (!mounted) return;
 
     final time = await showTimePicker(
       context: context,
@@ -741,7 +763,15 @@ class _EventEditDialogState extends State<_EventEditDialog> {
     );
     if (time == null) return;
 
-    final datetime = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-    setState(() => controller.text = datetime.toIso8601String().substring(0, 16));
+    final datetime = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
+    setState(
+      () => controller.text = datetime.toIso8601String().substring(0, 16),
+    );
   }
 }

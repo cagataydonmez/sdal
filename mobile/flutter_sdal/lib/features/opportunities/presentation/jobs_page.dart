@@ -177,8 +177,8 @@ class _JobsPageState extends ConsumerState<JobsPage> {
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: () async {
-                await context.push('/jobs/create');
-                if (mounted) _load();
+                final result = await context.push('/jobs/create');
+                if (mounted && result == true) _load();
               },
               icon: const Icon(Icons.add_outlined),
               label: Text(l10n.jobsCreateAction),
@@ -196,6 +196,11 @@ class _JobsPageState extends ConsumerState<JobsPage> {
     return sorted;
   }
 
+  Future<void> _openJobDetail(int jobId) async {
+    await context.push('/jobs/$jobId');
+    if (mounted) _load();
+  }
+
   Widget _buildHeroJobCard(
     JobItem job,
     AsyncActionState actionState,
@@ -204,7 +209,7 @@ class _JobsPageState extends ConsumerState<JobsPage> {
     final tokens = Theme.of(context).sdal;
     final isOwner = job.posterId == userId;
     return GestureDetector(
-      onTap: () => context.push('/jobs/${job.id}'),
+      onTap: () => _openJobDetail(job.id),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -346,7 +351,7 @@ class _JobsPageState extends ConsumerState<JobsPage> {
       padding: const EdgeInsets.only(bottom: 12),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => context.push('/jobs/${job.id}'),
+        onTap: () => _openJobDetail(job.id),
         child: SurfaceCard(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -473,6 +478,7 @@ class _JobsPageState extends ConsumerState<JobsPage> {
             search: _searchController.text.trim(),
             location: _searchLocationController.text.trim(),
             jobType: _searchJobTypeController.text.trim(),
+            status: 'published',
           );
       final drafts = await ref
           .read(opportunitiesRepositoryProvider)

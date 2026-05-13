@@ -38,7 +38,8 @@ export function registerOpportunityRoutes(app, {
   postUpload,
   processDiskImageUpload,
   uploadImagePresets,
-  createEntityFeedPost
+  createEntityFeedPost,
+  invalidateFeedCache
 }) {
   app.get('/api/new/opportunities', requireAuth, opportunityEndpointRateLimit, async (req, res) => {
     try {
@@ -100,7 +101,9 @@ export function registerOpportunityRoutes(app, {
     const publishedFilter = Object.prototype.hasOwnProperty.call(req.query || {}, 'published')
       ? String(req.query.published || '') === '1'
       : null;
-    if (status === 'drafts' || publishedFilter === false) {
+    if (status === 'published' || publishedFilter === true) {
+      where.push(publicQuery('j').replace(/j\.approved/g, 'TRUE'));
+    } else if (status === 'drafts' || publishedFilter === false) {
       where.push('j.poster_id = ?');
       where.push("COALESCE(j.publication_status, CASE WHEN COALESCE(j.show_in_feed, 1) = 1 THEN 'published' ELSE 'draft' END) != 'published'");
       params.push(req.session.userId);
@@ -181,6 +184,7 @@ export function registerOpportunityRoutes(app, {
         ]
       );
       const newJobId = Number(result?.lastInsertRowid || 0);
+      invalidateFeedCache?.();
       return res.json({ ok: true, id: newJobId, pending: contentState.approvalStatus === APPROVAL_STATUS.PENDING, publication_status: contentState.publicationStatus, approval_status: contentState.approvalStatus });
     } catch (err) {
       console.error('jobs.upload failed:', err);
@@ -278,6 +282,7 @@ export function registerOpportunityRoutes(app, {
       await sqlRunAsync(`UPDATE jobs SET ${updates.join(', ')} WHERE id = ?`, updateParams);
 
       const updated = await sqlGetAsync('SELECT * FROM jobs WHERE id = ?', [req.params.id]);
+      invalidateFeedCache?.();
       res.json({ ok: true, ...updated });
     } catch (err) {
       console.error(err);
@@ -321,6 +326,7 @@ export function registerOpportunityRoutes(app, {
         ]
       );
       const updated = await sqlGetAsync('SELECT * FROM jobs WHERE id = ?', [req.params.id]);
+      invalidateFeedCache?.();
       res.json({ ok: true, ...updated });
     } catch (err) {
       console.error(err);
@@ -561,6 +567,7 @@ export function registerOpportunityRoutes(app, {
       ]
     );
     const newJobId = Number(result?.lastInsertRowid || 0);
+    invalidateFeedCache?.();
     res.json({ ok: true, id: newJobId, pending: contentState.approvalStatus === APPROVAL_STATUS.PENDING, publication_status: contentState.publicationStatus, approval_status: contentState.approvalStatus });
   });
 
@@ -572,6 +579,7 @@ export function registerOpportunityRoutes(app, {
       if (!row) return res.status(404).send('İş ilanı bulunamadı.');
       if (!isAdmin && !sameUserId(row.poster_id, req.session.userId)) return res.status(403).send('Bu ilanı silme yetkin yok.');
       await sqlRunAsync('DELETE FROM jobs WHERE id = ?', [req.params.id]);
+      invalidateFeedCache?.();
       res.json({ ok: true });
     } catch (err) {
       console.error(err);

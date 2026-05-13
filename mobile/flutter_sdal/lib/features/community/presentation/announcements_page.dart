@@ -6,7 +6,6 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/session/session_controller.dart';
-import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/text/sdal_date_time.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/empty_state_view.dart';
@@ -137,8 +136,8 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: () async {
-                  await context.push('/announcements/create');
-                  if (mounted) _load(reset: true);
+                  final result = await context.push('/announcements/create');
+                  if (mounted && result == true) _load(reset: true);
                 },
                 icon: const Icon(Icons.add_outlined),
                 label: const Text('Yeni duyuru öner'),
@@ -157,10 +156,15 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
     return sorted;
   }
 
+  Future<void> _openAnnouncementDetail(int announcementId) async {
+    await context.push('/announcements/$announcementId');
+    if (mounted) _load(reset: true);
+  }
+
   Widget _buildHeroCard(AnnouncementItem item, bool isAdmin, int userId) {
     final isOwner = item.createdBy == userId;
     return GestureDetector(
-      onTap: () => context.push('/announcements/${item.id}'),
+      onTap: () => _openAnnouncementDetail(item.id),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -198,10 +202,11 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                   children: [
                     Text(
                       item.title,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -212,7 +217,9 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).sdal.accent.withValues(alpha: 0.9),
+                        color: Theme.of(
+                          context,
+                        ).sdal.accent.withValues(alpha: 0.9),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(
@@ -222,9 +229,12 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                           const SizedBox(width: 5),
                           Text(
                             'En yeni duyuru',
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: Theme.of(context).sdal.foregroundOnAccent,
-                            ),
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).sdal.foregroundOnAccent,
+                                ),
                           ),
                         ],
                       ),
@@ -252,7 +262,12 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              _metaLine(context, item.createdAt, item.creatorHandle, item.approved),
+              _metaLine(
+                context,
+                item.createdAt,
+                item.creatorHandle,
+                item.approved,
+              ),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).sdal.foregroundMuted,
               ),
@@ -269,7 +284,7 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
       padding: const EdgeInsets.only(bottom: 12),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => context.push('/announcements/${item.id}'),
+        onTap: () => _openAnnouncementDetail(item.id),
         child: SurfaceCard(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -383,10 +398,8 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
   Future<void> _editAnnouncement(AnnouncementItem item) async {
     await showDialog<void>(
       context: context,
-      builder: (context) => _AnnouncementEditDialog(
-        item: item,
-        onSave: () => _load(reset: true),
-      ),
+      builder: (context) =>
+          _AnnouncementEditDialog(item: item, onSave: () => _load(reset: true)),
     );
   }
 
@@ -438,10 +451,16 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
     try {
       final approved = await ref
           .read(communityRepositoryProvider)
-          .fetchAnnouncements(offset: reset ? 0 : _items.length, approved: true);
+          .fetchAnnouncements(
+            offset: reset ? 0 : _items.length,
+            status: 'published',
+          );
       final drafts = await ref
           .read(communityRepositoryProvider)
-          .fetchAnnouncements(offset: reset ? 0 : _draftItems.length, approved: false);
+          .fetchAnnouncements(
+            offset: reset ? 0 : _draftItems.length,
+            status: 'drafts',
+          );
       if (!mounted) return;
       setState(() {
         if (reset) {
@@ -517,7 +536,8 @@ class _AnnouncementAdminMenu extends StatelessWidget {
             value: 'reject',
             child: Text('Yayından kaldır'),
           ),
-        if (isOwner) const PopupMenuItem<String>(value: 'edit', child: Text('Düzenle')),
+        if (isOwner)
+          const PopupMenuItem<String>(value: 'edit', child: Text('Düzenle')),
         const PopupMenuItem<String>(value: 'delete', child: Text('Sil')),
       ],
     );
@@ -525,19 +545,18 @@ class _AnnouncementAdminMenu extends StatelessWidget {
 }
 
 class _AnnouncementEditDialog extends ConsumerStatefulWidget {
-  const _AnnouncementEditDialog({
-    required this.item,
-    required this.onSave,
-  });
+  const _AnnouncementEditDialog({required this.item, required this.onSave});
 
   final AnnouncementItem item;
   final VoidCallback onSave;
 
   @override
-  ConsumerState<_AnnouncementEditDialog> createState() => _AnnouncementEditDialogState();
+  ConsumerState<_AnnouncementEditDialog> createState() =>
+      _AnnouncementEditDialogState();
 }
 
-class _AnnouncementEditDialogState extends ConsumerState<_AnnouncementEditDialog> {
+class _AnnouncementEditDialogState
+    extends ConsumerState<_AnnouncementEditDialog> {
   late final TextEditingController _titleController;
   late final TextEditingController _bodyController;
   File? _imageFile;
@@ -561,7 +580,8 @@ class _AnnouncementEditDialogState extends ConsumerState<_AnnouncementEditDialog
   @override
   Widget build(BuildContext context) {
     final actionState = ref.watch(communityActionControllerProvider);
-    final isSaving = actionState.isLoading && actionState.scope == 'announcements:edit';
+    final isSaving =
+        actionState.isLoading && actionState.scope == 'announcements:edit';
 
     return Dialog(
       child: SingleChildScrollView(
@@ -597,11 +617,15 @@ class _AnnouncementEditDialogState extends ConsumerState<_AnnouncementEditDialog
               ),
               const SizedBox(height: 16),
               OutlinedButton.icon(
-                onPressed: isSaving ? null : () => _pickImage(ImageSource.gallery),
+                onPressed: isSaving
+                    ? null
+                    : () => _pickImage(ImageSource.gallery),
                 icon: const Icon(Icons.photo_library_outlined),
                 label: Text(
                   _imageFile == null
-                      ? (widget.item.image.isNotEmpty ? 'Görsel değiştir' : 'Görsel ekle')
+                      ? (widget.item.image.isNotEmpty
+                            ? 'Görsel değiştir'
+                            : 'Görsel ekle')
                       : 'Görsel değiştir',
                 ),
               ),
@@ -610,11 +634,7 @@ class _AnnouncementEditDialogState extends ConsumerState<_AnnouncementEditDialog
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: _imageFile != null
-                      ? Image.file(
-                          _imageFile!,
-                          height: 200,
-                          fit: BoxFit.cover,
-                        )
+                      ? Image.file(_imageFile!, height: 200, fit: BoxFit.cover)
                       : Image.network(
                           widget.item.image,
                           height: 200,
@@ -626,18 +646,24 @@ class _AnnouncementEditDialogState extends ConsumerState<_AnnouncementEditDialog
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Hemen yayınla'),
-                subtitle: Text(_showInFeed
-                    ? 'Duyuru taslak yerine yayınlanmış olarak kaydedilecek'
-                    : 'Duyuru taslak olarak kaydedilecek, detay sayfasından yayınlayabilirsiniz'),
+                subtitle: Text(
+                  _showInFeed
+                      ? 'Duyuru taslak yerine yayınlanmış olarak kaydedilecek'
+                      : 'Duyuru taslak olarak kaydedilecek, detay sayfasından yayınlayabilirsiniz',
+                ),
                 value: _showInFeed,
-                onChanged: isSaving ? null : (v) => setState(() => _showInFeed = v),
+                onChanged: isSaving
+                    ? null
+                    : (v) => setState(() => _showInFeed = v),
               ),
               const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: isSaving ? null : () => Navigator.of(context).pop(),
+                    onPressed: isSaving
+                        ? null
+                        : () => Navigator.of(context).pop(),
                     child: const Text('Vazgeç'),
                   ),
                   const SizedBox(width: 12),

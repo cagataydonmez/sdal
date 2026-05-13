@@ -2,6 +2,7 @@ import { buildInitialContentState } from '../shared/contentState.js';
 
 export function createEventChatRuntime({
   sqlAll,
+  sqlGetAsync,
   sqlAllAsync,
   sqlRunAsync,
   sanitizePlainUserText,

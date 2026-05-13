@@ -324,6 +324,6 @@ class _JobsCreatePageState extends ConsumerState<JobsCreatePage> {
     );
     if (!ok) return;
     if (!mounted) return;
-    context.pop();
+    context.pop(true);
   }
 }

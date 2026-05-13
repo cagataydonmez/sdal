@@ -224,6 +224,6 @@ class _EventsCreatePageState extends ConsumerState<EventsCreatePage> {
     );
     if (!ok) return;
     if (!mounted) return;
-    context.pop();
+    context.pop(true);
   }
 }

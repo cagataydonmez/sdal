@@ -3890,6 +3890,7 @@ const {
   createEntityFeedPost,
 } = createEventChatRuntime({
   sqlAll,
+  sqlGetAsync,
   sqlAllAsync,
   sqlRunAsync,
   sanitizePlainUserText,
@@ -5196,6 +5197,7 @@ registerEventJobRoutes(app, {
   writeAppLog,
   createEventRecord,
   createEntityFeedPost,
+  invalidateFeedCache: () => invalidateCacheNamespace(cacheNamespaces.feed),
   normalizeEventResponse,
   getEventResponseBundle,
   notifyMentions,
@@ -5575,6 +5577,7 @@ function ensureContentPublicationSchema() {
       posts: []
     };
     const commonColumns = [
+      'updated_at TEXT',
       "publication_status TEXT DEFAULT 'published'",
       "approval_status TEXT DEFAULT 'not_required'",
       'review_note TEXT',

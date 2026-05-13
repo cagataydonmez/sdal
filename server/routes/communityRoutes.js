@@ -33,7 +33,8 @@ export function registerCommunityRoutes(app, {
   createEntityFeedPost,
   normalizeEventResponse,
   getEventResponseBundle,
-  notifyMentions
+  notifyMentions,
+  invalidateFeedCache
 }) {
   function eventSelectIsPublic(alias) {
     return publicQuery(alias);
@@ -87,7 +88,9 @@ export function registerCommunityRoutes(app, {
         : "COALESCE(NULLIF(e.starts_at, ''), e.created_at)";
       const whereParts = [];
       const params = [];
-      if (status === 'drafts' || approvedFilter === false) {
+      if (status === 'published' || approvedFilter === true) {
+        whereParts.push(eventSelectIsPublic('e'));
+      } else if (status === 'drafts' || approvedFilter === false) {
         whereParts.push('e.created_by = ?');
         whereParts.push("COALESCE(e.publication_status, CASE WHEN LOWER(COALESCE(CAST(e.approved AS TEXT), 'true')) IN ('1','true','evet','yes') THEN 'published' ELSE 'pending_publication' END) != 'published'");
         params.push(req.session.userId);
@@ -132,6 +135,7 @@ export function registerCommunityRoutes(app, {
     try {
       const created = await createEventRecord(req, { image: req.body?.image || null });
       if (created.error) return res.status(400).send(created.error);
+      invalidateFeedCache?.();
       return res.json(created);
     } catch (err) {
       writeAppLog('error', 'event_create_failed', {
@@ -158,6 +162,7 @@ export function registerCommunityRoutes(app, {
       }
       const created = await createEventRecord(req, { image: processedUpload?.url || null });
       if (created.error) return res.status(400).send(created.error);
+      invalidateFeedCache?.();
       return res.json(created);
     } catch (err) {
       writeAppLog('error', 'event_upload_create_failed', {
@@ -190,6 +195,7 @@ export function registerCommunityRoutes(app, {
           req.params.id
         ]
       );
+      invalidateFeedCache?.();
       res.json({ ok: true });
     } catch (err) {
       console.error(err);
@@ -202,6 +208,7 @@ export function registerCommunityRoutes(app, {
       await sqlRunAsync('DELETE FROM event_comments WHERE event_id = ?', [req.params.id]);
       await sqlRunAsync('DELETE FROM event_responses WHERE event_id = ?', [req.params.id]);
       await sqlRunAsync('DELETE FROM events WHERE id = ?', [req.params.id]);
+      invalidateFeedCache?.();
       res.json({ ok: true });
     } catch (err) {
       console.error(err);
@@ -410,7 +417,9 @@ export function registerCommunityRoutes(app, {
         : null;
       const whereParts = [];
       const params = [];
-      if (status === 'drafts' || approvedFilter === false) {
+      if (status === 'published' || approvedFilter === true) {
+        whereParts.push(eventSelectIsPublic('a'));
+      } else if (status === 'drafts' || approvedFilter === false) {
         whereParts.push('a.created_by = ?');
         whereParts.push("COALESCE(a.publication_status, CASE WHEN LOWER(COALESCE(CAST(a.approved AS TEXT), 'true')) IN ('1','true','evet','yes') THEN 'published' ELSE 'pending_publication' END) != 'published'");
         params.push(req.session.userId);
@@ -472,6 +481,7 @@ export function registerCommunityRoutes(app, {
           isPublished ? now : null
         ]
       );
+      invalidateFeedCache?.();
       res.json({ ok: true, pending: contentState.approvalStatus === APPROVAL_STATUS.PENDING, id: result?.lastInsertRowid, publication_status: contentState.publicationStatus, approval_status: contentState.approvalStatus });
     } catch (err) {
       console.error(err);
@@ -526,6 +536,7 @@ export function registerCommunityRoutes(app, {
           isPublished ? now : null
         ]
       );
+      invalidateFeedCache?.();
       res.json({ ok: true, pending: contentState.approvalStatus === APPROVAL_STATUS.PENDING, id: result?.lastInsertRowid, publication_status: contentState.publicationStatus, approval_status: contentState.approvalStatus });
     } catch (err) {
       console.error(err);
@@ -569,6 +580,7 @@ export function registerCommunityRoutes(app, {
             : `"${announcement.title || 'Duyuru'}" duyurun reddedildi.`
         });
       }
+      invalidateFeedCache?.();
       res.json({ ok: true });
     } catch (err) {
       console.error(err);
@@ -579,6 +591,7 @@ export function registerCommunityRoutes(app, {
   app.delete('/api/new/announcements/:id', requireAdmin, async (req, res) => {
     try {
       await sqlRunAsync('DELETE FROM announcements WHERE id = ?', [req.params.id]);
+      invalidateFeedCache?.();
       res.json({ ok: true });
     } catch (err) {
       console.error(err);
@@ -691,6 +704,7 @@ export function registerCommunityRoutes(app, {
       await sqlRunAsync(`UPDATE events SET ${updates.join(', ')} WHERE id = ?`, updateParams);
 
       const updated = await sqlGetAsync('SELECT * FROM events WHERE id = ?', [req.params.id]);
+      invalidateFeedCache?.();
       res.json({ ok: true, ...updated });
     } catch (err) {
       console.error(err);
@@ -740,6 +754,7 @@ export function registerCommunityRoutes(app, {
       ];
       await sqlRunAsync(`UPDATE events SET ${updates.join(', ')} WHERE id = ?`, params);
       const updated = await sqlGetAsync('SELECT * FROM events WHERE id = ?', [req.params.id]);
+      invalidateFeedCache?.();
       res.json({ ok: true, ...updated });
     } catch (err) {
       console.error(err);
@@ -901,6 +916,7 @@ export function registerCommunityRoutes(app, {
       await sqlRunAsync(`UPDATE announcements SET ${updates.join(', ')} WHERE id = ?`, updateParams);
 
       const updated = await sqlGetAsync('SELECT * FROM announcements WHERE id = ?', [req.params.id]);
+      invalidateFeedCache?.();
       res.json({ ok: true, ...updated });
     } catch (err) {
       console.error(err);
@@ -940,6 +956,7 @@ export function registerCommunityRoutes(app, {
         ]
       );
       const updated = await sqlGetAsync('SELECT * FROM announcements WHERE id = ?', [req.params.id]);
+      invalidateFeedCache?.();
       res.json({ ok: true, ...updated });
     } catch (err) {
       console.error(err);

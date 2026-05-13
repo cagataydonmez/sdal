@@ -42,7 +42,6 @@ class _JobDetailPageState extends ConsumerState<JobDetailPage> {
     final actionState = ref.watch(jobsActionControllerProvider);
     final session = ref.watch(sessionControllerProvider).value;
     final l10n = context.l10n;
-    final tokens = Theme.of(context).sdal;
 
     return FeatureScaffold(
       title: l10n.jobsTitle,
@@ -117,12 +116,15 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent> {
                 ),
                 const SizedBox(height: 16),
               ],
-              if (widget.job.jobType.isNotEmpty || widget.job.workMode.isNotEmpty) ...[
+              if (widget.job.jobType.isNotEmpty ||
+                  widget.job.workMode.isNotEmpty) ...[
                 Wrap(
                   spacing: 8,
                   children: [
-                    if (widget.job.jobType.isNotEmpty) Chip(label: Text(widget.job.jobType)),
-                    if (widget.job.workMode.isNotEmpty) Chip(label: Text(widget.job.workMode)),
+                    if (widget.job.jobType.isNotEmpty)
+                      Chip(label: Text(widget.job.jobType)),
+                    if (widget.job.workMode.isNotEmpty)
+                      Chip(label: Text(widget.job.workMode)),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -147,19 +149,17 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent> {
                 const SizedBox(height: 4),
                 Text(
                   '@${widget.job.posterHandle}',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: tokens.foregroundMuted),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: tokens.foregroundMuted,
+                  ),
                 ),
               ],
               const SizedBox(height: 12),
               Text(
                 _formatDate(context, widget.job.createdAt),
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: tokens.foregroundMuted),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
               ),
               if (widget.job.isEdited) ...[
                 const SizedBox(height: 4),
@@ -212,10 +212,7 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'İş Tanımı',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
+              Text('İş Tanımı', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 12),
               Text(_plainText(widget.job.description)),
             ],
@@ -329,9 +326,9 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent> {
           );
       if (success && mounted) {
         widget.onRefresh();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('İlan güncellendi')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('İlan güncellendi')));
       }
     }
   }
@@ -341,7 +338,9 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('İlanı yayından kaldır'),
-        content: const Text('Bu ilan kalıcı olarak silinecek. Devam edilsin mi?'),
+        content: const Text(
+          'Bu ilan kalıcı olarak silinecek. Devam edilsin mi?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -359,7 +358,7 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent> {
           .read(jobsActionControllerProvider.notifier)
           .deleteJob(widget.jobId);
       if (success && mounted) {
-        Navigator.pop(context);
+        Navigator.pop(context, true);
       }
     }
   }
@@ -381,20 +380,18 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent> {
     return status == 'pending' ? 'Beklemede' : 'İncelendi';
   }
 
-  bool _isLinkedIn(String url) =>
-      url.contains('linkedin.com');
+  bool _isLinkedIn(String url) => url.contains('linkedin.com');
 
-  bool _isKariyer(String url) =>
-      url.contains('kariyer.net');
+  bool _isKariyer(String url) => url.contains('kariyer.net');
 
   Future<void> _launchUrl(String url) async {
     final uri = Uri.tryParse(url);
     if (uri == null) return;
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('URL açılamadı')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('URL açılamadı')));
       }
     }
   }
@@ -473,7 +470,9 @@ class _JobEditDialogState extends State<_JobEditDialog> {
     super.initState();
     _titleController = TextEditingController(text: widget.job.title);
     _companyController = TextEditingController(text: widget.job.company);
-    _descriptionController = TextEditingController(text: plainTextFromRichContent(widget.job.description));
+    _descriptionController = TextEditingController(
+      text: plainTextFromRichContent(widget.job.description),
+    );
     _locationController = TextEditingController(text: widget.job.location);
     _jobTypeController = TextEditingController(text: widget.job.jobType);
     _workModeController = TextEditingController(text: widget.job.workMode);
@@ -524,12 +523,16 @@ class _JobEditDialogState extends State<_JobEditDialog> {
             const SizedBox(height: 12),
             TextField(
               controller: _jobTypeController,
-              decoration: const InputDecoration(labelText: 'İş Türü (örn. Full-time)'),
+              decoration: const InputDecoration(
+                labelText: 'İş Türü (örn. Full-time)',
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _workModeController,
-              decoration: const InputDecoration(labelText: 'Çalışma Şekli (örn. Remote)'),
+              decoration: const InputDecoration(
+                labelText: 'Çalışma Şekli (örn. Remote)',
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
