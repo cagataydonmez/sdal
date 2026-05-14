@@ -15,6 +15,7 @@
 		3089072191B9214EC522A5E3 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9F5A82521A8C7178051C75E2 /* Foundation.framework */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		383C0ECDC274428E91FAEE78 /* ExploreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0666DB327BD2493F9B49256F /* ExploreView.swift */; };
+		BB4C0BB8D1E245F9A0E2CC01 /* CommunityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA4C0BB8D1E245F9A0E2CC01 /* CommunityView.swift */; };
 		393E680D2F9EB7A20038C34C /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 393E680C2F9EB7A20038C34C /* GoogleService-Info.plist */; };
 		3AFF8D8A2123C743AA7DE399 /* WatchAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 024BAE1F5D21E4A4C747A4C7 /* WatchAPIClient.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
@@ -111,6 +112,7 @@
 		024BAE1F5D21E4A4C747A4C7 /* WatchAPIClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchAPIClient.swift; sourceTree = "<group>"; };
 		036849AF911A3C8C0CA9267E /* Pods-SdalNotificationExtension.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SdalNotificationExtension.profile.xcconfig"; path = "Target Support Files/Pods-SdalNotificationExtension/Pods-SdalNotificationExtension.profile.xcconfig"; sourceTree = "<group>"; };
 		0666DB327BD2493F9B49256F /* ExploreView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExploreView.swift; sourceTree = "<group>"; };
+		AA4C0BB8D1E245F9A0E2CC01 /* CommunityView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CommunityView.swift; sourceTree = "<group>"; };
 		0F553E34ED3D99549DA145B5 /* SdalWatchApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SdalWatchApp.swift; sourceTree = "<group>"; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
@@ -394,6 +396,7 @@
 				B8AAA3259DC8863F06C6E67C /* MessagesView.swift */,
 				546D77C464109F1177656BA3 /* NotificationsView.swift */,
 				3B8BBD6EDDCAAF9681B5C872 /* SharedComponents.swift */,
+				AA4C0BB8D1E245F9A0E2CC01 /* CommunityView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -790,6 +793,7 @@
 				B66DA04C7575488294F37548 /* ComposePostView.swift in Sources */,
 				8B3FB176E70B4F298206FFDD /* StoriesView.swift in Sources */,
 				383C0ECDC274428E91FAEE78 /* ExploreView.swift in Sources */,
+				BB4C0BB8D1E245F9A0E2CC01 /* CommunityView.swift in Sources */,
 				E46F490C05F344F490659B36 /* MemberProfileView.swift in Sources */,
 				F391C7257393415483F84180 /* ConversationView.swift in Sources */,
 				AA24BE42B62B4197B88F29DA /* NewConversationView.swift in Sources */,

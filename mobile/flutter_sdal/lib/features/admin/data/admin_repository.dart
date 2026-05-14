@@ -446,6 +446,100 @@ class AdminRootStatusSnapshot {
   }
 }
 
+class AdminTestDataArea {
+  const AdminTestDataArea({
+    required this.key,
+    required this.label,
+    required this.defaultCount,
+  });
+
+  final String key;
+  final String label;
+  final int defaultCount;
+
+  factory AdminTestDataArea.fromMap(JsonMap map) {
+    return AdminTestDataArea(
+      key: coalesceText([map['key']], fallback: ''),
+      label: coalesceText([map['label']], fallback: ''),
+      defaultCount: asInt(map['defaultCount']) ?? 2,
+    );
+  }
+}
+
+class AdminTestDataCatalog {
+  const AdminTestDataCatalog({
+    required this.areas,
+    required this.defaults,
+    required this.maxPerArea,
+    required this.maxTotal,
+    required this.cooldownMs,
+  });
+
+  final List<AdminTestDataArea> areas;
+  final Map<String, int> defaults;
+  final int maxPerArea;
+  final int maxTotal;
+  final int cooldownMs;
+
+  factory AdminTestDataCatalog.fromMap(JsonMap map) {
+    final rawDefaults = asJsonMap(map['defaults']);
+    final limits = asJsonMap(map['limits']);
+    return AdminTestDataCatalog(
+      areas: asJsonMapList(
+        map['areas'],
+      ).map(AdminTestDataArea.fromMap).toList(growable: false),
+      defaults: rawDefaults.map(
+        (key, value) => MapEntry(key, asInt(value) ?? 2),
+      ),
+      maxPerArea: asInt(limits['maxPerArea']) ?? 10,
+      maxTotal: asInt(limits['maxTotal']) ?? 90,
+      cooldownMs: asInt(limits['cooldownMs']) ?? 15000,
+    );
+  }
+}
+
+class AdminTestDataRunResult {
+  const AdminTestDataRunResult({
+    required this.ok,
+    required this.runId,
+    required this.dryRun,
+    required this.usersCreated,
+    required this.totalCreated,
+    required this.errors,
+    required this.summary,
+  });
+
+  final bool ok;
+  final String runId;
+  final bool dryRun;
+  final int usersCreated;
+  final int totalCreated;
+  final List<String> errors;
+  final Map<String, int> summary;
+
+  factory AdminTestDataRunResult.fromMap(JsonMap map) {
+    final rawSummary = asJsonMap(map['summary']);
+    final summary = <String, int>{};
+    for (final entry in rawSummary.entries) {
+      summary[entry.key] = asInt(asJsonMap(entry.value)['created']) ?? 0;
+    }
+    return AdminTestDataRunResult(
+      ok: asBool(map['ok']) ?? false,
+      runId: coalesceText([map['runId']], fallback: ''),
+      dryRun: asBool(map['dryRun']) ?? false,
+      usersCreated: asJsonMapList(map['users']).length,
+      totalCreated: summary.values.fold<int>(0, (sum, value) => sum + value),
+      errors: asJsonMapList(map['errors'])
+          .map(
+            (item) =>
+                coalesceText([item['message']], fallback: 'Bilinmeyen hata'),
+          )
+          .toList(growable: false),
+      summary: summary,
+    );
+  }
+}
+
 class AdminPermissionSnapshot {
   const AdminPermissionSnapshot({
     required this.role,
@@ -3093,6 +3187,42 @@ class AdminRepository {
             : 'Factory reset başarısız (${result.statusCode}).',
       );
     }
+  }
+
+  Future<AdminTestDataCatalog> fetchTestDataCatalog() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/test-data/catalog',
+      decoder: asJsonMap,
+    );
+    return AdminTestDataCatalog.fromMap(asJsonMap(result.rawData));
+  }
+
+  Future<AdminTestDataRunResult> runTestDataSeed({
+    required Map<String, int> counts,
+    bool dryRun = false,
+  }) async {
+    final result = await _apiClient.post<JsonMap>(
+      '/api/admin/test-data/run',
+      body: {'counts': counts, 'dryRun': dryRun},
+      decoder: asJsonMap,
+    );
+    if (!result.ok && result.rawData is! Map<String, dynamic>) {
+      throw Exception(
+        result.message.isNotEmpty
+            ? result.message
+            : 'Test verisi oluşturulamadı (${result.statusCode}).',
+      );
+    }
+    final data = asJsonMap(result.rawData);
+    if (!result.ok && data['summary'] == null) {
+      throw Exception(
+        coalesceText([
+          data['message'],
+          result.message,
+        ], fallback: 'Test verisi oluşturulamadı (${result.statusCode}).'),
+      );
+    }
+    return AdminTestDataRunResult.fromMap(data);
   }
 
   Future<AdminPreviewList<T>> _fetchPreviewList<T>({

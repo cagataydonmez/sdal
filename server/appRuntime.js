@@ -4116,11 +4116,20 @@ registerAdminModerationRoutes(app, {
 });
 
 registerAdminRootRoutes(app, {
+  dbDriver,
+  sqlGet,
+  sqlRun,
+  sqlGetAsync,
+  sqlAllAsync,
+  sqlRunAsync,
+  uploadsDir,
   requireAuth,
   requireRootAdmin: rbacService.requireRootAdmin,
   rbacService,
   factoryResetService,
   factoryResetRateLimit,
+  hashPassword,
+  processUpload,
   verifyPassword,
   writeAppLog,
   logAdminAction

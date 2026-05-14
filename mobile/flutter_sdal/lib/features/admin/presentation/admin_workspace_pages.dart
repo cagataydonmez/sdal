@@ -125,6 +125,11 @@ class AdminWorkspacePage extends ConsumerWidget {
                             label: const Text('Factory reset'),
                           ),
                           FilledButton.tonalIcon(
+                            onPressed: () => context.go('/admin/test-data'),
+                            icon: const Icon(Icons.science_outlined),
+                            label: const Text('Test verisi'),
+                          ),
+                          FilledButton.tonalIcon(
                             onPressed: () =>
                                 context.go('/admin/permission-groups'),
                             icon: const Icon(
@@ -281,6 +286,16 @@ class AdminWorkspacePage extends ConsumerWidget {
                     tone: _WorkspaceTone.danger,
                     onTap: () => context.go('/admin/operations'),
                   ),
+                  if (user.isRootAdmin)
+                    _WorkspaceNavCard(
+                      title: 'Test verisi',
+                      summary:
+                          'API alanları için kontrollü test kullanıcıları ve içerikler oluştur.',
+                      countLabel: 'Root-only',
+                      icon: Icons.science_outlined,
+                      tone: _WorkspaceTone.warning,
+                      onTap: () => context.go('/admin/test-data'),
+                    ),
                   if (user.isRootAdmin)
                     _WorkspaceNavCard(
                       title: 'Factory reset',

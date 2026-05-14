@@ -154,6 +154,270 @@ class _FactoryResetPageState extends ConsumerState<FactoryResetPage> {
   }
 }
 
+class TestDataSeedPage extends ConsumerStatefulWidget {
+  const TestDataSeedPage({super.key});
+
+  @override
+  ConsumerState<TestDataSeedPage> createState() => _TestDataSeedPageState();
+}
+
+class _TestDataSeedPageState extends ConsumerState<TestDataSeedPage> {
+  late Future<AdminTestDataCatalog> _catalogFuture;
+  final Map<String, int> _counts = {};
+  bool _dryRun = false;
+  bool _submitting = false;
+  AdminTestDataRunResult? _result;
+  String _message = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _catalogFuture = _loadCatalog();
+  }
+
+  Future<AdminTestDataCatalog> _loadCatalog() async {
+    final catalog = await ref
+        .read(adminRepositoryProvider)
+        .fetchTestDataCatalog();
+    if (mounted) {
+      setState(() {
+        for (final area in catalog.areas) {
+          _counts[area.key] = catalog.defaults[area.key] ?? area.defaultCount;
+        }
+      });
+    }
+    return catalog;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = ref.watch(sessionControllerProvider).value?.user;
+    if (user?.isRootAdmin != true) {
+      return const _RootDeniedPage();
+    }
+
+    return FeatureScaffold(
+      title: 'Test verisi',
+      actions: [
+        IconButton(
+          tooltip: 'Yenile',
+          onPressed: _submitting
+              ? null
+              : () => setState(() {
+                  _catalogFuture = _loadCatalog();
+                  _result = null;
+                  _message = '';
+                }),
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+      child: FutureBuilder<AdminTestDataCatalog>(
+        future: _catalogFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError || !snapshot.hasData) {
+            return Center(child: Text(snapshot.error.toString()));
+          }
+          final catalog = snapshot.data!;
+          final total = _counts.values.fold<int>(
+            0,
+            (sum, value) => sum + value,
+          );
+          final overLimit = total > catalog.maxTotal;
+          return ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              SurfaceCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.science_outlined,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'API test kullanıcıları',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                        Chip(label: Text('$total/${catalog.maxTotal}')),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SwitchListTile.adaptive(
+                      value: _dryRun,
+                      onChanged: _submitting
+                          ? null
+                          : (value) => setState(() => _dryRun = value),
+                      title: const Text('Dry run'),
+                      subtitle: const Text('Kayıt oluşturmadan planı denetle.'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    const SizedBox(height: 8),
+                    for (final area in catalog.areas)
+                      _SeedCountRow(
+                        label: area.label,
+                        value: _counts[area.key] ?? area.defaultCount,
+                        max: catalog.maxPerArea,
+                        enabled: !_submitting,
+                        onChanged: (value) =>
+                            setState(() => _counts[area.key] = value),
+                      ),
+                    if (overLimit) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Toplam ${catalog.maxTotal} kaydı aşamaz.',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: _submitting || overLimit ? null : _submit,
+                      icon: _submitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.play_arrow_rounded),
+                      label: Text(
+                        _dryRun ? 'Planı çalıştır' : 'Test verisi ekle',
+                      ),
+                    ),
+                    if (_message.isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      Text(_message),
+                    ],
+                  ],
+                ),
+              ),
+              if (_result != null) ...[
+                const SizedBox(height: 16),
+                SurfaceCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _result!.dryRun ? 'Dry run sonucu' : 'Seed sonucu',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${_result!.usersCreated} kullanıcı, ${_result!.totalCreated} API kaydı. Run: ${_result!.runId}',
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final entry in _result!.summary.entries)
+                            Chip(label: Text('${entry.key}: ${entry.value}')),
+                        ],
+                      ),
+                      if (_result!.errors.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        for (final error in _result!.errors)
+                          Text(
+                            error,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    setState(() {
+      _submitting = true;
+      _message = '';
+      _result = null;
+    });
+    try {
+      final result = await ref
+          .read(adminRepositoryProvider)
+          .runTestDataSeed(
+            counts: Map<String, int>.from(_counts),
+            dryRun: _dryRun,
+          );
+      setState(() {
+        _result = result;
+        _message = result.errors.isEmpty
+            ? 'Tamamlandı.'
+            : 'Kısmi tamamlandı. Bazı API alanları hata döndürdü.';
+      });
+    } catch (error) {
+      setState(() => _message = error.toString());
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+}
+
+class _SeedCountRow extends StatelessWidget {
+  const _SeedCountRow({
+    required this.label,
+    required this.value,
+    required this.max,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final String label;
+  final int value;
+  final int max;
+  final bool enabled;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Expanded(child: Text(label)),
+          IconButton.outlined(
+            tooltip: 'Azalt',
+            onPressed: enabled && value > 0 ? () => onChanged(value - 1) : null,
+            icon: const Icon(Icons.remove),
+          ),
+          SizedBox(
+            width: 44,
+            child: Text(
+              '$value',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          IconButton.outlined(
+            tooltip: 'Artır',
+            onPressed: enabled && value < max
+                ? () => onChanged(value + 1)
+                : null,
+            icon: const Icon(Icons.add),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class PermissionGroupsPage extends ConsumerWidget {
   const PermissionGroupsPage({super.key});
 

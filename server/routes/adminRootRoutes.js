@@ -1,4 +1,5 @@
 import { FACTORY_RESET_CONFIRMATION } from '../src/admin/factoryResetService.js';
+import { TEST_DATA_AREAS, createTestDataSeeder } from '../src/admin/testDataSeederService.js';
 
 function asyncRoute(handler) {
   return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
@@ -10,16 +11,38 @@ function statusForError(err) {
 }
 
 export function registerAdminRootRoutes(app, {
+  dbDriver,
+  sqlGet,
+  sqlRun,
+  sqlGetAsync,
+  sqlAllAsync,
+  sqlRunAsync,
+  uploadsDir,
   requireAuth,
   requireRootAdmin,
   rbacService,
   factoryResetService,
   factoryResetRateLimit,
+  testDataSeeder,
+  hashPassword,
+  processUpload,
   verifyPassword,
   writeAppLog,
   logAdminAction
 }) {
   const rootOnly = [requireAuth, requireRootAdmin];
+  const seeder = testDataSeeder || createTestDataSeeder({
+    dbDriver,
+    sqlGet,
+    sqlRun,
+    sqlGetAsync,
+    sqlAllAsync,
+    sqlRunAsync,
+    uploadsDir,
+    hashPassword,
+    processUpload,
+    writeAppLog
+  });
 
   app.post('/api/admin/factory-reset', factoryResetRateLimit, ...rootOnly, asyncRoute(async (req, res) => {
     const confirmation = String(req.body?.confirmation || '').trim();
@@ -61,6 +84,45 @@ export function registerAdminRootRoutes(app, {
       ...result,
       confirmationRequired: FACTORY_RESET_CONFIRMATION
     });
+  }));
+
+  app.get('/api/admin/test-data/catalog', ...rootOnly, asyncRoute(async (_req, res) => {
+    res.json({
+      areas: TEST_DATA_AREAS,
+      defaults: Object.fromEntries(TEST_DATA_AREAS.map((area) => [area.key, area.defaultCount])),
+      limits: {
+        maxPerArea: 10,
+        maxTotal: 90,
+        cooldownMs: 15000
+      }
+    });
+  }));
+
+  app.post('/api/admin/test-data/run', ...rootOnly, asyncRoute(async (req, res) => {
+    try {
+      const result = await seeder.run({
+        counts: req.body?.counts || {},
+        dryRun: req.body?.dryRun === true || req.body?.dry_run === true,
+        actor: req.authUser || req.adminUser
+      });
+      logAdminAction(req, 'test_data_seed_run', {
+        runId: result.runId,
+        dryRun: result.dryRun,
+        errorCount: result.errors.length
+      });
+      res.status(result.ok ? 201 : 207).json(result);
+    } catch (err) {
+      const status = statusForError(err);
+      writeAppLog?.('warn', 'test_data_seed_denied', {
+        userId: req.authUser?.id || null,
+        status,
+        message: err?.message || 'unknown_error'
+      });
+      res.status(status).json({
+        error: status === 429 ? 'TEST_DATA_SEED_COOLDOWN' : 'TEST_DATA_SEED_FAILED',
+        message: err?.message || 'Test verisi olusturulamadi.'
+      });
+    }
   }));
 
   app.get('/api/admin/permissions', ...rootOnly, asyncRoute(async (_req, res) => {

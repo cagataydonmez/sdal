@@ -635,6 +635,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     _liftPage(const FactoryResetPage()),
               ),
               GoRoute(
+                path: '/admin/test-data',
+                pageBuilder: (context, state) =>
+                    _liftPage(const TestDataSeedPage()),
+              ),
+              GoRoute(
                 path: '/admin/permission-groups',
                 pageBuilder: (context, state) =>
                     _liftPage(const PermissionGroupsPage()),
