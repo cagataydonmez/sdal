@@ -1054,7 +1054,7 @@ export function registerCommunityGroupRoutes(app, {
         return res.status(403).send('Bu grup özel. Etkinlikler yalnızca üyelere açık.');
       }
       const rows = await sqlAllAsync(
-        `SELECT e.id, e.group_id, e.title, e.description, e.location, e.starts_at, e.ends_at, e.created_at, e.created_by, u.kadi AS creator_kadi
+        `SELECT e.id, e.group_id, e.title, e.description, e.location, e.starts_at, e.ends_at, e.image, e.created_at, e.created_by, u.kadi AS creator_kadi
          FROM group_events e
          LEFT JOIN uyeler u ON u.id = e.created_by
          WHERE e.group_id = ? ${canManageGroup ? '' : `AND ${publicQuery('e', false)}`}
@@ -1188,15 +1188,53 @@ export function registerCommunityGroupRoutes(app, {
     }
   });
 
-  app.patch('/api/new/groups/:id/events/:eventId', requireAuth, async (req, res) => {
+  app.patch('/api/new/groups/:id/events/:eventId', requireAuth, uploadRateLimit, postUpload.single('image'), async (req, res) => {
     try {
       const groupId = req.params.id;
       if (!isGroupManager(req, groupId)) return res.status(403).send('Yetki yok.');
-      const event = await sqlGetAsync('SELECT id FROM group_events WHERE id = ? AND group_id = ?', [req.params.eventId, groupId]);
+      const event = await sqlGetAsync('SELECT id, publication_status FROM group_events WHERE id = ? AND group_id = ?', [req.params.eventId, groupId]);
       if (!event) return res.status(404).send('Etkinlik bulunamadı.');
 
       const updates = [];
       const updateParams = [];
+      if (req.body.title !== undefined) {
+        const title = sanitizePlainUserText(String(req.body.title || '').trim(), 180);
+        if (!title) return res.status(400).send('Başlık gerekli.');
+        updates.push('title = ?');
+        updateParams.push(title);
+      }
+      if (req.body.description !== undefined) {
+        const desc = formatUserText(req.body.description || '');
+        updates.push('description = ?');
+        updateParams.push(desc);
+      }
+      if (req.body.location !== undefined) {
+        updates.push('location = ?');
+        updateParams.push(sanitizePlainUserText(String(req.body.location || '').trim(), 180));
+      }
+      if (req.body.starts_at !== undefined || req.body.startsAt !== undefined) {
+        updates.push('starts_at = ?');
+        updateParams.push(String(req.body.starts_at ?? req.body.startsAt ?? '').trim() || null);
+      }
+      if (req.body.ends_at !== undefined || req.body.endsAt !== undefined) {
+        updates.push('ends_at = ?');
+        updateParams.push(String(req.body.ends_at ?? req.body.endsAt ?? '').trim() || null);
+      }
+      if (req.file?.path) {
+        const processedUpload = await processDiskImageUpload({
+          req,
+          res,
+          file: req.file,
+          bucket: 'group_event_image',
+          preset: uploadImagePresets.eventImage
+        });
+        if (!processedUpload.ok) return res.status(processedUpload.statusCode).send(processedUpload.message);
+        updates.push('image = ?');
+        updateParams.push(processedUpload.url || null);
+      } else if (req.body.image !== undefined) {
+        updates.push('image = ?');
+        updateParams.push(String(req.body.image || '').trim() || null);
+      }
       if (req.body.show_in_feed !== undefined || req.body.showInFeed !== undefined) {
         updates.push('show_in_feed = ?');
         updateParams.push(wantsShowInFeed(req.body) ? 1 : 0);
@@ -1210,6 +1248,10 @@ export function registerCommunityGroupRoutes(app, {
         updateParams.push(publish ? PUBLICATION_STATUS.PUBLISHED : PUBLICATION_STATUS.DRAFT);
         updateParams.push(publish ? APPROVAL_STATUS.NOT_REQUIRED : APPROVAL_STATUS.NOT_REQUIRED);
         updateParams.push(publish ? now : null);
+        if (publish && event.publication_status !== PUBLICATION_STATUS.PUBLISHED) {
+          updates.push('created_at = ?');
+          updateParams.push(now);
+        }
       }
       if (updates.length === 0) return res.status(400).send('Güncellenecek alan yok.');
       updateParams.push(req.params.eventId, groupId);
@@ -1245,7 +1287,7 @@ export function registerCommunityGroupRoutes(app, {
         return res.status(403).send('Bu grup özel. Duyurular yalnızca üyelere açık.');
       }
       const rows = await sqlAllAsync(
-        `SELECT a.id, a.group_id, a.title, a.body, a.created_at, a.created_by, u.kadi AS creator_kadi
+        `SELECT a.id, a.group_id, a.title, a.body, a.image, a.created_at, a.created_by, u.kadi AS creator_kadi
          FROM group_announcements a
          LEFT JOIN uyeler u ON u.id = a.created_by
          WHERE a.group_id = ? ${canManageGroup ? '' : `AND ${publicQuery('a', false)}`}
@@ -1367,15 +1409,42 @@ export function registerCommunityGroupRoutes(app, {
     }
   });
 
-  app.patch('/api/new/groups/:id/announcements/:announcementId', requireAuth, async (req, res) => {
+  app.patch('/api/new/groups/:id/announcements/:announcementId', requireAuth, uploadRateLimit, postUpload.single('image'), async (req, res) => {
     try {
       const groupId = req.params.id;
       if (!isGroupManager(req, groupId)) return res.status(403).send('Yetki yok.');
-      const announcement = await sqlGetAsync('SELECT id FROM group_announcements WHERE id = ? AND group_id = ?', [req.params.announcementId, groupId]);
+      const announcement = await sqlGetAsync('SELECT id, publication_status FROM group_announcements WHERE id = ? AND group_id = ?', [req.params.announcementId, groupId]);
       if (!announcement) return res.status(404).send('Duyuru bulunamadı.');
 
       const updates = [];
       const updateParams = [];
+      if (req.body.title !== undefined) {
+        const title = sanitizePlainUserText(String(req.body.title || '').trim(), 180);
+        if (!title) return res.status(400).send('Başlık gerekli.');
+        updates.push('title = ?');
+        updateParams.push(title);
+      }
+      if (req.body.body !== undefined) {
+        const body = formatUserText(req.body.body || '');
+        if (isFormattedContentEmpty(body)) return res.status(400).send('İçerik gerekli.');
+        updates.push('body = ?');
+        updateParams.push(body);
+      }
+      if (req.file?.path) {
+        const processedUpload = await processDiskImageUpload({
+          req,
+          res,
+          file: req.file,
+          bucket: 'group_announcement_image',
+          preset: uploadImagePresets.announcementImage
+        });
+        if (!processedUpload.ok) return res.status(processedUpload.statusCode).send(processedUpload.message);
+        updates.push('image = ?');
+        updateParams.push(processedUpload.url || null);
+      } else if (req.body.image !== undefined) {
+        updates.push('image = ?');
+        updateParams.push(String(req.body.image || '').trim() || null);
+      }
       if (req.body.show_in_feed !== undefined || req.body.showInFeed !== undefined) {
         updates.push('show_in_feed = ?');
         updateParams.push(wantsShowInFeed(req.body) ? 1 : 0);
@@ -1389,6 +1458,10 @@ export function registerCommunityGroupRoutes(app, {
         updateParams.push(publish ? PUBLICATION_STATUS.PUBLISHED : PUBLICATION_STATUS.DRAFT);
         updateParams.push(publish ? APPROVAL_STATUS.NOT_REQUIRED : APPROVAL_STATUS.NOT_REQUIRED);
         updateParams.push(publish ? now : null);
+        if (publish && announcement.publication_status !== PUBLICATION_STATUS.PUBLISHED) {
+          updates.push('created_at = ?');
+          updateParams.push(now);
+        }
       }
       if (updates.length === 0) return res.status(400).send('Güncellenecek alan yok.');
       updateParams.push(req.params.announcementId, groupId);
@@ -1413,12 +1486,40 @@ export function registerCommunityGroupRoutes(app, {
     }
   });
 
+  async function canViewGroupEntityDetail(req, res, groupId) {
+    const group = await sqlGetAsync('SELECT id, visibility, is_cohort_group, cohort_year FROM groups WHERE id = ?', [groupId]);
+    if (!group) {
+      res.status(404).send('Grup bulunamadı.');
+      return null;
+    }
+    const user = getCurrentUser(req);
+    const isAdmin = hasAdminRole(user);
+    const isCohortGroup = Number(group.is_cohort_group || 0) === 1;
+    let cohortAccessAllowed = false;
+    if (!isAdmin && isCohortGroup) {
+      const viewerRow = await sqlGetAsync('SELECT mezuniyetyili FROM uyeler WHERE id = ?', [req.session.userId]);
+      const viewerCohort = String(viewerRow?.mezuniyetyili || '').trim();
+      if (!viewerCohort || viewerCohort === '0' || viewerCohort !== String(group.cohort_year || '').trim()) {
+        res.status(403).send('Bu cohort grubuna erişim izniniz yok.');
+        return null;
+      }
+      cohortAccessAllowed = true;
+    }
+    const member = getGroupMember(groupId, req.session.userId);
+    const membersOnly = normalizeGroupVisibility(group.visibility) === 'members_only';
+    if (membersOnly && !isAdmin && !member && !cohortAccessAllowed) {
+      res.status(403).send('Yetki yok.');
+      return null;
+    }
+    return { group, user, isAdmin, member };
+  }
+
   // ── Single group event detail ──────────────────────────────────────────────
   app.get('/api/new/groups/:id/events/:eventId', requireAuth, async (req, res) => {
     try {
       const groupId = req.params.id;
-      const user = getCurrentUser(req);
-      if (!hasAdminRole(user) && !getGroupMember(groupId, req.session.userId)) return res.status(403).send('Yetki yok.');
+      const access = await canViewGroupEntityDetail(req, res, groupId);
+      if (!access) return;
       const row = await sqlGetAsync(
         `SELECT e.*, u.kadi AS creator_kadi, u.isim, u.soyisim, u.resim
          FROM group_events e LEFT JOIN uyeler u ON u.id = e.created_by
@@ -1505,8 +1606,8 @@ export function registerCommunityGroupRoutes(app, {
   app.get('/api/new/groups/:id/announcements/:announcementId', requireAuth, async (req, res) => {
     try {
       const groupId = req.params.id;
-      const user = getCurrentUser(req);
-      if (!hasAdminRole(user) && !getGroupMember(groupId, req.session.userId)) return res.status(403).send('Yetki yok.');
+      const access = await canViewGroupEntityDetail(req, res, groupId);
+      if (!access) return;
       const row = await sqlGetAsync(
         `SELECT a.*, u.kadi AS creator_kadi, u.isim, u.soyisim, u.resim
          FROM group_announcements a LEFT JOIN uyeler u ON u.id = a.created_by

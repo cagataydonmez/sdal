@@ -1,8 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/l10n/context_l10n.dart';
+import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/state/async_action_state.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../core/session/session_controller.dart';
@@ -293,7 +296,7 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent> {
   }
 
   Future<void> _showEditDialog() async {
-    final result = await showDialog<Map<String, String>>(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) => _JobEditDialog(job: widget.job),
     );
@@ -309,6 +312,7 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent> {
             jobType: result['jobType'] ?? '',
             workMode: result['workMode'] ?? '',
             link: result['link'] ?? '',
+            imageFile: result['imageFile'] as File?,
           );
       if (success && mounted) {
         widget.onRefresh();
@@ -438,6 +442,7 @@ class _JobEditDialogState extends State<_JobEditDialog> {
   late TextEditingController _jobTypeController;
   late TextEditingController _workModeController;
   late TextEditingController _linkController;
+  File? _imageFile;
 
   @override
   void initState() {
@@ -513,6 +518,31 @@ class _JobEditDialogState extends State<_JobEditDialog> {
               controller: _linkController,
               decoration: const InputDecoration(labelText: 'Başvuru Linki'),
             ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _pickImage,
+              icon: const Icon(Icons.photo_library_outlined),
+              label: Text(
+                _imageFile == null
+                    ? (widget.job.image.isNotEmpty
+                          ? 'Görseli değiştir'
+                          : 'Görsel ekle')
+                    : 'Görseli değiştir',
+              ),
+            ),
+            if (_imageFile != null || widget.job.image.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: _imageFile != null
+                    ? Image.file(_imageFile!, height: 160, fit: BoxFit.cover)
+                    : Image.network(
+                        widget.job.image,
+                        height: 160,
+                        fit: BoxFit.cover,
+                      ),
+              ),
+            ],
           ],
         ),
       ),
@@ -530,10 +560,22 @@ class _JobEditDialogState extends State<_JobEditDialog> {
             'jobType': _jobTypeController.text,
             'workMode': _workModeController.text,
             'link': _linkController.text,
+            'imageFile': _imageFile,
           }),
           child: const Text('Kaydet'),
         ),
       ],
     );
+  }
+
+  Future<void> _pickImage() async {
+    final picked = await pickAndCropImage(
+      context,
+      source: ImageSource.gallery,
+      aspectPreset: CropAspectPreset.wide169,
+      title: 'İlan görselini hazırla',
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _imageFile = picked);
   }
 }

@@ -142,20 +142,23 @@ struct MemberRow: View {
     let member: WatchMember
     var showOnlineDot: Bool = false
 
+    private var isOnline: Bool { member.isOnline || showOnlineDot }
+
     var body: some View {
         HStack(spacing: 8) {
             ZStack(alignment: .bottomTrailing) {
                 AvatarView(initials: member.initials, photoUrl: member.photo, size: 28)
-                if member.isOnline || showOnlineDot {
+                if isOnline {
                     Circle()
-                        .fill(.green)
-                        .frame(width: 8, height: 8)
+                        .fill(Color.green)
+                        .frame(width: 7, height: 7)
+                        .overlay(Circle().stroke(Color.black.opacity(0.6), lineWidth: 1))
                         .offset(x: 1, y: 1)
                 }
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(member.fullName.isEmpty ? "@\(member.handle)" : member.fullName)
-                    .font(.caption2).fontWeight(.semibold).lineLimit(1)
+                    .font(.system(size: 12, weight: .medium)).lineLimit(1)
                 if !member.profession.isEmpty {
                     Text(member.profession)
                         .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)

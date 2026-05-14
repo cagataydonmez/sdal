@@ -90,8 +90,10 @@ struct ConversationView: View {
                 } label: {
                     Image(systemName: isSending ? "arrow.up.circle" : "arrow.up.circle.fill")
                         .font(.system(size: 20))
-                        .foregroundColor(
-                            messageText.trimmingCharacters(in: .whitespaces).isEmpty ? .gray : .accentColor
+                        .foregroundStyle(
+                            messageText.trimmingCharacters(in: .whitespaces).isEmpty
+                                ? Color.primary.opacity(0.28)
+                                : Color.accentColor
                         )
                 }
                 .disabled(messageText.trimmingCharacters(in: .whitespaces).isEmpty || isSending)

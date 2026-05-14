@@ -125,7 +125,7 @@ export function registerOpportunityRoutes(app, {
        LEFT JOIN uyeler u ON u.id = j.poster_id
        LEFT JOIN job_applications ja_self ON ja_self.job_id = j.id AND ja_self.applicant_id = ?
        ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-       ORDER BY j.id DESC
+       ORDER BY COALESCE(NULLIF(CAST(j.published_at AS TEXT), ''), j.created_at) DESC, j.id DESC
        LIMIT ? OFFSET ?`,
       [req.session.userId, ...params, limit, offset]
     );
@@ -224,7 +224,7 @@ export function registerOpportunityRoutes(app, {
     try {
       const user = getCurrentUser(req);
       const isAdmin = hasAdminSession(req, user);
-      const row = await sqlGetAsync('SELECT id, poster_id FROM jobs WHERE id = ?', [req.params.id]);
+      const row = await sqlGetAsync('SELECT id, poster_id, publication_status FROM jobs WHERE id = ?', [req.params.id]);
       if (!row) return res.status(404).send('İş ilanı bulunamadı.');
       if (!isAdmin && !sameUserId(row.poster_id, req.session.userId)) return res.status(403).send('Bu ilanı düzenleme yetkin yok.');
 
@@ -270,8 +270,13 @@ export function registerOpportunityRoutes(app, {
         const publish = wantsPublish(req.body);
         updates.push('publication_status = ?');
         updates.push('published_at = ?');
+        const now = new Date().toISOString();
         updateParams.push(publish ? PUBLICATION_STATUS.PUBLISHED : PUBLICATION_STATUS.DRAFT);
-        updateParams.push(publish ? new Date().toISOString() : null);
+        updateParams.push(publish ? now : null);
+        if (publish && row.publication_status !== PUBLICATION_STATUS.PUBLISHED) {
+          updates.push('created_at = ?');
+          updateParams.push(now);
+        }
       }
 
       if (updates.length === 0) return res.status(400).send('Güncellenecek alan yok.');

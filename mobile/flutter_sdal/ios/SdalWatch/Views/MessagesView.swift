@@ -53,17 +53,18 @@ struct MessagesView: View {
         VStack(spacing: 10) {
             Image(systemName: "bubble.left.and.bubble.right")
                 .font(.system(size: 28))
-                .foregroundStyle(.secondary)
-            Text("Mesaj yok")
-                .font(.caption2).foregroundStyle(.secondary)
+                .foregroundStyle(Color.accentColor.opacity(0.6))
+            Text("Henüz mesaj yok")
+                .font(.system(size: 12, weight: .medium))
             Button {
                 showNewConversation = true
             } label: {
-                Label("Yeni mesaj", systemImage: "square.and.pencil")
-                    .font(.caption2)
+                Label("Mesaj başlat", systemImage: "square.and.pencil")
+                    .font(.system(size: 11, weight: .semibold))
             }
             .buttonStyle(.borderedProminent)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func threadList(_ threads: [WatchThread]) -> some View {
@@ -90,19 +91,22 @@ struct ThreadRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack {
                     Text(thread.peerName.isEmpty ? "@\(thread.peerHandle)" : thread.peerName)
-                        .font(.caption2).fontWeight(.semibold).lineLimit(1)
+                        .font(.system(size: 12, weight: thread.unreadCount > 0 ? .semibold : .regular))
+                        .lineLimit(1)
                     Spacer()
                     if thread.unreadCount > 0 {
                         Text("\(thread.unreadCount)")
                             .font(.system(size: 9, weight: .bold))
                             .padding(.horizontal, 5).padding(.vertical, 2)
-                            .background(.blue).clipShape(Capsule())
+                            .background(Color.accentColor).clipShape(Capsule())
                             .foregroundStyle(.white)
                     }
                 }
                 if !thread.lastMessage.isEmpty {
                     Text(thread.lastMessage)
-                        .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(2)
+                        .font(.system(size: 10))
+                        .foregroundStyle(thread.unreadCount > 0 ? Color.primary.opacity(0.75) : Color.secondary)
+                        .lineLimit(2)
                 }
             }
         }

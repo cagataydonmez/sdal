@@ -25,6 +25,7 @@ void main() {
           isVerified: true,
           isBanned: true,
           state: 'active',
+          graduationYear: '2011',
         ),
       );
 
@@ -64,6 +65,7 @@ void main() {
           isVerified: false,
           isBanned: false,
           state: 'active',
+          graduationYear: '2011',
         ),
       );
 
@@ -87,6 +89,7 @@ void main() {
           isVerified: true,
           isBanned: false,
           state: 'active',
+          graduationYear: '2011',
         ),
       );
 
@@ -113,6 +116,7 @@ void main() {
           isVerified: true,
           isBanned: false,
           state: 'active',
+          graduationYear: '2011',
         ),
       );
 
@@ -135,6 +139,7 @@ void main() {
             isVerified: true,
             isBanned: false,
             state: 'active',
+            graduationYear: '2011',
           ),
         );
 
@@ -212,4 +217,5 @@ const SessionUser _verifiedUser = SessionUser(
   isVerified: true,
   isBanned: false,
   state: 'active',
+  graduationYear: '2011',
 );

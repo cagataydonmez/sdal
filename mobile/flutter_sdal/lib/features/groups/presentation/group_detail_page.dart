@@ -161,12 +161,33 @@ class GroupDetailPage extends ConsumerWidget {
                     onAddAnnouncement: detail.canManage
                         ? () => _openAnnouncementSheet(context, ref, groupId)
                         : null,
+                    onOpenEvent: (eventId) =>
+                        context.push('/groups/$groupId/events/$eventId'),
                     onDeleteEvent: (eventId) =>
                         _deleteEvent(context, ref, eventId),
+                    onEditEvent: detail.canManage
+                        ? (event) => _openEventSheet(
+                            context,
+                            ref,
+                            groupId,
+                            existing: event,
+                          )
+                        : null,
                     onUnpublishEvent: (eventId) =>
                         _unpublishEvent(context, ref, eventId),
+                    onOpenAnnouncement: (announcementId) => context.push(
+                      '/groups/$groupId/announcements/$announcementId',
+                    ),
                     onDeleteAnnouncement: (announcementId) =>
                         _deleteAnnouncement(context, ref, announcementId),
+                    onEditAnnouncement: detail.canManage
+                        ? (announcement) => _openAnnouncementSheet(
+                            context,
+                            ref,
+                            groupId,
+                            existing: announcement,
+                          )
+                        : null,
                     onUnpublishAnnouncement: (announcementId) =>
                         _unpublishAnnouncement(context, ref, announcementId),
                   ),
@@ -396,23 +417,30 @@ Future<void> _openPostSheet(BuildContext context, WidgetRef ref, int groupId) {
   );
 }
 
-Future<void> _openEventSheet(BuildContext context, WidgetRef ref, int groupId) {
+Future<void> _openEventSheet(
+  BuildContext context,
+  WidgetRef ref,
+  int groupId, {
+  GroupEventItem? existing,
+}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    builder: (context) => _EventSheet(groupId: groupId),
+    builder: (context) => _EventSheet(groupId: groupId, existing: existing),
   );
 }
 
 Future<void> _openAnnouncementSheet(
   BuildContext context,
   WidgetRef ref,
-  int groupId,
-) {
+  int groupId, {
+  GroupAnnouncementItem? existing,
+}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    builder: (context) => _AnnouncementSheet(groupId: groupId),
+    builder: (context) =>
+        _AnnouncementSheet(groupId: groupId, existing: existing),
   );
 }
 
@@ -954,9 +982,13 @@ class _GroupApprovalTile extends ConsumerWidget {
 class _TimelineSection extends StatelessWidget {
   const _TimelineSection({
     required this.detail,
+    required this.onOpenEvent,
     required this.onDeleteEvent,
+    required this.onEditEvent,
     required this.onUnpublishEvent,
+    required this.onOpenAnnouncement,
     required this.onDeleteAnnouncement,
+    required this.onEditAnnouncement,
     required this.onUnpublishAnnouncement,
     this.onAddEvent,
     this.onAddAnnouncement,
@@ -965,9 +997,13 @@ class _TimelineSection extends StatelessWidget {
   final GroupDetail detail;
   final VoidCallback? onAddEvent;
   final VoidCallback? onAddAnnouncement;
+  final ValueChanged<int> onOpenEvent;
   final ValueChanged<int> onDeleteEvent;
+  final ValueChanged<GroupEventItem>? onEditEvent;
   final ValueChanged<int> onUnpublishEvent;
+  final ValueChanged<int> onOpenAnnouncement;
   final ValueChanged<int> onDeleteAnnouncement;
+  final ValueChanged<GroupAnnouncementItem>? onEditAnnouncement;
   final ValueChanged<int> onUnpublishAnnouncement;
 
   @override
@@ -1003,6 +1039,8 @@ class _TimelineSection extends StatelessWidget {
               _GroupEventTile(
                 event: event,
                 canDelete: detail.canManage,
+                onOpen: () => onOpenEvent(event.id),
+                onEdit: onEditEvent == null ? null : () => onEditEvent!(event),
                 onUnpublish: () => onUnpublishEvent(event.id),
                 onDelete: () => onDeleteEvent(event.id),
               ),
@@ -1035,6 +1073,10 @@ class _TimelineSection extends StatelessWidget {
               _GroupAnnouncementTile(
                 item: item,
                 canDelete: detail.canManage,
+                onOpen: () => onOpenAnnouncement(item.id),
+                onEdit: onEditAnnouncement == null
+                    ? null
+                    : () => onEditAnnouncement!(item),
                 onUnpublish: () => onUnpublishAnnouncement(item.id),
                 onDelete: () => onDeleteAnnouncement(item.id),
               ),
@@ -1470,80 +1512,104 @@ class _GroupPostTileState extends ConsumerState<_GroupPostTile> {
           ),
           child: Padding(
             padding: const EdgeInsets.all(14),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  isEvent ? '📅' : '📢',
-                  style: const TextStyle(fontSize: 22),
+                Row(
+                  children: [
+                    Text(
+                      isEvent ? '📅' : '📢',
+                      style: const TextStyle(fontSize: 22),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (titleLine.isNotEmpty)
+                            Text(
+                              titleLine,
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                          if (excerptLines.isNotEmpty)
+                            Text(
+                              excerptLines,
+                              style: Theme.of(context).textTheme.bodySmall,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (widget.canManage && post.entityId != null) ...[
+                      EntityActionMenu(
+                        kind: kind,
+                        onUnpublish: () async {
+                          final ok = isEvent
+                              ? await ref
+                                    .read(
+                                      groupsActionControllerProvider.notifier,
+                                    )
+                                    .setEventPublished(
+                                      groupId: widget.groupId,
+                                      eventId: post.entityId!,
+                                      publish: false,
+                                    )
+                              : await ref
+                                    .read(
+                                      groupsActionControllerProvider.notifier,
+                                    )
+                                    .setAnnouncementPublished(
+                                      groupId: widget.groupId,
+                                      announcementId: post.entityId!,
+                                      publish: false,
+                                    );
+                          if (ok) {
+                            ref.invalidate(groupPostsProvider(widget.groupId));
+                          }
+                        },
+                        onDelete: () async {
+                          final ok = isEvent
+                              ? await ref
+                                    .read(
+                                      groupsActionControllerProvider.notifier,
+                                    )
+                                    .deleteEvent(
+                                      groupId: widget.groupId,
+                                      eventId: post.entityId!,
+                                    )
+                              : await ref
+                                    .read(
+                                      groupsActionControllerProvider.notifier,
+                                    )
+                                    .deleteAnnouncement(
+                                      groupId: widget.groupId,
+                                      announcementId: post.entityId!,
+                                    );
+                          if (ok) {
+                            ref.invalidate(groupPostsProvider(widget.groupId));
+                          }
+                        },
+                      ),
+                    ] else
+                      Icon(
+                        Icons.chevron_right,
+                        size: 18,
+                        color: isEvent ? tokens.warning : tokens.success,
+                      ),
+                  ],
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (titleLine.isNotEmpty)
-                        Text(
-                          titleLine,
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                      if (excerptLines.isNotEmpty)
-                        Text(
-                          excerptLines,
-                          style: Theme.of(context).textTheme.bodySmall,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                    ],
+                if (post.image.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  SdalNetworkImage(
+                    imageUrl: post.image,
+                    height: 150,
+                    width: double.infinity,
+                    borderRadius: BorderRadius.circular(14),
+                    fit: BoxFit.cover,
+                    errorFallback: const SizedBox.shrink(),
                   ),
-                ),
-                if (widget.canManage && post.entityId != null) ...[
-                  EntityActionMenu(
-                    kind: kind,
-                    onUnpublish: () async {
-                      final ok = isEvent
-                          ? await ref
-                                .read(groupsActionControllerProvider.notifier)
-                                .setEventPublished(
-                                  groupId: widget.groupId,
-                                  eventId: post.entityId!,
-                                  publish: false,
-                                )
-                          : await ref
-                                .read(groupsActionControllerProvider.notifier)
-                                .setAnnouncementPublished(
-                                  groupId: widget.groupId,
-                                  announcementId: post.entityId!,
-                                  publish: false,
-                                );
-                      if (ok) {
-                        ref.invalidate(groupPostsProvider(widget.groupId));
-                      }
-                    },
-                    onDelete: () async {
-                      final ok = isEvent
-                          ? await ref
-                                .read(groupsActionControllerProvider.notifier)
-                                .deleteEvent(
-                                  groupId: widget.groupId,
-                                  eventId: post.entityId!,
-                                )
-                          : await ref
-                                .read(groupsActionControllerProvider.notifier)
-                                .deleteAnnouncement(
-                                  groupId: widget.groupId,
-                                  announcementId: post.entityId!,
-                                );
-                      if (ok) {
-                        ref.invalidate(groupPostsProvider(widget.groupId));
-                      }
-                    },
-                  ),
-                ] else
-                  Icon(
-                    Icons.chevron_right,
-                    size: 18,
-                    color: isEvent ? tokens.warning : tokens.success,
-                  ),
+                ],
               ],
             ),
           ),
@@ -1678,12 +1744,16 @@ class _GroupEventTile extends StatelessWidget {
   const _GroupEventTile({
     required this.event,
     required this.canDelete,
+    required this.onOpen,
+    this.onEdit,
     required this.onUnpublish,
     required this.onDelete,
   });
 
   final GroupEventItem event;
   final bool canDelete;
+  final VoidCallback onOpen;
+  final VoidCallback? onEdit;
   final VoidCallback onUnpublish;
   final VoidCallback onDelete;
 
@@ -1691,53 +1761,72 @@ class _GroupEventTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final tokens = Theme.of(context).sdal;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: tokens.panelMuted,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: tokens.panelBorder),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+        onTap: onOpen,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: tokens.panelMuted,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: tokens.panelBorder),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    event.title,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        event.title,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    if (canDelete)
+                      EntityActionMenu(
+                        kind: EntityActionKind.groupEvent,
+                        onEdit: onEdit == null ? null : () async => onEdit!(),
+                        onUnpublish: () async => onUnpublish(),
+                        onDelete: () async => onDelete(),
+                      ),
+                  ],
                 ),
-                if (canDelete)
-                  EntityActionMenu(
-                    kind: EntityActionKind.groupEvent,
-                    onUnpublish: () async => onUnpublish(),
-                    onDelete: () async => onDelete(),
+                if (event.image.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  SdalNetworkImage(
+                    imageUrl: event.image,
+                    height: 150,
+                    width: double.infinity,
+                    borderRadius: BorderRadius.circular(16),
+                    fit: BoxFit.cover,
+                    errorFallback: const SizedBox.shrink(),
+                  ),
+                ],
+                if (event.description.isNotEmpty) Text(event.description),
+                if (event.location.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(l10n.groupEventLocationValue(event.location)),
+                ],
+                if (event.startsAt.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    l10n.groupEventStartsAtValue(
+                      formatSdalTimestamp(context, event.startsAt),
+                    ),
+                  ),
+                ],
+                if (event.endsAt.isNotEmpty)
+                  Text(
+                    l10n.groupEventEndsAtValue(
+                      formatSdalTimestamp(context, event.endsAt),
+                    ),
                   ),
               ],
             ),
-            if (event.description.isNotEmpty) Text(event.description),
-            if (event.location.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(l10n.groupEventLocationValue(event.location)),
-            ],
-            if (event.startsAt.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                l10n.groupEventStartsAtValue(
-                  formatSdalTimestamp(context, event.startsAt),
-                ),
-              ),
-            ],
-            if (event.endsAt.isNotEmpty)
-              Text(
-                l10n.groupEventEndsAtValue(
-                  formatSdalTimestamp(context, event.endsAt),
-                ),
-              ),
-          ],
+          ),
         ),
       ),
     );
@@ -1748,52 +1837,75 @@ class _GroupAnnouncementTile extends StatelessWidget {
   const _GroupAnnouncementTile({
     required this.item,
     required this.canDelete,
+    required this.onOpen,
+    this.onEdit,
     required this.onUnpublish,
     required this.onDelete,
   });
 
   final GroupAnnouncementItem item;
   final bool canDelete;
+  final VoidCallback onOpen;
+  final VoidCallback? onEdit;
   final VoidCallback onUnpublish;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).sdal;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: tokens.panelMuted,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: tokens.panelBorder),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+        onTap: onOpen,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: tokens.panelMuted,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: tokens.panelBorder),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    item.title,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item.title,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    if (canDelete)
+                      EntityActionMenu(
+                        kind: EntityActionKind.groupAnnouncement,
+                        onEdit: onEdit == null ? null : () async => onEdit!(),
+                        onUnpublish: () async => onUnpublish(),
+                        onDelete: () async => onDelete(),
+                      ),
+                  ],
                 ),
-                if (canDelete)
-                  EntityActionMenu(
-                    kind: EntityActionKind.groupAnnouncement,
-                    onUnpublish: () async => onUnpublish(),
-                    onDelete: () async => onDelete(),
+                if (item.image.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  SdalNetworkImage(
+                    imageUrl: item.image,
+                    height: 150,
+                    width: double.infinity,
+                    borderRadius: BorderRadius.circular(16),
+                    fit: BoxFit.cover,
+                    errorFallback: const SizedBox.shrink(),
                   ),
+                ],
+                if (item.body.isNotEmpty) Text(item.body),
+                const SizedBox(height: 8),
+                Text(
+                  formatSdalTimestamp(context, item.createdAt),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ],
             ),
-            if (item.body.isNotEmpty) Text(item.body),
-            const SizedBox(height: 8),
-            Text(
-              formatSdalTimestamp(context, item.createdAt),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -2016,9 +2128,10 @@ class _PostSheetState extends ConsumerState<_PostSheet> {
 }
 
 class _EventSheet extends ConsumerStatefulWidget {
-  const _EventSheet({required this.groupId});
+  const _EventSheet({required this.groupId, this.existing});
 
   final int groupId;
+  final GroupEventItem? existing;
 
   @override
   ConsumerState<_EventSheet> createState() => _EventSheetState();
@@ -2033,6 +2146,20 @@ class _EventSheetState extends ConsumerState<_EventSheet> {
   File? _imageFile;
   bool _publishNow = true;
   bool _showInFeed = true;
+
+  bool get _isEditing => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.existing;
+    if (existing == null) return;
+    _titleController.text = existing.title;
+    _descriptionController.text = existing.description;
+    _locationController.text = existing.location;
+    _startsAtController.text = existing.startsAt;
+    _endsAtController.text = existing.endsAt;
+  }
 
   @override
   void dispose() {
@@ -2057,7 +2184,7 @@ class _EventSheetState extends ConsumerState<_EventSheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              l10n.groupNewEventTitle,
+              _isEditing ? 'Etkinliği düzenle' : l10n.groupNewEventTitle,
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 12),
@@ -2114,43 +2241,58 @@ class _EventSheetState extends ConsumerState<_EventSheet> {
               onPressed: state.isLoading ? null : _pickImage,
               icon: const Icon(Icons.photo_library_outlined),
               label: Text(
-                _imageFile == null ? 'Görsel ekle' : 'Görsel değiştir',
+                _imageFile == null && widget.existing?.image.isEmpty != false
+                    ? 'Görsel ekle'
+                    : 'Görsel değiştir',
               ),
             ),
-            if (_imageFile != null) ...[
+            if (_imageFile != null ||
+                (widget.existing?.image.isNotEmpty ?? false)) ...[
               const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.file(
-                  _imageFile!,
+              if (_imageFile != null)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.file(
+                    _imageFile!,
+                    height: 180,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                )
+              else
+                SdalNetworkImage(
+                  imageUrl: widget.existing!.image,
                   height: 180,
                   width: double.infinity,
                   fit: BoxFit.cover,
+                  borderRadius: BorderRadius.circular(12),
+                  errorFallback: const SizedBox.shrink(),
                 ),
+            ],
+            if (!_isEditing) ...[
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Hemen yayınla'),
+                subtitle: Text(
+                  _publishNow
+                      ? 'Etkinlik yayın akışına hazırlanacak'
+                      : 'Etkinlik taslaklara kaydedilecek',
+                ),
+                value: _publishNow,
+                onChanged: state.isLoading
+                    ? null
+                    : (v) => setState(() => _publishNow = v),
+              ),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Topluluk akışında göster'),
+                subtitle: const Text('Etkinlik ana akışta herkese görünsün'),
+                value: _showInFeed,
+                onChanged: state.isLoading || !_publishNow
+                    ? null
+                    : (v) => setState(() => _showInFeed = v),
               ),
             ],
-            SwitchListTile.adaptive(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Hemen yayınla'),
-              subtitle: Text(
-                _publishNow
-                    ? 'Etkinlik yayın akışına hazırlanacak'
-                    : 'Etkinlik taslaklara kaydedilecek',
-              ),
-              value: _publishNow,
-              onChanged: state.isLoading
-                  ? null
-                  : (v) => setState(() => _publishNow = v),
-            ),
-            SwitchListTile.adaptive(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Topluluk akışında göster'),
-              subtitle: const Text('Etkinlik ana akışta herkese görünsün'),
-              value: _showInFeed,
-              onChanged: state.isLoading || !_publishNow
-                  ? null
-                  : (v) => setState(() => _showInFeed = v),
-            ),
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
@@ -2158,19 +2300,31 @@ class _EventSheetState extends ConsumerState<_EventSheet> {
                 onPressed: state.isLoading
                     ? null
                     : () async {
-                        final ok = await ref
-                            .read(groupsActionControllerProvider.notifier)
-                            .createEvent(
-                              groupId: widget.groupId,
-                              title: _titleController.text.trim(),
-                              description: _descriptionController.text.trim(),
-                              location: _locationController.text.trim(),
-                              startsAt: _startsAtController.text.trim(),
-                              endsAt: _endsAtController.text.trim(),
-                              imageFile: _imageFile,
-                              showInFeed: _showInFeed,
-                              publish: _publishNow,
-                            );
+                        final controller = ref.read(
+                          groupsActionControllerProvider.notifier,
+                        );
+                        final ok = _isEditing
+                            ? await controller.updateEvent(
+                                groupId: widget.groupId,
+                                eventId: widget.existing!.id,
+                                title: _titleController.text.trim(),
+                                description: _descriptionController.text.trim(),
+                                location: _locationController.text.trim(),
+                                startsAt: _startsAtController.text.trim(),
+                                endsAt: _endsAtController.text.trim(),
+                                imageFile: _imageFile,
+                              )
+                            : await controller.createEvent(
+                                groupId: widget.groupId,
+                                title: _titleController.text.trim(),
+                                description: _descriptionController.text.trim(),
+                                location: _locationController.text.trim(),
+                                startsAt: _startsAtController.text.trim(),
+                                endsAt: _endsAtController.text.trim(),
+                                imageFile: _imageFile,
+                                showInFeed: _showInFeed,
+                                publish: _publishNow,
+                              );
                         if (!context.mounted || !ok) return;
                         ref.invalidate(groupDetailProvider(widget.groupId));
                         ref.invalidate(groupPostsProvider(widget.groupId));
@@ -2179,6 +2333,8 @@ class _EventSheetState extends ConsumerState<_EventSheet> {
                 child: Text(
                   state.isLoading
                       ? l10n.submitInProgress
+                      : _isEditing
+                      ? 'Etkinliği kaydet'
                       : l10n.groupCreateEventAction,
                 ),
               ),
@@ -2226,9 +2382,10 @@ class _EventSheetState extends ConsumerState<_EventSheet> {
 }
 
 class _AnnouncementSheet extends ConsumerStatefulWidget {
-  const _AnnouncementSheet({required this.groupId});
+  const _AnnouncementSheet({required this.groupId, this.existing});
 
   final int groupId;
+  final GroupAnnouncementItem? existing;
 
   @override
   ConsumerState<_AnnouncementSheet> createState() => _AnnouncementSheetState();
@@ -2240,6 +2397,17 @@ class _AnnouncementSheetState extends ConsumerState<_AnnouncementSheet> {
   File? _imageFile;
   bool _publishNow = true;
   bool _showInFeed = true;
+
+  bool get _isEditing => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.existing;
+    if (existing == null) return;
+    _titleController.text = existing.title;
+    _bodyController.text = existing.body;
+  }
 
   @override
   void dispose() {
@@ -2255,101 +2423,133 @@ class _AnnouncementSheetState extends ConsumerState<_AnnouncementSheet> {
     final l10n = context.l10n;
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 20, 20, bottomInset + 20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              l10n.groupNewAnnouncementTitle,
-              style: Theme.of(context).textTheme.titleLarge,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _isEditing
+                    ? 'Duyuruyu düzenle'
+                    : l10n.groupNewAnnouncementTitle,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _titleController,
-            decoration: InputDecoration(
-              labelText: l10n.groupAnnouncementTitleLabel,
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _bodyController,
-            maxLines: 5,
-            decoration: InputDecoration(
-              labelText: l10n.groupAnnouncementBodyLabel,
-            ),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: state.isLoading ? null : _pickImage,
-            icon: const Icon(Icons.photo_library_outlined),
-            label: Text(_imageFile == null ? 'Görsel ekle' : 'Görsel değiştir'),
-          ),
-          if (_imageFile != null) ...[
             const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.file(
-                _imageFile!,
-                height: 180,
-                width: double.infinity,
-                fit: BoxFit.cover,
+            TextField(
+              controller: _titleController,
+              decoration: InputDecoration(
+                labelText: l10n.groupAnnouncementTitleLabel,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _bodyController,
+              maxLines: 5,
+              decoration: InputDecoration(
+                labelText: l10n.groupAnnouncementBodyLabel,
+              ),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: state.isLoading ? null : _pickImage,
+              icon: const Icon(Icons.photo_library_outlined),
+              label: Text(
+                _imageFile == null && widget.existing?.image.isEmpty != false
+                    ? 'Görsel ekle'
+                    : 'Görsel değiştir',
+              ),
+            ),
+            if (_imageFile != null ||
+                (widget.existing?.image.isNotEmpty ?? false)) ...[
+              const SizedBox(height: 12),
+              if (_imageFile != null)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.file(
+                    _imageFile!,
+                    height: 180,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                )
+              else
+                SdalNetworkImage(
+                  imageUrl: widget.existing!.image,
+                  height: 180,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  borderRadius: BorderRadius.circular(12),
+                  errorFallback: const SizedBox.shrink(),
+                ),
+            ],
+            if (!_isEditing) ...[
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Hemen yayınla'),
+                subtitle: Text(
+                  _publishNow
+                      ? 'Duyuru yayın akışına hazırlanacak'
+                      : 'Duyuru taslaklara kaydedilecek',
+                ),
+                value: _publishNow,
+                onChanged: state.isLoading
+                    ? null
+                    : (v) => setState(() => _publishNow = v),
+              ),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Topluluk akışında göster'),
+                subtitle: const Text('Duyuru ana akışta herkese görünsün'),
+                value: _showInFeed,
+                onChanged: state.isLoading || !_publishNow
+                    ? null
+                    : (v) => setState(() => _showInFeed = v),
+              ),
+            ],
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: state.isLoading
+                    ? null
+                    : () async {
+                        final controller = ref.read(
+                          groupsActionControllerProvider.notifier,
+                        );
+                        final ok = _isEditing
+                            ? await controller.updateAnnouncement(
+                                groupId: widget.groupId,
+                                announcementId: widget.existing!.id,
+                                title: _titleController.text.trim(),
+                                body: _bodyController.text.trim(),
+                                imageFile: _imageFile,
+                              )
+                            : await controller.createAnnouncement(
+                                groupId: widget.groupId,
+                                title: _titleController.text.trim(),
+                                body: _bodyController.text.trim(),
+                                imageFile: _imageFile,
+                                showInFeed: _showInFeed,
+                                publish: _publishNow,
+                              );
+                        if (!context.mounted || !ok) return;
+                        ref.invalidate(groupDetailProvider(widget.groupId));
+                        ref.invalidate(groupPostsProvider(widget.groupId));
+                        Navigator.of(context).pop();
+                      },
+                child: Text(
+                  state.isLoading
+                      ? l10n.submitInProgress
+                      : _isEditing
+                      ? 'Duyuruyu kaydet'
+                      : l10n.groupCreateAnnouncementAction,
+                ),
               ),
             ),
           ],
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Hemen yayınla'),
-            subtitle: Text(
-              _publishNow
-                  ? 'Duyuru yayın akışına hazırlanacak'
-                  : 'Duyuru taslaklara kaydedilecek',
-            ),
-            value: _publishNow,
-            onChanged: state.isLoading
-                ? null
-                : (v) => setState(() => _publishNow = v),
-          ),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Topluluk akışında göster'),
-            subtitle: const Text('Duyuru ana akışta herkese görünsün'),
-            value: _showInFeed,
-            onChanged: state.isLoading || !_publishNow
-                ? null
-                : (v) => setState(() => _showInFeed = v),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: state.isLoading
-                  ? null
-                  : () async {
-                      final ok = await ref
-                          .read(groupsActionControllerProvider.notifier)
-                          .createAnnouncement(
-                            groupId: widget.groupId,
-                            title: _titleController.text.trim(),
-                            body: _bodyController.text.trim(),
-                            imageFile: _imageFile,
-                            showInFeed: _showInFeed,
-                            publish: _publishNow,
-                          );
-                      if (!context.mounted || !ok) return;
-                      ref.invalidate(groupDetailProvider(widget.groupId));
-                      ref.invalidate(groupPostsProvider(widget.groupId));
-                      Navigator.of(context).pop();
-                    },
-              child: Text(
-                state.isLoading
-                    ? l10n.submitInProgress
-                    : l10n.groupCreateAnnouncementAction,
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

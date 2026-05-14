@@ -100,15 +100,15 @@ post_install do |installer|
     end
   end
 
-  # Configure simulator architectures for compatibility
+  # Apple Silicon iOS 26+ simulators require arm64 pods. Do not force Debug
+  # simulator builds to x86_64, otherwise Firebase pods are not linked.
   installer.pods_project.targets.each do |target|
     target.build_configurations.each do |config|
-      # For Release builds targeting App Store, exclude simulator architectures completely
       if config.name == 'Release'
         config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64 x86_64'
       else
-        # For Debug simulator builds, prefer x86_64 if available
-        config.build_settings['VALID_ARCHS[sdk=iphonesimulator*]'] = 'x86_64'
+        config.build_settings.delete('VALID_ARCHS[sdk=iphonesimulator*]')
+        config.build_settings.delete('EXCLUDED_ARCHS[sdk=iphonesimulator*]')
       end
     end
   end

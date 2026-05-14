@@ -20,10 +20,15 @@ struct StoriesView: View {
                 if stories.isEmpty {
                     VStack(spacing: 8) {
                         Image(systemName: "circle.dashed")
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: 26))
+                            .foregroundStyle(Color.accentColor.opacity(0.5))
                         Text("Hikaye yok")
-                            .font(.caption2).foregroundStyle(.secondary)
+                            .font(.system(size: 12, weight: .medium))
+                        Text("Henüz kimse paylaşmadı")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     storyList(stories)
                 }

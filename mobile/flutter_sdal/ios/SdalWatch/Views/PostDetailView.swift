@@ -103,7 +103,10 @@ struct PostDetailView: View {
                         if comments.isEmpty {
                             Text("Henüz yorum yok")
                                 .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.secondary.opacity(0.8))
+                                .frame(maxWidth: .infinity)
+                                .multilineTextAlignment(.center)
+                                .padding(.vertical, 4)
                         } else {
                             ForEach(comments) { c in
                                 CommentRow(comment: c)
@@ -212,11 +215,11 @@ private struct CommentRow: View {
             AvatarView(initials: comment.initials, photoUrl: comment.authorPhoto, size: 20)
             VStack(alignment: .leading, spacing: 2) {
                 Text(comment.authorName.isEmpty ? "@\(comment.authorHandle)" : comment.authorName)
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 10, weight: .semibold))
                     .lineLimit(1)
                 Text(comment.comment)
                     .font(.system(size: 10))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.primary.opacity(0.85))
             }
         }
         .padding(.vertical, 2)

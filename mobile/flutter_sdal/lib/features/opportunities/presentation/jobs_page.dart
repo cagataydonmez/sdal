@@ -179,7 +179,9 @@ class _JobsPageState extends ConsumerState<JobsPage> {
             child: FilledButton.icon(
               onPressed: () async {
                 final result = await context.push('/jobs/create');
-                if (mounted && result == true) _load();
+                if (mounted && result == true) {
+                  await _load();
+                }
               },
               icon: const Icon(Icons.add_outlined),
               label: Text(l10n.jobsCreateAction),

@@ -187,7 +187,9 @@ class FeedActionController extends Notifier<AsyncActionState> {
     }
     state = AsyncActionState.error(
       scope: 'edit-post:$postId',
-      message: result.message ?? 'Gönderi düzenlenemedi.',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Gönderi düzenlenemedi.',
     );
     return false;
   }
@@ -213,7 +215,9 @@ class FeedActionController extends Notifier<AsyncActionState> {
     }
     state = AsyncActionState.error(
       scope: 'edit-comment:$commentId',
-      message: result.message.isNotEmpty ? result.message : 'Yorum düzenlenemedi.',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Yorum düzenlenemedi.',
     );
     return false;
   }
@@ -244,7 +248,9 @@ class FeedActionController extends Notifier<AsyncActionState> {
     }
     state = AsyncActionState.error(
       scope: 'edit-event:$eventId',
-      message: result.message ?? 'Etkinlik düzenlenemedi.',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Etkinlik düzenlenemedi.',
     );
     return false;
   }
@@ -259,7 +265,9 @@ class FeedActionController extends Notifier<AsyncActionState> {
     }
     state = AsyncActionState.error(
       scope: 'delete-event:$eventId',
-      message: result.message ?? 'Etkinlik silinemedi.',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Etkinlik silinemedi.',
     );
     return false;
   }
@@ -271,7 +279,9 @@ class FeedActionController extends Notifier<AsyncActionState> {
     File? imageFile,
     bool? approved,
   }) async {
-    state = AsyncActionState.loading(scope: 'edit-announcement:$announcementId');
+    state = AsyncActionState.loading(
+      scope: 'edit-announcement:$announcementId',
+    );
     final result = await _repository.editAnnouncement(
       announcementId: announcementId,
       title: title,
@@ -286,13 +296,17 @@ class FeedActionController extends Notifier<AsyncActionState> {
     }
     state = AsyncActionState.error(
       scope: 'edit-announcement:$announcementId',
-      message: result.message ?? 'Duyuru düzenlenemedi.',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Duyuru düzenlenemedi.',
     );
     return false;
   }
 
   Future<bool> deleteAnnouncement(int announcementId) async {
-    state = AsyncActionState.loading(scope: 'delete-announcement:$announcementId');
+    state = AsyncActionState.loading(
+      scope: 'delete-announcement:$announcementId',
+    );
     final result = await _repository.deleteAnnouncement(announcementId);
     if (result.ok) {
       ref.invalidate(feedPageProvider);
@@ -301,7 +315,9 @@ class FeedActionController extends Notifier<AsyncActionState> {
     }
     state = AsyncActionState.error(
       scope: 'delete-announcement:$announcementId',
-      message: result.message ?? 'Duyuru silinemedi.',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Duyuru silinemedi.',
     );
     return false;
   }
@@ -338,7 +354,9 @@ class FeedActionController extends Notifier<AsyncActionState> {
     }
     state = AsyncActionState.error(
       scope: 'edit-job:$jobId',
-      message: result.message ?? 'İş ilanı düzenlenemedi.',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'İş ilanı düzenlenemedi.',
     );
     return false;
   }
@@ -353,7 +371,9 @@ class FeedActionController extends Notifier<AsyncActionState> {
     }
     state = AsyncActionState.error(
       scope: 'delete-job:$jobId',
-      message: result.message ?? 'İş ilanı silinemedi.',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'İş ilanı silinemedi.',
     );
     return false;
   }

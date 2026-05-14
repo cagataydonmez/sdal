@@ -30,6 +30,8 @@ final class WatchViewModel: ObservableObject {
     @Published var membersState:       LoadState<[WatchMember]>           = .idle
     @Published var onlineMembersState: LoadState<[WatchMember]>           = .idle
     @Published var contactsState:      LoadState<[WatchContact]>          = .idle
+    @Published var announcementsState: LoadState<[WatchAnnouncement]>     = .idle
+    @Published var eventsState:        LoadState<[WatchEvent]>            = .idle
 
     @Published var deepLinkTarget:    DeepLinkTarget? = nil
     @Published var selectedFeedType:  String          = "main"
@@ -51,6 +53,8 @@ final class WatchViewModel: ObservableObject {
             group.addTask { await self.loadThreads(cookie: cookie, baseUrl: baseUrl) }
             group.addTask { await self.loadNotifications(cookie: cookie, baseUrl: baseUrl) }
             group.addTask { await self.loadOnlineMembers(cookie: cookie, baseUrl: baseUrl) }
+            group.addTask { await self.loadAnnouncements(cookie: cookie, baseUrl: baseUrl) }
+            group.addTask { await self.loadEvents(cookie: cookie, baseUrl: baseUrl) }
         }
     }
 
@@ -78,6 +82,8 @@ final class WatchViewModel: ObservableObject {
             group.addTask { await self.loadThreads(cookie: cookie, baseUrl: baseUrl, silent: true) }
             group.addTask { await self.loadNotifications(cookie: cookie, baseUrl: baseUrl, silent: true) }
             group.addTask { await self.loadOnlineMembers(cookie: cookie, baseUrl: baseUrl) }
+            group.addTask { await self.loadAnnouncements(cookie: cookie, baseUrl: baseUrl, silent: true) }
+            group.addTask { await self.loadEvents(cookie: cookie, baseUrl: baseUrl, silent: true) }
         }
     }
 
@@ -438,6 +444,65 @@ final class WatchViewModel: ObservableObject {
 
     var unreadMessageCount: Int {
         (threadsState.value ?? []).reduce(0) { $0 + $1.unreadCount }
+    }
+
+    // MARK: - Announcements
+
+    func loadAnnouncements(cookie: String, baseUrl: String, silent: Bool = false) async {
+        if !silent { announcementsState = .loading }
+        do {
+            let raw = try await api.fetchArray(
+                path: "/api/new/announcements?status=published&limit=30&offset=0",
+                baseUrl: baseUrl,
+                cookie: cookie
+            )
+            let items = raw.compactMap { WatchAnnouncement(json: $0) }
+            announcementsState = .loaded(items)
+        } catch {
+            if !silent { announcementsState = .failed(error.localizedDescription) }
+        }
+    }
+
+    // MARK: - Events
+
+    func loadEvents(cookie: String, baseUrl: String, silent: Bool = false) async {
+        if !silent { eventsState = .loading }
+        do {
+            let raw = try await api.fetchArray(
+                path: "/api/new/events?status=published&limit=30&offset=0",
+                baseUrl: baseUrl,
+                cookie: cookie
+            )
+            let items = raw.compactMap { WatchEvent(json: $0) }
+            eventsState = .loaded(items)
+        } catch {
+            if !silent { eventsState = .failed(error.localizedDescription) }
+        }
+    }
+
+    func respondToEvent(eventId: Int, response: String, cookie: String, baseUrl: String) async throws {
+        let path = "/api/new/events/\(eventId)/\(response)"
+        let result = try await api.postDict(path: path, body: [:], baseUrl: baseUrl, cookie: cookie)
+        if case .loaded(var events) = eventsState {
+            if let idx = events.firstIndex(where: { $0.id == eventId }) {
+                let old = events[idx].myResponse
+                events[idx].myResponse = response
+                let counts = (result["response_counts"] as? [String: Any]) ?? [:]
+                if let a = counts["attend"] as? Int {
+                    events[idx].attendCount = a
+                } else {
+                    if old != "attend"  && response == "attend"  { events[idx].attendCount  += 1 }
+                    if old == "attend"  && response != "attend"  { events[idx].attendCount  = max(0, events[idx].attendCount - 1) }
+                }
+                if let d = counts["decline"] as? Int {
+                    events[idx].declineCount = d
+                } else {
+                    if old != "decline" && response == "decline" { events[idx].declineCount += 1 }
+                    if old == "decline" && response != "decline" { events[idx].declineCount = max(0, events[idx].declineCount - 1) }
+                }
+                eventsState = .loaded(events)
+            }
+        }
     }
 
     private func maybeNotifyUnreadMessages(_ threads: [WatchThread]) {

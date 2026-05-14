@@ -182,12 +182,12 @@ struct PostRow: View {
     @EnvironmentObject private var sessionManager: WatchSessionManager
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 5) {
             // Author
-            HStack(spacing: 6) {
-                AvatarView(initials: post.initials, photoUrl: post.authorPhoto, size: 24)
+            HStack(spacing: 5) {
+                AvatarView(initials: post.initials, photoUrl: post.authorPhoto, size: 22)
                 Text(post.authorName.isEmpty ? "@\(post.authorHandle)" : post.authorName)
-                    .font(.caption2).fontWeight(.semibold).lineLimit(1)
+                    .font(.system(size: 12, weight: .semibold)).lineLimit(1)
                 Spacer()
                 if !post.createdAt.isEmpty {
                     Text(relativeTime(post.createdAt))
@@ -197,7 +197,8 @@ struct PostRow: View {
 
             // Content
             Text(post.content)
-                .font(.caption2)
+                .font(.system(size: 11))
+                .foregroundStyle(Color.primary.opacity(0.88))
                 .lineLimit(4)
 
             // Thumbnail
@@ -209,26 +210,34 @@ struct PostRow: View {
                             .scaledToFill()
                             .frame(maxWidth: .infinity)
                             .frame(height: 80)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .clipShape(RoundedRectangle(cornerRadius: 7))
                     case .failure:
                         EmptyView()
                     default:
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.secondary.opacity(0.15))
+                        RoundedRectangle(cornerRadius: 7)
+                            .fill(Color.primary.opacity(0.08))
                             .frame(height: 80)
-                            .overlay(ProgressView().scaleEffect(0.7))
+                            .overlay(ProgressView().scaleEffect(0.6))
                     }
                 }
             }
 
             // Stats
             HStack(spacing: 10) {
-                Label("\(post.likeCount)", systemImage: post.liked ? "heart.fill" : "heart")
-                    .foregroundStyle(post.liked ? .red : .secondary)
-                Label("\(post.commentCount)", systemImage: "bubble.left")
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 3) {
+                    Image(systemName: post.liked ? "heart.fill" : "heart")
+                        .foregroundStyle(post.liked ? .red : Color.primary.opacity(0.4))
+                    Text("\(post.likeCount)")
+                        .foregroundStyle(post.liked ? .red : Color.primary.opacity(0.4))
+                }
+                HStack(spacing: 3) {
+                    Image(systemName: "bubble.left")
+                        .foregroundStyle(Color.primary.opacity(0.4))
+                    Text("\(post.commentCount)")
+                        .foregroundStyle(Color.primary.opacity(0.4))
+                }
             }
-            .font(.system(size: 9))
+            .font(.system(size: 10))
         }
         .padding(.vertical, 4)
     }

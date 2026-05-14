@@ -6,7 +6,9 @@ import 'package:go_router/go_router.dart';
 import '../../features/messenger/data/messenger_repository.dart';
 import '../../features/notifications/data/notifications_repository.dart';
 import '../l10n/context_l10n.dart';
+import '../onboarding/account_setup_progress_store.dart';
 import '../session/session_controller.dart';
+import '../session/session_models.dart';
 import '../shell/shell_metadata_repository.dart';
 import '../theme/sdal_theme_tokens.dart';
 
@@ -38,8 +40,8 @@ Widget buildAppTabNavigationContainer(
   final dragOffset = _DragOffsetInheritedWidget.of(context);
   return _SlidingTabBranchContainer(
     currentIndex: navigationShell.currentIndex,
-    children: children,
     dragOffset: dragOffset,
+    children: children,
   );
 }
 
@@ -116,6 +118,34 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
     }
   }
 
+  String _currentLocation(BuildContext context) {
+    try {
+      return GoRouterState.of(context).uri.path;
+    } catch (_) {
+      return _tabRootPaths[widget.navigationShell.currentIndex];
+    }
+  }
+
+  bool _shouldShowAccountSetupBanner(
+    SessionSnapshot? session,
+    String location,
+    bool verificationRequestSubmitted,
+  ) {
+    if (session?.requiresInitialGraduationClaim == true) return false;
+    final requiresVerificationPrompt =
+        session?.requiresVerification == true && !verificationRequestSubmitted;
+    if (session?.requiresProfileCompletion != true &&
+        !requiresVerificationPrompt) {
+      return false;
+    }
+    return switch (location) {
+      '/profile/edit' ||
+      '/profile/onboarding' ||
+      '/profile/verification' => false,
+      _ => true,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentIndex = widget.navigationShell.currentIndex;
@@ -155,6 +185,11 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
         ref.watch(notificationUnreadCountProvider).value ?? 0;
     final shellMenu = ref.watch(shellMenuProvider).value;
     final session = ref.watch(sessionControllerProvider).value;
+    final location = _currentLocation(context);
+    final userId = session?.user?.id ?? 0;
+    final verificationRequestSubmitted = userId > 0
+        ? ref.watch(verificationRequestSubmittedProvider(userId)).value ?? false
+        : false;
     final unreadMessages = localUnreadMessages;
     final unreadNotifications = math.max(
       localUnreadNotifications,
@@ -164,13 +199,19 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
     return Scaffold(
       body: Column(
         children: [
-          if (session?.requiresProfileCompletion == true &&
-              session?.requiresInitialGraduationClaim != true)
-            _ProfileCompletionBanner(onTap: () => context.go('/profile/edit')),
-          if (session?.requiresVerification == true &&
-              session?.requiresInitialGraduationClaim != true)
-            _VerificationRequiredBanner(
-              onTap: () => context.go('/profile/verification'),
+          if (_shouldShowAccountSetupBanner(
+            session,
+            location,
+            verificationRequestSubmitted,
+          ))
+            _AccountSetupBanner(
+              requiresProfileCompletion:
+                  session?.requiresProfileCompletion == true,
+              requiresVerification:
+                  session?.requiresVerification == true &&
+                  !verificationRequestSubmitted,
+              onProfileTap: () => context.go('/profile/edit'),
+              onVerificationTap: () => context.go('/profile/verification'),
             ),
           Expanded(
             child: _DragOffsetInheritedWidget(
@@ -250,13 +291,13 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
 class _SlidingTabBranchContainer extends StatefulWidget {
   const _SlidingTabBranchContainer({
     required this.currentIndex,
-    required this.children,
     required this.dragOffset,
+    required this.children,
   });
 
   final int currentIndex;
-  final List<Widget> children;
   final double dragOffset;
+  final List<Widget> children;
 
   @override
   State<_SlidingTabBranchContainer> createState() =>
@@ -337,7 +378,10 @@ class _SlidingTabBranchContainerState extends State<_SlidingTabBranchContainer>
         final isDragging = widget.dragOffset.abs() > 0;
 
         if (isDragging) {
-          final dragProgress = (widget.dragOffset.abs() / screenWidth).clamp(0.0, 1.0);
+          final dragProgress = (widget.dragOffset.abs() / screenWidth).clamp(
+            0.0,
+            1.0,
+          );
           final dragDirection = widget.dragOffset.sign;
 
           final offset = isCurrent
@@ -370,64 +414,104 @@ class _SlidingTabBranchContainerState extends State<_SlidingTabBranchContainer>
   }
 }
 
-class _ProfileCompletionBanner extends StatelessWidget {
-  const _ProfileCompletionBanner({required this.onTap});
+class _AccountSetupBanner extends StatelessWidget {
+  const _AccountSetupBanner({
+    required this.requiresProfileCompletion,
+    required this.requiresVerification,
+    required this.onProfileTap,
+    required this.onVerificationTap,
+  });
 
-  final VoidCallback onTap;
+  final bool requiresProfileCompletion;
+  final bool requiresVerification;
+  final VoidCallback onProfileTap;
+  final VoidCallback onVerificationTap;
 
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).sdal;
+    final needsBoth = requiresProfileCompletion && requiresVerification;
+    final title = requiresProfileCompletion
+        ? 'Hesabını hazırla'
+        : 'Doğrulama bekliyor';
+    final message = needsBoth
+        ? 'Önce profil bilgilerini tamamla, ardından doğrulama talebini gönder.'
+        : requiresProfileCompletion
+        ? 'Profil bilgilerini tamamlayarak önerileri ve rehberi daha doğru hale getir.'
+        : 'Bazı etkileşimler için profil doğrulaması gerekiyor.';
+    final actionLabel = requiresProfileCompletion ? 'Tamamla' : 'Doğrula';
+    final onTap = requiresProfileCompletion ? onProfileTap : onVerificationTap;
+
     return SafeArea(
       bottom: false,
       child: Material(
-        color: tokens.warningMuted,
+        color: requiresProfileCompletion
+            ? tokens.warningMuted
+            : tokens.infoMuted,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
-              Icon(Icons.assignment_ind_outlined, color: tokens.warning),
-              const SizedBox(width: 10),
-              const Expanded(
-                child: Text(
-                  'Profil bilgilerini tamamla. Dönem, iletişim ve ilgi alanları önerilerin doğruluğunu artırır.',
-                ),
-              ),
-              const SizedBox(width: 10),
-              TextButton(onPressed: onTap, child: const Text('Tamamla')),
-            ],
+          padding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final content = Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    requiresProfileCompletion
+                        ? Icons.assignment_ind_outlined
+                        : Icons.verified_user_outlined,
+                    color: requiresProfileCompletion
+                        ? tokens.warning
+                        : tokens.info,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          title,
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          message,
+                          maxLines: constraints.maxWidth < 360 ? 3 : 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+
+              if (constraints.maxWidth < 360) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    content,
+                    const SizedBox(height: 6),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: onTap,
+                        child: Text(actionLabel),
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: content),
+                  const SizedBox(width: 10),
+                  TextButton(onPressed: onTap, child: Text(actionLabel)),
+                ],
+              );
+            },
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _VerificationRequiredBanner extends StatelessWidget {
-  const _VerificationRequiredBanner({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = Theme.of(context).sdal;
-    return Material(
-      color: tokens.infoMuted,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.verified_user_outlined, color: tokens.info),
-            const SizedBox(width: 10),
-            const Expanded(
-              child: Text(
-                'Doğrulama tamamlanana kadar uygulamayı izleyebilirsin; yeni gönderi, beğeni ve benzeri etkileşimler kısıtlı kalır.',
-              ),
-            ),
-            const SizedBox(width: 10),
-            TextButton(onPressed: onTap, child: const Text('Doğrula')),
-          ],
         ),
       ),
     );

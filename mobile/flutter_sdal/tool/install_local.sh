@@ -1,15 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 TOOL_DIR="$(dirname -- "$0")"
-source "$TOOL_DIR/testflight_utils.sh"
+SCRIPT_DIR="$(CDPATH= cd -- "$TOOL_DIR" && pwd)"
+
+# Detect ROOT_DIR: check if script is in tool/ or if called from repo root
+if [[ -f "$SCRIPT_DIR/testflight_utils.sh" ]]; then
+  # Script is at mobile/flutter_sdal/tool/
+  ROOT_DIR="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
+elif [[ -f "mobile/flutter_sdal/tool/testflight_utils.sh" ]]; then
+  # Called from repo root
+  ROOT_DIR="$(CDPATH= cd -- "mobile/flutter_sdal" && pwd)"
+else
+  echo "Error: Could not find Flutter project root. Run from repo root or mobile/flutter_sdal/tool/" >&2
+  exit 1
+fi
+
+source "$SCRIPT_DIR/testflight_utils.sh"
 IOS_DIR="$ROOT_DIR/ios"
 IOS_PBXPROJ="$IOS_DIR/Runner.xcodeproj/project.pbxproj"
 FLUTTER_BIN="${FLUTTER_BIN:-$HOME/Developer/flutter/bin/flutter}"
 IOS_BUNDLE_ID="${IOS_BUNDLE_ID:-com.sdal.flutterSdal}"
 ANDROID_PACKAGE_ID="${ANDROID_PACKAGE_ID:-com.sdal.flutter_sdal}"
 IOS_RELEASE_BUILD_DIR_ABS="${IOS_RELEASE_BUILD_DIR_ABS:-$HOME/Library/Caches/flutter_sdal_ios_build}"
+IOS_SIMULATOR_BUILD_DIR_ABS="${IOS_SIMULATOR_BUILD_DIR_ABS:-$HOME/Library/Caches/flutter_sdal_ios_sim_build}"
 FLUTTER_BUILD_DIR_REL="${FLUTTER_BUILD_DIR_REL:-../../../../Library/Caches/flutter_sdal_flutter_build}"
 IOS_SIGNING_IDENTITY_SHA="${IOS_SIGNING_IDENTITY_SHA:-}"
 
@@ -323,6 +337,9 @@ updated = text.replace(
 ).replace(
     "\t\t\t\tWA0012345678901ABCDEF004 /* PBXTargetDependency */,\n",
     "",
+).replace(
+    "\t\t\t\t7CBE429371BD4E21AA16AB37 /* SdalWatch */,\n",
+    "",
 )
 if updated == text:
     raise SystemExit("Runner watch embed/dependency entries were not found in project.pbxproj")
@@ -384,6 +401,7 @@ clean_build_caches_if_requested() {
   rm -rf "$ROOT_DIR/ios/build"
   rm -rf "$ROOT_DIR/$FLUTTER_BUILD_DIR_REL"
   rm -rf "$HOME/Library/Caches/flutter_sdal_flutter_build"
+  rm -rf "$IOS_SIMULATOR_BUILD_DIR_ABS"
   rm -rf "$IOS_RELEASE_BUILD_DIR_ABS"
   rm -rf "$IOS_ARCHIVE_DIR/build_objroot"
   find "$HOME/Library/Developer/Xcode/DerivedData" \
@@ -435,6 +453,27 @@ prepare_ios() {
       pod install --repo-update
     fi
   )
+}
+
+patch_generated_xcconfig_for_ios_simulator() {
+  local generated="$ROOT_DIR/ios/Flutter/Generated.xcconfig"
+  [[ -f "$generated" ]] || return 0
+  /usr/bin/python3 - "$generated" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+text = re.sub(
+    r"^EXCLUDED_ARCHS\[sdk=iphonesimulator\*\]=(.*)$",
+    lambda match: "EXCLUDED_ARCHS[sdk=iphonesimulator*]="
+    + " ".join(part for part in match.group(1).split() if part != "arm64"),
+    text,
+    flags=re.MULTILINE,
+)
+path.write_text(text, encoding="utf-8")
+PY
 }
 
 prompt_number() {
@@ -1016,6 +1055,14 @@ PY
   log "[sim-pair] Selected Watch: $SIM_PAIR_WATCH_NAME ($SIM_PAIR_WATCH_UDID)"
 }
 
+get_flutter_ios_device_id() {
+  local simctl_udid="$1"
+  (
+    cd "$ROOT_DIR"
+    "$FLUTTER_BIN" devices --machine 2>/dev/null | grep -o '"id":"[^"]*"' | grep -i simulator | head -1 | sed 's/"id":"\([^"]*\)"/\1/'
+  ) || echo "$simctl_udid"
+}
+
 install_ios_simulator_only() {
   local iphone_udid="$1"
   local build_mode="$2"
@@ -1024,13 +1071,22 @@ install_ios_simulator_only() {
   open -a Simulator >/dev/null 2>&1 || true
   boot_simulator_if_needed "$iphone_udid"
   wait_for_simulator_boot "$iphone_udid"
+  ensure_xcode_can_target_ios_simulator "$iphone_udid"
   uninstall_ios_simulator_app_if_requested "$iphone_udid"
   ensure_flutter_build_dir_override
   prepare_ios
-  disable_runner_watch_embed_for_ios_simulator
+  patch_generated_xcconfig_for_ios_simulator
+  build_ios_simulator_runner_app "$iphone_udid" "$build_mode"
+
+  local ios_app_path
+  ios_app_path="$(find_ios_simulator_runner_app)"
+
+  log ""
+  log "Starting Flutter with pre-built app. Press q to quit."
   (
     cd "$ROOT_DIR"
-    "$FLUTTER_BIN" run "--$build_mode" --device-timeout 120 -d "$iphone_udid"
+    "$FLUTTER_BIN" run -d "$iphone_udid" --"$build_mode" \
+      --use-application-binary "$ios_app_path" || true
   )
 }
 
@@ -1057,6 +1113,29 @@ wait_for_simulator_boot() {
   die "Simulator did not boot: $udid"
 }
 
+ensure_xcode_can_target_ios_simulator() {
+  local udid="$1"
+  local attempts=20 destinations
+  while (( attempts > 0 )); do
+    destinations="$(
+      xcodebuild \
+        -workspace "$IOS_DIR/Runner.xcworkspace" \
+        -scheme Runner \
+        -showdestinations 2>/dev/null || true
+    )"
+    if grep -q "id:$udid" <<<"$destinations"; then
+      return 0
+    fi
+    attempts=$((attempts - 1))
+    sleep 1
+  done
+
+  log "Xcode cannot target the selected simulator yet: $udid"
+  log "Current Xcode destinations:"
+  xcodebuild -workspace "$IOS_DIR/Runner.xcworkspace" -scheme Runner -showdestinations 2>&1 || true
+  die "Selected iOS simulator is visible to simctl but not to Xcode. Try running option 2 again after Simulator finishes booting."
+}
+
 activate_simulator_pair_if_supported() {
   local pair_identifier="$1"
   if [[ -z "$pair_identifier" ]]; then
@@ -1072,6 +1151,7 @@ activate_simulator_pair_if_supported() {
 
 find_ios_simulator_runner_app() {
   local candidates=(
+    "$IOS_SIMULATOR_BUILD_DIR_ABS/Build/Products/Debug-iphonesimulator/Runner.app"
     "$ROOT_DIR/build/ios/iphonesimulator/Runner.app"
     "$ROOT_DIR/$FLUTTER_BUILD_DIR_REL/ios/iphonesimulator/Runner.app"
     "$HOME/Library/Caches/flutter_sdal_flutter_build/ios/iphonesimulator/Runner.app"
@@ -1087,6 +1167,42 @@ find_ios_simulator_runner_app() {
     -path '*/ios/iphonesimulator/Runner.app' -type d 2>/dev/null | head -1 || true
 }
 
+build_ios_simulator_runner_app() {
+  local iphone_udid="$1"
+  local build_mode="$2"
+  [[ "$build_mode" == "debug" ]] \
+    || die "Only Debug builds are supported on iOS Simulator."
+
+  log "Building Runner.app for iOS Simulator with Xcode..."
+  (
+    cd "$ROOT_DIR"
+    xcodebuild \
+      -workspace ios/Runner.xcworkspace \
+      -scheme Runner \
+      -configuration Debug \
+      -sdk iphonesimulator \
+      -destination "platform=iOS Simulator,id=$iphone_udid" \
+      -derivedDataPath "$IOS_SIMULATOR_BUILD_DIR_ABS" \
+      CODE_SIGNING_ALLOWED=NO \
+      CODE_SIGNING_REQUIRED=NO \
+      build
+  )
+}
+
+install_and_launch_ios_simulator_runner_app() {
+  local iphone_udid="$1"
+  local ios_app_path
+  ios_app_path="$(find_ios_simulator_runner_app)"
+  [[ -n "$ios_app_path" && -d "$ios_app_path" ]] \
+    || die "Runner.app not found after iOS Simulator build."
+
+  log "Installing Runner.app to simulator $iphone_udid..."
+  xcrun simctl terminate "$iphone_udid" "$IOS_BUNDLE_ID" >/dev/null 2>&1 || true
+  xcrun simctl uninstall "$iphone_udid" "$IOS_BUNDLE_ID" >/dev/null 2>&1 || true
+  xcrun simctl install "$iphone_udid" "$ios_app_path"
+  xcrun simctl launch "$iphone_udid" "$IOS_BUNDLE_ID"
+}
+
 install_ios_app_to_paired_phone() {
   local iphone_udid="$1"
   local build_mode="$2"
@@ -1099,10 +1215,8 @@ install_ios_app_to_paired_phone() {
   [[ -n "$SIM_PAIR_WATCH_APP_PATH" && -d "$SIM_PAIR_WATCH_APP_PATH" ]] \
     || die "SdalWatch.app must be built before installing the paired iPhone app."
 
-  (
-    cd "$ROOT_DIR"
-    "$FLUTTER_BIN" build ios --simulator "--$build_mode" -d "$iphone_udid"
-  )
+  patch_generated_xcconfig_for_ios_simulator
+  build_ios_simulator_runner_app "$iphone_udid" "$build_mode"
 
   local ios_app_path
   ios_app_path="$(find_ios_simulator_runner_app)"
@@ -1593,16 +1707,19 @@ PY
 
   log ""
   log "Step 2/3: Exporting IPA from archive..."
+  log "Archive: $archive_path"
   xcodebuild \
     -exportArchive \
     -archivePath "$archive_path" \
     -exportPath "$export_path" \
     -exportOptionsPlist "$export_options_plist" \
-    -allowProvisioningUpdates
+    -allowProvisioningUpdates \
+  || die "Export failed. Check xcodebuild output above."
 
   local ipa_path
-  ipa_path="$(find "$export_path" -name '*.ipa' | head -1)"
+  ipa_path="$(find "$export_path" -name '*.ipa' | head -1 || true)"
   [[ -f "$ipa_path" ]] || die "IPA not found after export in: $export_path"
+  log "IPA: $ipa_path"
 
   log_testflight_signing_summary "$ipa_path"
 
@@ -1618,7 +1735,7 @@ PY
   log "  Last uploaded build: $last_build"
 
   if [[ "$current_build" == "$last_build" ]]; then
-    log "  ⚠️  Build number unchanged. Did you bump the version?"
+    log "  WARNING: Build number unchanged. Did you bump the version?"
     read -r -p "Continue anyway? [y/N] " confirm < /dev/tty
     [[ "$confirm" =~ ^[Yy]$ ]] || { log "Aborted."; exit 0; }
   fi
@@ -1638,7 +1755,8 @@ PY
     -f "$ipa_path" \
     -t ios \
     --apiKey "$ASC_KEY_ID" \
-    --apiIssuer "$ASC_ISSUER_ID"
+    --apiIssuer "$ASC_ISSUER_ID" \
+  || die "Upload failed. Check xcrun altool output above."
 
   save_testflight_build_number "$current_build"
 
@@ -2025,9 +2143,8 @@ PY
 
   # Verify Watch app made it into the archive
   local runner_app_in_archive watch_in_archive
-  runner_app_in_archive="$(find "$archive_path/Products/Applications" \
-    -maxdepth 1 -name '*.app' 2>/dev/null | head -1)"
-  watch_in_archive="$(find "$runner_app_in_archive/Watch" -name 'SdalWatch.app' 2>/dev/null | head -1)"
+  runner_app_in_archive="$(find "$archive_path/Products/Applications" -maxdepth 1 -name '*.app' 2>/dev/null | head -1 || true)"
+  watch_in_archive="$(find "${runner_app_in_archive:-__missing__}/Watch" -name 'SdalWatch.app' 2>/dev/null | head -1 || true)"
   if [[ -n "$watch_in_archive" ]]; then
     log "Watch app verified in archive: $watch_in_archive"
   else
@@ -2036,16 +2153,19 @@ PY
 
   log ""
   log "Step 2/3: Exporting IPA from archive..."
+  log "Archive: $archive_path"
   xcodebuild \
     -exportArchive \
     -archivePath "$archive_path" \
     -exportPath "$export_path" \
     -exportOptionsPlist "$export_options_plist" \
-    -allowProvisioningUpdates
+    -allowProvisioningUpdates \
+  || die "Export failed. Check xcodebuild output above."
 
   local ipa_path
-  ipa_path="$(find "$export_path" -name '*.ipa' | head -1)"
+  ipa_path="$(find "$export_path" -name '*.ipa' | head -1 || true)"
   [[ -f "$ipa_path" ]] || die "IPA not found after export in: $export_path"
+  log "IPA: $ipa_path"
 
   # Verify Watch app made it into the IPA
   local watch_in_ipa
@@ -2070,7 +2190,7 @@ PY
   log "  Last uploaded build: $last_build"
 
   if [[ "$current_build" == "$last_build" ]]; then
-    log "  ⚠️  Build number unchanged. Did you bump the version?"
+    log "  WARNING: Build number unchanged. Did you bump the version?"
     read -r -p "Continue anyway? [y/N] " confirm < /dev/tty
     [[ "$confirm" =~ ^[Yy]$ ]] || { log "Aborted."; exit 0; }
   fi
@@ -2090,7 +2210,8 @@ PY
     -f "$ipa_path" \
     -t ios \
     --apiKey "$ASC_KEY_ID" \
-    --apiIssuer "$ASC_ISSUER_ID"
+    --apiIssuer "$ASC_ISSUER_ID" \
+  || die "Upload failed. Check xcrun altool output above."
 
   save_testflight_build_number "$current_build"
 
@@ -2230,9 +2351,6 @@ main() {
         log "[sim-pair] Dry run: skipping build preparation and uninstall."
       fi
 
-      if [[ "${SIM_PAIR_DRY_RUN:-0}" != "1" ]]; then
-        disable_runner_watch_embed_for_ios_simulator
-      fi
       install_watch_app_to_paired_watch "$SIM_PAIR_WATCH_UDID"
       install_ios_app_to_paired_phone "$SIM_PAIR_PHONE_UDID" "$build_mode"
       start_sim_pair_logs "$SIM_PAIR_PHONE_UDID" "$SIM_PAIR_WATCH_UDID"

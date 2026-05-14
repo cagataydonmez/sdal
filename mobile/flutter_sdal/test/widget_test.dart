@@ -42,6 +42,7 @@ void main() {
         isVerified: true,
         isBanned: false,
         state: 'active',
+        graduationYear: '2011',
       ),
     );
 

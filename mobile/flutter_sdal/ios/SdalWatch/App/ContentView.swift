@@ -27,16 +27,22 @@ private struct UnauthenticatedView: View {
     @State private var isRetrying = false
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "iphone.slash")
-                .font(.system(size: 32))
-                .foregroundStyle(.secondary)
+        VStack(spacing: 10) {
+            Image("SdalLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 44, height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: 11))
+
             Text("SDAL")
                 .font(.headline)
+                .fontWeight(.bold)
+
             Text("iPhone'da SDAL'ı aç")
-                .font(.caption2)
+                .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+
             Button {
                 isRetrying = true
                 sessionManager.requestContext()
@@ -45,17 +51,15 @@ private struct UnauthenticatedView: View {
                 }
             } label: {
                 if isRetrying {
-                    ProgressView()
-                        .frame(width: 16, height: 16)
+                    ProgressView().frame(width: 14, height: 14)
                 } else {
-                    Text("Yenile")
+                    Text("Bağlan")
                 }
             }
             .buttonStyle(.borderedProminent)
-            .font(.caption2)
+            .font(.system(size: 12, weight: .semibold))
         }
         .padding()
-        // Auto-retry every 5 seconds while waiting
         .task {
             while sessionManager.sessionCookie.isEmpty {
                 try? await Task.sleep(nanoseconds: 5_000_000_000)
@@ -72,11 +76,12 @@ private struct MainTabView: View {
     @EnvironmentObject private var sessionManager: WatchSessionManager
     @State private var selectedTab: Int = 0
 
-    private let tabs: [(icon: String, label: String, color: Color)] = [
-        ("newspaper.fill",   "Akış",       .blue),
-        ("magnifyingglass",  "Keşfet",     .purple),
-        ("message.fill",     "Mesajlar",   .green),
-        ("bell.fill",        "Bildirimler",.orange),
+    private let tabs: [(icon: String, label: String)] = [
+        ("newspaper.fill",   "Akış"),
+        ("megaphone.fill",   "Topluluk"),
+        ("message.fill",     "Mesajlar"),
+        ("bell.fill",        "Bildirimler"),
+        ("magnifyingglass",  "Keşfet"),
     ]
 
     var body: some View {
@@ -87,7 +92,7 @@ private struct MainTabView: View {
                     .opacity(selectedTab == 0 ? 1 : 0)
                     .allowsHitTesting(selectedTab == 0)
 
-                NavigationStack { ExploreView() }
+                NavigationStack { CommunityView() }
                     .opacity(selectedTab == 1 ? 1 : 0)
                     .allowsHitTesting(selectedTab == 1)
 
@@ -98,6 +103,10 @@ private struct MainTabView: View {
                 NavigationStack { NotificationsView() }
                     .opacity(selectedTab == 3 ? 1 : 0)
                     .allowsHitTesting(selectedTab == 3)
+
+                NavigationStack { ExploreView() }
+                    .opacity(selectedTab == 4 ? 1 : 0)
+                    .allowsHitTesting(selectedTab == 4)
             }
             .padding(.bottom, 50)
 
@@ -142,14 +151,14 @@ private struct MainTabView: View {
             ZStack(alignment: .topTrailing) {
                 VStack(spacing: 3) {
                     Image(systemName: tab.icon)
-                        .font(.system(size: 22, weight: active ? .bold : .regular))
-                        .foregroundStyle(active ? tab.color : .secondary)
-                        .scaleEffect(active ? 1.15 : 1.0)
-                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: active)
+                        .font(.system(size: 20, weight: active ? .bold : .regular))
+                        .foregroundStyle(active ? Color.accentColor : Color.primary.opacity(0.38))
+                        .scaleEffect(active ? 1.12 : 1.0)
+                        .animation(.spring(response: 0.28, dampingFraction: 0.65), value: active)
 
                     Text(tab.label)
                         .font(.system(size: 8, weight: active ? .semibold : .regular))
-                        .foregroundStyle(active ? tab.color : .secondary)
+                        .foregroundStyle(active ? Color.accentColor : Color.primary.opacity(0.38))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -159,7 +168,7 @@ private struct MainTabView: View {
                         .foregroundStyle(.white)
                         .padding(.horizontal, 3)
                         .padding(.vertical, 1)
-                        .background(tab.color, in: Capsule())
+                        .background(Color.accentColor, in: Capsule())
                         .offset(x: -4, y: 2)
                 }
             }

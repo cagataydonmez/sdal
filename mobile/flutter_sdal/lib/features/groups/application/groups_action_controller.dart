@@ -268,6 +268,44 @@ class GroupsActionController extends Notifier<AsyncActionState> {
     return false;
   }
 
+  Future<bool> updateEvent({
+    required int groupId,
+    required int eventId,
+    required String title,
+    required String description,
+    required String location,
+    required String startsAt,
+    required String endsAt,
+    File? imageFile,
+    bool? showInFeed,
+    bool? publish,
+  }) async {
+    state = AsyncActionState.loading(scope: 'groups:event-update:$eventId');
+    final result = await _repository.updateEvent(
+      groupId: groupId,
+      eventId: eventId,
+      title: title,
+      description: description,
+      location: location,
+      startsAt: startsAt,
+      endsAt: endsAt,
+      imageFile: imageFile,
+      showInFeed: showInFeed,
+      publish: publish,
+    );
+    if (result.ok) {
+      state = const AsyncActionState.success(scope: 'groups:event-update');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'groups:event-update:$eventId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Etkinlik güncellenemedi.',
+    );
+    return false;
+  }
+
   Future<bool> deleteEvent({required int groupId, required int eventId}) async {
     state = AsyncActionState.loading(scope: 'groups:event-delete:$eventId');
     final result = await _repository.deleteEvent(
@@ -342,6 +380,42 @@ class GroupsActionController extends Notifier<AsyncActionState> {
       message: result.message.isNotEmpty
           ? result.message
           : 'Duyuru eklenemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> updateAnnouncement({
+    required int groupId,
+    required int announcementId,
+    required String title,
+    required String body,
+    File? imageFile,
+    bool? showInFeed,
+    bool? publish,
+  }) async {
+    state = AsyncActionState.loading(
+      scope: 'groups:announcement-update:$announcementId',
+    );
+    final result = await _repository.updateAnnouncement(
+      groupId: groupId,
+      announcementId: announcementId,
+      title: title,
+      body: body,
+      imageFile: imageFile,
+      showInFeed: showInFeed,
+      publish: publish,
+    );
+    if (result.ok) {
+      state = const AsyncActionState.success(
+        scope: 'groups:announcement-update',
+      );
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'groups:announcement-update:$announcementId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Duyuru güncellenemedi.',
     );
     return false;
   }

@@ -60,6 +60,8 @@ class JobsActionController extends Notifier<AsyncActionState> {
     required String jobType,
     required String workMode,
     required String link,
+    File? imageFile,
+    bool? showInFeed,
   }) async {
     state = AsyncActionState.loading(scope: 'jobs:edit:$jobId');
     final result = await _repository.editJob(
@@ -71,6 +73,8 @@ class JobsActionController extends Notifier<AsyncActionState> {
       jobType: jobType,
       workMode: workMode,
       link: link,
+      imageFile: imageFile,
+      showInFeed: showInFeed,
     );
     if (result.ok) {
       state = const AsyncActionState.success(scope: 'jobs:edit');

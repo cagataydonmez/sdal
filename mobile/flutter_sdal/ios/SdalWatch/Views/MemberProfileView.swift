@@ -83,11 +83,11 @@ struct MemberProfileView: View {
         HStack(spacing: 6) {
             Image(systemName: icon)
                 .font(.system(size: 10))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.accentColor.opacity(0.8))
                 .frame(width: 14)
             Text(text)
                 .font(.system(size: 10))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.primary.opacity(0.7))
                 .lineLimit(1)
         }
     }

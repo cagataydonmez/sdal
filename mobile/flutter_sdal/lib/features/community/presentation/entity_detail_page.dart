@@ -201,7 +201,7 @@ class _AnnouncementDetailPageState
                     detail.item.createdBy == (session?.user?.id ?? 0) ||
                         session?.hasAdminAccess == true
                     ? () async {
-                        final result = await showDialog<Map<String, String>>(
+                        final result = await showDialog<Map<String, dynamic>>(
                           context: context,
                           builder: (ctx) => _AnnouncementEditDialog(
                             announcement: detail.item,
@@ -214,6 +214,7 @@ class _AnnouncementDetailPageState
                                 announcementId: widget.announcementId,
                                 title: result['title'] ?? '',
                                 body: result['body'] ?? '',
+                                imageFile: result['imageFile'] as File?,
                               );
                           if (success && context.mounted) {
                             ref.invalidate(_provider);
@@ -259,7 +260,7 @@ class _AnnouncementDetailPageState
   }
 }
 
-class GroupEventDetailPage extends ConsumerWidget {
+class GroupEventDetailPage extends ConsumerStatefulWidget {
   const GroupEventDetailPage({
     super.key,
     required this.groupId,
@@ -269,21 +270,34 @@ class GroupEventDetailPage extends ConsumerWidget {
   final int eventId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final detailState = ref.watch(groupDetailProvider(groupId));
-    final canManage = detailState.value?.canManage ?? false;
-    final futureProvider = FutureProvider.autoDispose<GroupEventDetail?>((
-      ref,
-    ) async {
+  ConsumerState<GroupEventDetailPage> createState() =>
+      _GroupEventDetailPageState();
+}
+
+class _GroupEventDetailPageState extends ConsumerState<GroupEventDetailPage> {
+  late final FutureProvider<GroupEventDetail?> _provider;
+
+  @override
+  void initState() {
+    super.initState();
+    _provider = FutureProvider.autoDispose<GroupEventDetail?>((ref) async {
+      final groupDetail = await ref.watch(
+        groupDetailProvider(widget.groupId).future,
+      );
+      final canManage = groupDetail?.canManage ?? false;
       return ref
-          .watch(groupsRepositoryProvider)
+          .read(groupsRepositoryProvider)
           .fetchGroupEventDetail(
-            groupId: groupId,
-            eventId: eventId,
+            groupId: widget.groupId,
+            eventId: widget.eventId,
             canManage: canManage,
           );
     });
-    final state = ref.watch(futureProvider);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(_provider);
     return FeatureScaffold(
       title: 'Etkinlik',
       child: state.when(
@@ -305,14 +319,41 @@ class GroupEventDetailPage extends ConsumerWidget {
                 allowLikes: detail.allowLikes,
                 canManage: detail.canManage,
                 kind: EntityActionKind.groupEvent,
-                onRefresh: () => ref.invalidate(futureProvider),
+                onRefresh: () => ref.invalidate(_provider),
+                onEdit: detail.canManage
+                    ? () async {
+                        final result = await showDialog<Map<String, dynamic>>(
+                          context: context,
+                          builder: (ctx) =>
+                              _GroupEventEditDialog(event: detail.event),
+                        );
+                        if (result == null || !context.mounted) return;
+                        final ok = await ref
+                            .read(groupsActionControllerProvider.notifier)
+                            .updateEvent(
+                              groupId: widget.groupId,
+                              eventId: widget.eventId,
+                              title: result['title'] as String? ?? '',
+                              description:
+                                  result['description'] as String? ?? '',
+                              location: result['location'] as String? ?? '',
+                              startsAt: result['startsAt'] as String? ?? '',
+                              endsAt: result['endsAt'] as String? ?? '',
+                              imageFile: result['imageFile'] as File?,
+                            );
+                        if (!ok || !context.mounted) return;
+                        ref.invalidate(_provider);
+                        ref.invalidate(groupDetailProvider(widget.groupId));
+                        ref.invalidate(groupPostsProvider(widget.groupId));
+                      }
+                    : null,
                 onUnpublish: detail.canManage
                     ? () async {
                         final ok = await ref
                             .read(groupsActionControllerProvider.notifier)
                             .setEventPublished(
-                              groupId: groupId,
-                              eventId: eventId,
+                              groupId: widget.groupId,
+                              eventId: widget.eventId,
                               publish: false,
                             );
                         if (ok && context.mounted) Navigator.pop(context, true);
@@ -322,25 +363,31 @@ class GroupEventDetailPage extends ConsumerWidget {
                     ? () async {
                         final ok = await ref
                             .read(groupsActionControllerProvider.notifier)
-                            .deleteEvent(groupId: groupId, eventId: eventId);
+                            .deleteEvent(
+                              groupId: widget.groupId,
+                              eventId: widget.eventId,
+                            );
                         if (ok && context.mounted) Navigator.pop(context, true);
                       }
                     : null,
                 onAddComment: (comment) => ref
                     .read(groupsRepositoryProvider)
                     .addGroupEventComment(
-                      groupId: groupId,
-                      eventId: eventId,
+                      groupId: widget.groupId,
+                      eventId: widget.eventId,
                       comment: comment,
                     ),
                 onToggleLike: () => ref
                     .read(groupsRepositoryProvider)
-                    .toggleGroupEventLike(groupId: groupId, eventId: eventId),
+                    .toggleGroupEventLike(
+                      groupId: widget.groupId,
+                      eventId: widget.eventId,
+                    ),
                 onToggleInteraction: (ac, al) => ref
                     .read(groupsRepositoryProvider)
                     .setGroupEventInteractions(
-                      groupId: groupId,
-                      eventId: eventId,
+                      groupId: widget.groupId,
+                      eventId: widget.eventId,
                       allowComments: ac,
                       allowLikes: al,
                     ),
@@ -362,7 +409,7 @@ class GroupEventDetailPage extends ConsumerWidget {
   }
 }
 
-class GroupAnnouncementDetailPage extends ConsumerWidget {
+class GroupAnnouncementDetailPage extends ConsumerStatefulWidget {
   const GroupAnnouncementDetailPage({
     super.key,
     required this.groupId,
@@ -372,21 +419,37 @@ class GroupAnnouncementDetailPage extends ConsumerWidget {
   final int announcementId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final detailState = ref.watch(groupDetailProvider(groupId));
-    final canManage = detailState.value?.canManage ?? false;
-    final futureProvider = FutureProvider.autoDispose<GroupAnnouncementDetail?>(
-      (ref) async {
-        return ref
-            .watch(groupsRepositoryProvider)
-            .fetchGroupAnnouncementDetail(
-              groupId: groupId,
-              announcementId: announcementId,
-              canManage: canManage,
-            );
-      },
-    );
-    final state = ref.watch(futureProvider);
+  ConsumerState<GroupAnnouncementDetailPage> createState() =>
+      _GroupAnnouncementDetailPageState();
+}
+
+class _GroupAnnouncementDetailPageState
+    extends ConsumerState<GroupAnnouncementDetailPage> {
+  late final FutureProvider<GroupAnnouncementDetail?> _provider;
+
+  @override
+  void initState() {
+    super.initState();
+    _provider = FutureProvider.autoDispose<GroupAnnouncementDetail?>((
+      ref,
+    ) async {
+      final groupDetail = await ref.watch(
+        groupDetailProvider(widget.groupId).future,
+      );
+      final canManage = groupDetail?.canManage ?? false;
+      return ref
+          .read(groupsRepositoryProvider)
+          .fetchGroupAnnouncementDetail(
+            groupId: widget.groupId,
+            announcementId: widget.announcementId,
+            canManage: canManage,
+          );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(_provider);
     return FeatureScaffold(
       title: 'Duyuru',
       child: state.when(
@@ -408,14 +471,38 @@ class GroupAnnouncementDetailPage extends ConsumerWidget {
                 allowLikes: detail.allowLikes,
                 canManage: detail.canManage,
                 kind: EntityActionKind.groupAnnouncement,
-                onRefresh: () => ref.invalidate(futureProvider),
+                onRefresh: () => ref.invalidate(_provider),
+                onEdit: detail.canManage
+                    ? () async {
+                        final result = await showDialog<Map<String, dynamic>>(
+                          context: context,
+                          builder: (ctx) => _GroupAnnouncementEditDialog(
+                            announcement: detail.announcement,
+                          ),
+                        );
+                        if (result == null || !context.mounted) return;
+                        final ok = await ref
+                            .read(groupsActionControllerProvider.notifier)
+                            .updateAnnouncement(
+                              groupId: widget.groupId,
+                              announcementId: widget.announcementId,
+                              title: result['title'] as String? ?? '',
+                              body: result['body'] as String? ?? '',
+                              imageFile: result['imageFile'] as File?,
+                            );
+                        if (!ok || !context.mounted) return;
+                        ref.invalidate(_provider);
+                        ref.invalidate(groupDetailProvider(widget.groupId));
+                        ref.invalidate(groupPostsProvider(widget.groupId));
+                      }
+                    : null,
                 onUnpublish: detail.canManage
                     ? () async {
                         final ok = await ref
                             .read(groupsActionControllerProvider.notifier)
                             .setAnnouncementPublished(
-                              groupId: groupId,
-                              announcementId: announcementId,
+                              groupId: widget.groupId,
+                              announcementId: widget.announcementId,
                               publish: false,
                             );
                         if (ok && context.mounted) Navigator.pop(context, true);
@@ -426,8 +513,8 @@ class GroupAnnouncementDetailPage extends ConsumerWidget {
                         final ok = await ref
                             .read(groupsActionControllerProvider.notifier)
                             .deleteAnnouncement(
-                              groupId: groupId,
-                              announcementId: announcementId,
+                              groupId: widget.groupId,
+                              announcementId: widget.announcementId,
                             );
                         if (ok && context.mounted) Navigator.pop(context, true);
                       }
@@ -435,21 +522,21 @@ class GroupAnnouncementDetailPage extends ConsumerWidget {
                 onAddComment: (comment) => ref
                     .read(groupsRepositoryProvider)
                     .addGroupAnnouncementComment(
-                      groupId: groupId,
-                      announcementId: announcementId,
+                      groupId: widget.groupId,
+                      announcementId: widget.announcementId,
                       comment: comment,
                     ),
                 onToggleLike: () => ref
                     .read(groupsRepositoryProvider)
                     .toggleGroupAnnouncementLike(
-                      groupId: groupId,
-                      announcementId: announcementId,
+                      groupId: widget.groupId,
+                      announcementId: widget.announcementId,
                     ),
                 onToggleInteraction: (ac, al) => ref
                     .read(groupsRepositoryProvider)
                     .setGroupAnnouncementInteractions(
-                      groupId: groupId,
-                      announcementId: announcementId,
+                      groupId: widget.groupId,
+                      announcementId: widget.announcementId,
                       allowComments: ac,
                       allowLikes: al,
                     ),
@@ -889,6 +976,7 @@ class _GroupEntityBody extends ConsumerStatefulWidget {
     required this.onAddComment,
     required this.onToggleLike,
     required this.onToggleInteraction,
+    this.onEdit,
     this.onUnpublish,
     this.onDelete,
   });
@@ -911,6 +999,7 @@ class _GroupEntityBody extends ConsumerStatefulWidget {
   final Future<dynamic> Function() onToggleLike;
   final Future<dynamic> Function(bool? allowComments, bool? allowLikes)
   onToggleInteraction;
+  final Future<void> Function()? onEdit;
   final Future<void> Function()? onUnpublish;
   final Future<void> Function()? onDelete;
 
@@ -977,9 +1066,12 @@ class _GroupEntityBodyState extends ConsumerState<_GroupEntityBody> {
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                     ),
-                    if (widget.onUnpublish != null || widget.onDelete != null)
+                    if (widget.onEdit != null ||
+                        widget.onUnpublish != null ||
+                        widget.onDelete != null)
                       EntityActionMenu(
                         kind: widget.kind,
+                        onEdit: widget.onEdit,
                         onUnpublish: widget.onUnpublish,
                         onDelete: widget.onDelete,
                       ),
@@ -1342,6 +1434,293 @@ class _GroupCommentRow extends ConsumerWidget {
   }
 }
 
+class _GroupEventEditDialog extends StatefulWidget {
+  const _GroupEventEditDialog({required this.event});
+  final GroupEventItem event;
+
+  @override
+  State<_GroupEventEditDialog> createState() => _GroupEventEditDialogState();
+}
+
+class _GroupEventEditDialogState extends State<_GroupEventEditDialog> {
+  late final TextEditingController _titleController;
+  late final TextEditingController _descriptionController;
+  late final TextEditingController _locationController;
+  late final TextEditingController _startsAtController;
+  late final TextEditingController _endsAtController;
+  File? _imageFile;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.event.title);
+    _descriptionController = TextEditingController(
+      text: plainTextFromRichContent(widget.event.description),
+    );
+    _locationController = TextEditingController(text: widget.event.location);
+    _startsAtController = TextEditingController(text: widget.event.startsAt);
+    _endsAtController = TextEditingController(text: widget.event.endsAt);
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _locationController.dispose();
+    _startsAtController.dispose();
+    _endsAtController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Etkinliği düzenle'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _titleController,
+              decoration: const InputDecoration(labelText: 'Başlık'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _descriptionController,
+              minLines: 2,
+              maxLines: 4,
+              decoration: const InputDecoration(labelText: 'Açıklama'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _locationController,
+              decoration: const InputDecoration(labelText: 'Konum'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _startsAtController,
+              readOnly: true,
+              onTap: () => _pickDateTime(_startsAtController),
+              decoration: const InputDecoration(
+                labelText: 'Başlangıç',
+                suffixIcon: Icon(Icons.calendar_today_outlined),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _endsAtController,
+              readOnly: true,
+              onTap: () => _pickDateTime(_endsAtController),
+              decoration: const InputDecoration(
+                labelText: 'Bitiş',
+                suffixIcon: Icon(Icons.calendar_today_outlined),
+              ),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _pickImage,
+              icon: const Icon(Icons.photo_library_outlined),
+              label: Text(
+                _imageFile == null && widget.event.image.isEmpty
+                    ? 'Görsel ekle'
+                    : 'Görsel değiştir',
+              ),
+            ),
+            if (_imageFile != null || widget.event.image.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              if (_imageFile != null)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.file(
+                    _imageFile!,
+                    height: 150,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                )
+              else
+                SdalNetworkImage(
+                  imageUrl: widget.event.image,
+                  height: 150,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  borderRadius: BorderRadius.circular(12),
+                  errorFallback: const SizedBox.shrink(),
+                ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('İptal'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, {
+            'title': _titleController.text.trim(),
+            'description': _descriptionController.text.trim(),
+            'location': _locationController.text.trim(),
+            'startsAt': _startsAtController.text.trim(),
+            'endsAt': _endsAtController.text.trim(),
+            'imageFile': _imageFile,
+          }),
+          child: const Text('Kaydet'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _pickImage() async {
+    final picked = await pickAndCropImage(
+      context,
+      source: ImageSource.gallery,
+      aspectPreset: CropAspectPreset.wide169,
+      title: 'Etkinlik görselini hazırla',
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _imageFile = picked);
+  }
+
+  Future<void> _pickDateTime(TextEditingController controller) async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: now.subtract(const Duration(days: 1)),
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(now),
+    );
+    if (time == null || !mounted) return;
+    final value = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
+    setState(() => controller.text = value.toIso8601String());
+  }
+}
+
+class _GroupAnnouncementEditDialog extends StatefulWidget {
+  const _GroupAnnouncementEditDialog({required this.announcement});
+  final GroupAnnouncementItem announcement;
+
+  @override
+  State<_GroupAnnouncementEditDialog> createState() =>
+      _GroupAnnouncementEditDialogState();
+}
+
+class _GroupAnnouncementEditDialogState
+    extends State<_GroupAnnouncementEditDialog> {
+  late final TextEditingController _titleController;
+  late final TextEditingController _bodyController;
+  File? _imageFile;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.announcement.title);
+    _bodyController = TextEditingController(
+      text: plainTextFromRichContent(widget.announcement.body),
+    );
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _bodyController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Duyuruyu düzenle'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _titleController,
+              decoration: const InputDecoration(labelText: 'Başlık'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _bodyController,
+              minLines: 3,
+              maxLines: 6,
+              decoration: const InputDecoration(labelText: 'Duyuru'),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _pickImage,
+              icon: const Icon(Icons.photo_library_outlined),
+              label: Text(
+                _imageFile == null && widget.announcement.image.isEmpty
+                    ? 'Görsel ekle'
+                    : 'Görsel değiştir',
+              ),
+            ),
+            if (_imageFile != null || widget.announcement.image.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              if (_imageFile != null)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.file(
+                    _imageFile!,
+                    height: 150,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                )
+              else
+                SdalNetworkImage(
+                  imageUrl: widget.announcement.image,
+                  height: 150,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  borderRadius: BorderRadius.circular(12),
+                  errorFallback: const SizedBox.shrink(),
+                ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('İptal'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, {
+            'title': _titleController.text.trim(),
+            'body': _bodyController.text.trim(),
+            'imageFile': _imageFile,
+          }),
+          child: const Text('Kaydet'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _pickImage() async {
+    final picked = await pickAndCropImage(
+      context,
+      source: ImageSource.gallery,
+      aspectPreset: CropAspectPreset.wide169,
+      title: 'Duyuru görselini hazırla',
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _imageFile = picked);
+  }
+}
+
 // ── Event edit dialog ────────────────────────────────────────────────────────
 
 class _EventEditDialog extends StatefulWidget {
@@ -1534,6 +1913,7 @@ class _AnnouncementEditDialog extends StatefulWidget {
 class _AnnouncementEditDialogState extends State<_AnnouncementEditDialog> {
   late TextEditingController _titleController;
   late TextEditingController _bodyController;
+  File? _imageFile;
 
   @override
   void initState() {
@@ -1570,6 +1950,31 @@ class _AnnouncementEditDialogState extends State<_AnnouncementEditDialog> {
               maxLines: 6,
               decoration: const InputDecoration(labelText: 'İçerik'),
             ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => _pickImage(ImageSource.gallery),
+              icon: const Icon(Icons.photo_library_outlined),
+              label: Text(
+                _imageFile == null
+                    ? (widget.announcement.image.isNotEmpty
+                          ? 'Görsel değiştir'
+                          : 'Görsel ekle')
+                    : 'Görsel değiştir',
+              ),
+            ),
+            if (_imageFile != null || widget.announcement.image.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: _imageFile != null
+                    ? Image.file(_imageFile!, height: 160, fit: BoxFit.cover)
+                    : Image.network(
+                        widget.announcement.image,
+                        height: 160,
+                        fit: BoxFit.cover,
+                      ),
+              ),
+            ],
           ],
         ),
       ),
@@ -1582,10 +1987,22 @@ class _AnnouncementEditDialogState extends State<_AnnouncementEditDialog> {
           onPressed: () => Navigator.pop(context, {
             'title': _titleController.text,
             'body': _bodyController.text,
+            'imageFile': _imageFile,
           }),
           child: const Text('Kaydet'),
         ),
       ],
     );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final picked = await pickAndCropImage(
+      context,
+      source: source,
+      aspectPreset: CropAspectPreset.wide169,
+      title: 'Duyuru görselini hazırla',
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _imageFile = picked);
   }
 }

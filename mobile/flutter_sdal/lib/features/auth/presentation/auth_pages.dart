@@ -510,6 +510,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     final username = _usernameController.text.trim();
     final email = _emailController.text.trim();
     if (username.isEmpty && email.isEmpty) {
+      _availabilityRequestId++;
       if (!mounted) return;
       setState(() {
         _checkingAvailability = false;
@@ -519,6 +520,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       return;
     }
     if (email.isNotEmpty && !_isEmailFormatValid(email)) {
+      _availabilityRequestId++;
       if (mounted) {
         setState(() {
           _checkingAvailability = false;
@@ -526,7 +528,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           _availabilityError = null;
         });
       }
-      if (username.isEmpty) return;
+      return;
     }
     _availabilityDebounce = Timer(
       const Duration(milliseconds: 450),
@@ -725,36 +727,19 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
               labelText: l10n.email,
               validator: _emailValidator,
             ),
-            if (_checkingAvailability) ...[
-              const SizedBox(height: 8),
-              const LinearProgressIndicator(minHeight: 2),
-            ],
-            if (_availabilityMessage != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                _availabilityMessage!,
-                style: TextStyle(color: Theme.of(context).sdal.success),
+            const SizedBox(height: 8),
+            _RegisterAvailabilityStatus(
+              checking: _checkingAvailability,
+              message: _availabilityMessage,
+              error: _availabilityError,
+              hasActivationTarget:
+                  (_inactiveActivationUsername?.isNotEmpty ?? false) ||
+                  (_inactiveActivationEmail?.isNotEmpty ?? false),
+              onActivationTap: () => _goToActivation(
+                username: _inactiveActivationUsername,
+                email: _inactiveActivationEmail,
               ),
-            ],
-            if (_availabilityError != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                _availabilityError!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-              if ((_inactiveActivationUsername?.isNotEmpty ?? false) ||
-                  (_inactiveActivationEmail?.isNotEmpty ?? false)) ...[
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () => _goToActivation(
-                    username: _inactiveActivationUsername,
-                    email: _inactiveActivationEmail,
-                  ),
-                  icon: const Icon(Icons.mark_email_read_outlined),
-                  label: const Text('Aktivasyon sayfasına git'),
-                ),
-              ],
-            ],
+            ),
           ],
         ),
       ),
@@ -1700,9 +1685,9 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
           activationComplete &&
               isRegistrationActivation &&
               _phoneVerificationRequired
-          ? 'Telefon numaranızı tek seferlik doğrulayın.'
+          ? 'Telefonunu tek seferlik doğrula, ardından hesabını hazırlamaya devam et.'
           : activationComplete && isRegistrationActivation
-          ? 'E-posta doğrulaması tamamlandı.'
+          ? 'E-posta doğrulaması tamamlandı. Şimdi hesabını birkaç kısa adımla hazırlayalım.'
           : isRegistrationActivation
           ? 'E-postadaki aktivasyon kodunu girin.'
           : 'Kullanıcı adı, şifre ve aktivasyon kodunu girin.',
@@ -1724,7 +1709,7 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
               const SizedBox(height: 18),
               FilledButton(
                 onPressed: () => context.go('/'),
-                child: const Text('Devam et'),
+                child: const Text('Hesabımı hazırlamaya devam et'),
               ),
             ] else ...[
               if (isLegacyLinkActivation) ...[
@@ -2584,11 +2569,88 @@ String _xLogoSvg(Color color) {
 }
 
 Widget _twoColumn(Widget left, Widget right) {
-  return Row(
-    children: [
-      Expanded(child: left),
-      const SizedBox(width: 12),
-      Expanded(child: right),
-    ],
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      if (constraints.maxWidth < 360) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [left, const SizedBox(height: 12), right],
+        );
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: left),
+          const SizedBox(width: 12),
+          Expanded(child: right),
+        ],
+      );
+    },
   );
+}
+
+class _RegisterAvailabilityStatus extends StatelessWidget {
+  const _RegisterAvailabilityStatus({
+    required this.checking,
+    required this.message,
+    required this.error,
+    required this.hasActivationTarget,
+    required this.onActivationTap,
+  });
+
+  final bool checking;
+  final String? message;
+  final String? error;
+  final bool hasActivationTarget;
+  final VoidCallback onActivationTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    final colorScheme = Theme.of(context).colorScheme;
+    final effectiveMessage = error ?? message;
+    final isError = error != null;
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            height: 32,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: checking
+                  ? LinearProgressIndicator(
+                      minHeight: 2,
+                      color: tokens.accent,
+                      backgroundColor: tokens.panelMuted,
+                    )
+                  : effectiveMessage == null
+                  ? const SizedBox.shrink()
+                  : Text(
+                      effectiveMessage,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isError ? colorScheme.error : tokens.success,
+                      ),
+                    ),
+            ),
+          ),
+          if (isError && hasActivationTarget) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: onActivationTap,
+                icon: const Icon(Icons.mark_email_read_outlined),
+                label: const Text('Aktivasyon sayfasına git'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }

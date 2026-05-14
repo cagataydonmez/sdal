@@ -17,7 +17,7 @@ struct AvatarView: View {
                     .frame(width: size + 4, height: size + 4)
             }
             Circle()
-                .fill(Color.accentColor.opacity(0.18))
+                .fill(Color.accentColor.opacity(0.14))
             if !photoUrl.isEmpty {
                 AsyncImage(url: resolvedMediaURL(photoUrl, baseUrl: sessionManager.apiBaseUrl, profilePhoto: true)) { phase in
                     switch phase {
@@ -49,14 +49,19 @@ struct ErrorRetryView: View {
     let onRetry: () -> Void
 
     var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "wifi.exclamationmark")
-                .foregroundStyle(.red)
+        VStack(spacing: 10) {
+            Image(systemName: "exclamationmark.circle")
+                .font(.system(size: 22))
+                .foregroundStyle(Color.accentColor.opacity(0.8))
             Text("Yüklenemedi")
-                .font(.caption2)
-            Button("Tekrar dene", action: onRetry)
-                .font(.system(size: 11))
+                .font(.caption).fontWeight(.medium)
+            Button(action: onRetry) {
+                Text("Tekrar dene")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .buttonStyle(.borderedProminent)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
     }
 }

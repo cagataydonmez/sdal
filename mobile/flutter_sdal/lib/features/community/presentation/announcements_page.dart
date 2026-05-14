@@ -138,7 +138,9 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
               child: FilledButton.icon(
                 onPressed: () async {
                   final result = await context.push('/announcements/create');
-                  if (mounted && result == true) _load(reset: true);
+                  if (mounted && result == true) {
+                    await _load(reset: true);
+                  }
                 },
                 icon: const Icon(Icons.add_outlined),
                 label: const Text('Yeni duyuru öner'),

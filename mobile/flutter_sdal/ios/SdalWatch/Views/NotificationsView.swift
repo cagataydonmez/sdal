@@ -40,9 +40,16 @@ struct NotificationsView: View {
 
     private var emptyView: some View {
         VStack(spacing: 8) {
-            Image(systemName: "bell.slash").foregroundStyle(.secondary)
-            Text("Bildirim yok").font(.caption2).foregroundStyle(.secondary)
+            Image(systemName: "bell")
+                .font(.system(size: 26))
+                .foregroundStyle(Color.accentColor.opacity(0.5))
+            Text("Temiz!")
+                .font(.system(size: 12, weight: .medium))
+            Text("Bildirim yok")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func notificationList(_ items: [WatchNotificationItem]) -> some View {
@@ -73,8 +80,9 @@ struct NotificationRow: View {
             ZStack(alignment: .bottomTrailing) {
                 AvatarView(initials: item.initials, photoUrl: item.actorPhoto, size: 28)
                 Image(systemName: item.systemImageName)
-                    .font(.system(size: 9))
-                    .padding(2)
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(2.5)
                     .background(notifColor)
                     .clipShape(Circle())
                     .offset(x: 2, y: 2)
@@ -82,35 +90,35 @@ struct NotificationRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 if !item.actorName.isEmpty {
                     Text(item.actorName)
-                        .font(.caption2)
-                        .fontWeight(item.isRead ? .regular : .semibold)
+                        .font(.system(size: 12, weight: item.isRead ? .regular : .semibold))
                         .lineLimit(1)
                 }
                 if !item.body.isEmpty {
                     Text(item.body)
                         .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(item.isRead ? Color.secondary : Color.primary.opacity(0.7))
                         .lineLimit(2)
                 }
             }
+            Spacer(minLength: 0)
             if !item.isRead {
                 Circle()
-                    .fill(.blue)
+                    .fill(Color.accentColor)
                     .frame(width: 6, height: 6)
             }
         }
         .padding(.vertical, 2)
-        .opacity(item.isRead ? 0.75 : 1.0)
+        .opacity(item.isRead ? 0.72 : 1.0)
     }
 
     private var notifColor: Color {
         switch item.type {
         case "like":    return .red
-        case "comment": return .blue
-        case "follow":  return .green
-        case "mention": return .orange
-        case "message": return .blue
-        default:        return .gray
+        case "comment": return Color.primary.opacity(0.45)
+        case "follow":  return Color.accentColor
+        case "mention": return Color.accentColor
+        case "message": return Color.accentColor
+        default:        return Color.primary.opacity(0.3)
         }
     }
 }
@@ -228,11 +236,11 @@ struct NotificationDetailView: View {
     private var typeColor: Color {
         switch item.type {
         case "like":    return .red
-        case "comment": return .blue
-        case "follow":  return .green
-        case "mention": return .orange
-        case "message": return .blue
-        default:        return .gray
+        case "comment": return Color.primary.opacity(0.55)
+        case "follow":  return Color.accentColor
+        case "mention": return Color.accentColor
+        case "message": return Color.accentColor
+        default:        return Color.secondary
         }
     }
 }

@@ -686,7 +686,7 @@ class _GraduationYearOnboardingPageState
     final theme = Theme.of(context);
     final tokens = theme.sdal;
     return FeatureScaffold(
-      title: 'İlk kayıt beyanı',
+      title: 'Hesabını hazırla',
       background: FeatureScaffoldBackground.neutral,
       showAppMenu: false,
       child: ListView(
@@ -760,7 +760,7 @@ class _GraduationYearOnboardingPageState
                           submitting
                               ? 'Kaydediliyor...'
                               : (_currentStep == 2
-                                    ? 'Beyanımı kaydet'
+                                    ? 'Hesabı tamamla'
                                     : 'Devam'),
                         ),
                       ),
@@ -776,7 +776,7 @@ class _GraduationYearOnboardingPageState
   }
 
   String get _stepTitle => switch (_currentStep) {
-    0 => 'Kullanıcı adı ve dönem',
+    0 => 'Dönem ve kullanıcı adı',
     1 => 'Şifreni belirle',
     _ => 'Onayları tamamla',
   };
@@ -789,8 +789,8 @@ class _GraduationYearOnboardingPageState
         children: [
           Text(
             _isTeacher
-                ? 'Öğretmen seçimi, öğretmen ağı ve öğretmen doğrulaması için kullanılacak. Okul veya öğretmenlik bağını gösteren doğrulama daha sonra ayrı değerlendirilecek.'
-                : 'Bu seçim, kendi dönemindeki arkadaşlarına ve yakın mezuniyet yıllarındaki SDAL üyelerine daha doğru ulaşman için kullanılacak. Lütfen dikkatli seç; sonradan değişiklik yönetim onayıyla yapılır.',
+                ? 'Öğretmen seçimi profilinde ve öğretmen ağı önerilerinde kullanılır. Doğrulama adımında okul bağını ayrıca gönderebilirsin.'
+                : 'Dönem seçimi doğru kişileri, albümleri ve önerileri görmene yardım eder. Sonradan değişiklik yönetim onayıyla yapılır.',
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 18),
@@ -803,7 +803,7 @@ class _GraduationYearOnboardingPageState
             decoration: InputDecoration(
               labelText: 'Kullanıcı adı',
               helperText:
-                  'En fazla 15 karakter. Girişte ve profil bağlantında kullanılır.',
+                  'En fazla 15 karakter. Girişte ve profil bağlantında görünür.',
               prefixText: '@',
               suffixIcon: _checkingUsername
                   ? const Padding(
@@ -869,8 +869,8 @@ class _GraduationYearOnboardingPageState
           _OnboardingInfoStrip(
             icon: _isTeacher ? Icons.badge_outlined : Icons.groups_2_outlined,
             text: _isTeacher
-                ? 'Öğretmen profilleri mezun dönemlerinden ayrı görünür; doğrulama talebinde okul/öğretmenlik bağını anlatman beklenir.'
-                : 'Dönem seçimi; keşif, öneriler, albümler ve sosyal bağlarda doğru kişilerin öne çıkmasına yardımcı olur.',
+                ? 'Öğretmen profilleri mezun dönemlerinden ayrı görünür.'
+                : 'Bu bilgi keşif, öneriler ve sosyal bağlarda kullanılır.',
           ),
           if (_isTeacher) ...[
             const SizedBox(height: 16),
@@ -895,7 +895,7 @@ class _GraduationYearOnboardingPageState
           const _OnboardingInfoStrip(
             icon: Icons.lock_outline,
             text:
-                'OAuth ile kayıt olsan bile daha sonra kullanıcı adı/e-posta ve şifreyle de giriş yapabilmen için burada bir şifre belirle.',
+                'Daha sonra kullanıcı adı veya e-posta ile de giriş yapabilmen için bir şifre belirle.',
           ),
           const SizedBox(height: 14),
           TextFormField(
@@ -922,7 +922,7 @@ class _GraduationYearOnboardingPageState
           const _OnboardingInfoStrip(
             icon: Icons.privacy_tip_outlined,
             text:
-                'KVKK ve Mezun Rehberi açık rıza onayları, sosyal üyeliğinin tamamlanması ve mezun ağında doğru görünmen için gereklidir.',
+                'Bu onaylar sosyal üyeliğinin tamamlanması ve mezun rehberinde doğru görünmen için gereklidir.',
           ),
           const SizedBox(height: 10),
           CheckboxListTile(

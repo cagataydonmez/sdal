@@ -441,7 +441,7 @@ export function registerCommunityRoutes(app, {
          FROM announcements a
          LEFT JOIN uyeler u ON u.id = a.created_by
          ${whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : ''}
-         ORDER BY a.id DESC`
+         ORDER BY COALESCE(NULLIF(CAST(a.published_at AS TEXT), ''), a.created_at) DESC, a.id DESC`
          + ' LIMIT ? OFFSET ?',
         [...params, limit, offset]
       );
@@ -659,7 +659,7 @@ export function registerCommunityRoutes(app, {
     try {
       const user = getCurrentUser(req);
       const isAdmin = hasAdminSession(req, user);
-      const row = await sqlGetAsync('SELECT id, created_by FROM events WHERE id = ?', [req.params.id]);
+      const row = await sqlGetAsync('SELECT id, created_by, publication_status FROM events WHERE id = ?', [req.params.id]);
       if (!row) return res.status(404).send('Etkinlik bulunamadı.');
       if (!isAdmin && !sameUserId(row.created_by, req.session.userId)) return res.status(403).send('Bu etkinliği düzenleme yetkin yok.');
 
@@ -708,6 +708,10 @@ export function registerCommunityRoutes(app, {
         updateParams.push(publish ? req.session.userId : null);
         updateParams.push(publish ? now : null);
         updateParams.push(publish ? now : null);
+        if (publish && row.publication_status !== PUBLICATION_STATUS.PUBLISHED) {
+          updates.push('created_at = ?');
+          updateParams.push(now);
+        }
       }
 
       if (updates.length === 0) return res.status(400).send('Güncellenecek alan yok.');
@@ -885,7 +889,7 @@ export function registerCommunityRoutes(app, {
     try {
       const user = getCurrentUser(req);
       const isAdmin = hasAdminSession(req, user);
-      const row = await sqlGetAsync('SELECT id, created_by FROM announcements WHERE id = ?', [req.params.id]);
+      const row = await sqlGetAsync('SELECT id, created_by, publication_status FROM announcements WHERE id = ?', [req.params.id]);
       if (!row) return res.status(404).send('Duyuru bulunamadı.');
       if (!isAdmin && !sameUserId(row.created_by, req.session.userId)) return res.status(403).send('Bu duyuruyu düzenleme yetkin yok.');
 
@@ -920,6 +924,10 @@ export function registerCommunityRoutes(app, {
         updateParams.push(publish ? req.session.userId : null);
         updateParams.push(publish ? now : null);
         updateParams.push(publish ? now : null);
+        if (publish && row.publication_status !== PUBLICATION_STATUS.PUBLISHED) {
+          updates.push('created_at = ?');
+          updateParams.push(now);
+        }
       }
 
       if (updates.length === 0) return res.status(400).send('Güncellenecek alan yok.');

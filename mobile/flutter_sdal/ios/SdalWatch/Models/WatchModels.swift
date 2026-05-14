@@ -422,6 +422,74 @@ struct WatchNotificationItem: Identifiable {
     }
 }
 
+// MARK: - Announcement
+
+struct WatchAnnouncement: Identifiable {
+    let id: Int
+    let title: String
+    let body: String
+    let imageUrl: String
+    let publishedAt: String
+    let createdAt: String
+    let creatorHandle: String
+
+    init?(json: [String: Any]) {
+        guard let id = json["id"] as? Int else { return nil }
+        self.id = id
+        self.title = (json["title"] as? String) ?? ""
+        self.body  = (json["body"] as? String) ?? ""
+        let raw = (json["image"] as? String)
+            ?? (json["imageUrl"] as? String)
+            ?? (json["image_url"] as? String)
+            ?? ""
+        self.imageUrl      = raw
+        self.publishedAt   = (json["published_at"] as? String) ?? (json["publishedAt"] as? String) ?? ""
+        self.createdAt     = (json["created_at"] as? String) ?? (json["createdAt"] as? String) ?? ""
+        self.creatorHandle = (json["creator_kadi"] as? String) ?? (json["creatorKadi"] as? String) ?? ""
+    }
+}
+
+// MARK: - Event
+
+struct WatchEvent: Identifiable {
+    let id: Int
+    let title: String
+    let body: String
+    let imageUrl: String
+    let location: String
+    let startsAt: String
+    let createdAt: String
+    let creatorHandle: String
+    var attendCount: Int
+    var declineCount: Int
+    var myResponse: String   // "attend", "decline", or ""
+
+    init?(json: [String: Any]) {
+        guard let id = json["id"] as? Int else { return nil }
+        self.id    = id
+        self.title = (json["title"] as? String) ?? ""
+        self.body  = (json["body"] as? String) ?? ""
+
+        let raw = (json["image"] as? String)
+            ?? (json["imageUrl"] as? String)
+            ?? (json["image_url"] as? String)
+            ?? ""
+        self.imageUrl = raw
+
+        self.location      = (json["location"] as? String) ?? ""
+        self.startsAt      = (json["starts_at"] as? String) ?? (json["startsAt"] as? String) ?? ""
+        self.createdAt     = (json["created_at"] as? String) ?? (json["createdAt"] as? String) ?? ""
+        self.creatorHandle = (json["creator_kadi"] as? String) ?? (json["creatorKadi"] as? String) ?? ""
+
+        let counts = (json["response_counts"] as? [String: Any])
+            ?? (json["responseCounts"] as? [String: Any])
+            ?? [:]
+        self.attendCount  = (counts["attend"] as? Int) ?? 0
+        self.declineCount = (counts["decline"] as? Int) ?? 0
+        self.myResponse   = (json["my_response"] as? String) ?? (json["myResponse"] as? String) ?? ""
+    }
+}
+
 private func boolValue(_ raw: Any?) -> Bool? {
     if let value = raw as? Bool { return value }
     if let value = raw as? Int { return value != 0 }

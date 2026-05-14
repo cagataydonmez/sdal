@@ -516,8 +516,25 @@ class _FeedPageState extends ConsumerState<FeedPage> {
     );
   }
 
-  String _routeForItem(FeedItem item) =>
-      _entityRoutes[item.id] ?? '/posts/${item.id}';
+  String _routeForItem(FeedItem item) {
+    if (item.isEntityPost) {
+      final entityId = item.entityId;
+      if (entityId != null && entityId > 0) {
+        final route = switch (item.postType) {
+          'event' => '/events/$entityId',
+          'announcement' => '/announcements/$entityId',
+          'job' => '/jobs/$entityId',
+          'group_event' when item.groupId != null =>
+            '/groups/${item.groupId}/events/$entityId',
+          'group_announcement' when item.groupId != null =>
+            '/groups/${item.groupId}/announcements/$entityId',
+          _ => null,
+        };
+        if (route != null) return route;
+      }
+    }
+    return _entityRoutes[item.id] ?? '/posts/${item.id}';
+  }
 
   String _entityEditLabel(FeedItem item) {
     return switch (item.postType) {

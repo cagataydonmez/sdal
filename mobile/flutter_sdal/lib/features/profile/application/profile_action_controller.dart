@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/onboarding/account_setup_progress_store.dart';
 import '../../../core/state/async_action_state.dart';
 import '../../../core/session/session_controller.dart';
 import '../data/profile_repository.dart';
@@ -15,7 +16,8 @@ class ProfileActionController extends Notifier<AsyncActionState> {
     final result = await _repository.updateProfile(profile);
     if (result.ok) {
       ref.invalidate(profileProvider);
-      ref.invalidate(sessionControllerProvider);
+      await ref.read(sessionControllerProvider.notifier).refreshSilently();
+      if (!ref.mounted) return true;
       state = AsyncActionState.success(
         scope: 'profile:update',
         message: result.message.isNotEmpty
@@ -62,7 +64,8 @@ class ProfileActionController extends Notifier<AsyncActionState> {
     );
     if (result.ok) {
       ref.invalidate(profileProvider);
-      ref.invalidate(sessionControllerProvider);
+      await ref.read(sessionControllerProvider.notifier).refreshSilently();
+      if (!ref.mounted) return true;
       state = const AsyncActionState.success(
         scope: 'profile:graduation-claim',
         message: 'Mezuniyet yılı kaydedildi.',
@@ -133,7 +136,8 @@ class ProfileActionController extends Notifier<AsyncActionState> {
     final result = await _repository.uploadPhoto(file);
     if (result.ok) {
       ref.invalidate(profileProvider);
-      ref.invalidate(sessionControllerProvider);
+      await ref.read(sessionControllerProvider.notifier).refreshSilently();
+      if (!ref.mounted) return true;
       state = AsyncActionState.success(
         scope: 'profile:photo',
         message: result.message.isNotEmpty
@@ -183,7 +187,10 @@ class ProfileActionController extends Notifier<AsyncActionState> {
       requestType: requestType,
     );
     if (result.ok) {
-      ref.invalidate(sessionControllerProvider);
+      final userId = ref.read(sessionControllerProvider).value?.user?.id ?? 0;
+      await markVerificationRequestSubmitted(ref, userId);
+      await ref.read(sessionControllerProvider.notifier).refreshSilently();
+      if (!ref.mounted) return true;
       state = AsyncActionState.success(
         scope: 'profile:verification',
         message: result.message.isNotEmpty

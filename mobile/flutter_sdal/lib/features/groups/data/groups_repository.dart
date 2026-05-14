@@ -742,6 +742,41 @@ class GroupsRepository {
     );
   }
 
+  Future<ApiResult<dynamic>> updateEvent({
+    required int groupId,
+    required int eventId,
+    required String title,
+    required String description,
+    required String location,
+    required String startsAt,
+    required String endsAt,
+    File? imageFile,
+    bool? showInFeed,
+    bool? publish,
+  }) {
+    final fields = <String, dynamic>{
+      'title': title,
+      'description': description,
+      'location': location,
+      'starts_at': startsAt,
+      'ends_at': endsAt,
+    };
+    if (showInFeed != null) fields['show_in_feed'] = showInFeed ? '1' : '0';
+    if (publish != null) fields['publish'] = publish ? '1' : '0';
+    if (imageFile != null) {
+      return _apiClient.multipart<dynamic>(
+        '/api/new/groups/$groupId/events/$eventId',
+        method: 'PATCH',
+        files: {'image': imageFile},
+        fields: fields,
+      );
+    }
+    return _apiClient.patch<dynamic>(
+      '/api/new/groups/$groupId/events/$eventId',
+      body: fields,
+    );
+  }
+
   Future<ApiResult<dynamic>> deleteEvent({
     required int groupId,
     required int eventId,
@@ -785,6 +820,32 @@ class GroupsRepository {
     }
     return _apiClient.post<dynamic>(
       '/api/new/groups/$groupId/announcements',
+      body: fields,
+    );
+  }
+
+  Future<ApiResult<dynamic>> updateAnnouncement({
+    required int groupId,
+    required int announcementId,
+    required String title,
+    required String body,
+    File? imageFile,
+    bool? showInFeed,
+    bool? publish,
+  }) {
+    final fields = <String, dynamic>{'title': title, 'body': body};
+    if (showInFeed != null) fields['show_in_feed'] = showInFeed ? '1' : '0';
+    if (publish != null) fields['publish'] = publish ? '1' : '0';
+    if (imageFile != null) {
+      return _apiClient.multipart<dynamic>(
+        '/api/new/groups/$groupId/announcements/$announcementId',
+        method: 'PATCH',
+        files: {'image': imageFile},
+        fields: fields,
+      );
+    }
+    return _apiClient.patch<dynamic>(
+      '/api/new/groups/$groupId/announcements/$announcementId',
       body: fields,
     );
   }
