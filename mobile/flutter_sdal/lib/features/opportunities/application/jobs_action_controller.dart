@@ -99,6 +99,35 @@ class JobsActionController extends Notifier<AsyncActionState> {
     return false;
   }
 
+  Future<bool> setJobPublished({
+    required int jobId,
+    required bool publish,
+  }) async {
+    state = AsyncActionState.loading(scope: 'jobs:publish:$jobId');
+    final result = await _repository.setJobPublished(
+      jobId: jobId,
+      publish: publish,
+    );
+    if (result.ok) {
+      ref.invalidate(feedPageProvider);
+      ref.invalidate(feedItemsProvider);
+      state = AsyncActionState.success(
+        scope: 'jobs:publish:$jobId',
+        message: publish
+            ? 'İş ilanı yayına alındı.'
+            : 'İş ilanı taslaklara alındı.',
+      );
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'jobs:publish:$jobId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'İş ilanı durumu güncellenemedi.',
+    );
+    return false;
+  }
+
   Future<bool> apply({
     required int jobId,
     String coverLetter = '',

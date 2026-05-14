@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE group_events ADD COLUMN IF NOT EXISTS image TEXT;
+ALTER TABLE group_announcements ADD COLUMN IF NOT EXISTS image TEXT;
+
+COMMIT;

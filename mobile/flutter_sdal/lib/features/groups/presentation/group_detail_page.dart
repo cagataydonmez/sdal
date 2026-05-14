@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../app/providers.dart';
 import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/l10n/context_l10n.dart';
@@ -15,6 +16,7 @@ import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../explore/data/explore_repository.dart';
 import '../../feed/application/feed_action_controller.dart';
+import '../../community/presentation/entity_action_menu.dart';
 import '../application/groups_action_controller.dart';
 import '../data/groups_repository.dart';
 
@@ -139,7 +141,11 @@ class GroupDetailPage extends ConsumerWidget {
                           : Column(
                               children: [
                                 for (final post in posts) ...[
-                                  _GroupPostTile(post: post, groupId: groupId),
+                                  _GroupPostTile(
+                                    post: post,
+                                    groupId: groupId,
+                                    canManage: detail.canManage,
+                                  ),
                                   const SizedBox(height: 12),
                                 ],
                               ],
@@ -157,8 +163,12 @@ class GroupDetailPage extends ConsumerWidget {
                         : null,
                     onDeleteEvent: (eventId) =>
                         _deleteEvent(context, ref, eventId),
+                    onUnpublishEvent: (eventId) =>
+                        _unpublishEvent(context, ref, eventId),
                     onDeleteAnnouncement: (announcementId) =>
                         _deleteAnnouncement(context, ref, announcementId),
+                    onUnpublishAnnouncement: (announcementId) =>
+                        _unpublishAnnouncement(context, ref, announcementId),
                   ),
                   const SizedBox(height: 16),
                   _SectionCard(
@@ -315,6 +325,22 @@ Future<void> _deleteEvent(
   ref.invalidate(groupDetailProvider(groupId));
 }
 
+Future<void> _unpublishEvent(
+  BuildContext context,
+  WidgetRef ref,
+  int eventId,
+) async {
+  final route = GoRouterState.of(context);
+  final groupId = int.tryParse(route.pathParameters['groupId'] ?? '') ?? 0;
+  if (groupId <= 0) return;
+  final ok = await ref
+      .read(groupsActionControllerProvider.notifier)
+      .setEventPublished(groupId: groupId, eventId: eventId, publish: false);
+  if (!ok) return;
+  ref.invalidate(groupDetailProvider(groupId));
+  ref.invalidate(groupPostsProvider(groupId));
+}
+
 Future<void> _deleteAnnouncement(
   BuildContext context,
   WidgetRef ref,
@@ -328,6 +354,26 @@ Future<void> _deleteAnnouncement(
       .deleteAnnouncement(groupId: groupId, announcementId: announcementId);
   if (!ok) return;
   ref.invalidate(groupDetailProvider(groupId));
+}
+
+Future<void> _unpublishAnnouncement(
+  BuildContext context,
+  WidgetRef ref,
+  int announcementId,
+) async {
+  final route = GoRouterState.of(context);
+  final groupId = int.tryParse(route.pathParameters['groupId'] ?? '') ?? 0;
+  if (groupId <= 0) return;
+  final ok = await ref
+      .read(groupsActionControllerProvider.notifier)
+      .setAnnouncementPublished(
+        groupId: groupId,
+        announcementId: announcementId,
+        publish: false,
+      );
+  if (!ok) return;
+  ref.invalidate(groupDetailProvider(groupId));
+  ref.invalidate(groupPostsProvider(groupId));
 }
 
 Future<void> _openSettingsSheet(
@@ -909,7 +955,9 @@ class _TimelineSection extends StatelessWidget {
   const _TimelineSection({
     required this.detail,
     required this.onDeleteEvent,
+    required this.onUnpublishEvent,
     required this.onDeleteAnnouncement,
+    required this.onUnpublishAnnouncement,
     this.onAddEvent,
     this.onAddAnnouncement,
   });
@@ -918,7 +966,9 @@ class _TimelineSection extends StatelessWidget {
   final VoidCallback? onAddEvent;
   final VoidCallback? onAddAnnouncement;
   final ValueChanged<int> onDeleteEvent;
+  final ValueChanged<int> onUnpublishEvent;
   final ValueChanged<int> onDeleteAnnouncement;
+  final ValueChanged<int> onUnpublishAnnouncement;
 
   @override
   Widget build(BuildContext context) {
@@ -953,6 +1003,7 @@ class _TimelineSection extends StatelessWidget {
               _GroupEventTile(
                 event: event,
                 canDelete: detail.canManage,
+                onUnpublish: () => onUnpublishEvent(event.id),
                 onDelete: () => onDeleteEvent(event.id),
               ),
               const SizedBox(height: 12),
@@ -984,6 +1035,7 @@ class _TimelineSection extends StatelessWidget {
               _GroupAnnouncementTile(
                 item: item,
                 canDelete: detail.canManage,
+                onUnpublish: () => onUnpublishAnnouncement(item.id),
                 onDelete: () => onDeleteAnnouncement(item.id),
               ),
               const SizedBox(height: 12),
@@ -1334,10 +1386,15 @@ class _InviteMembersSheetState extends ConsumerState<_InviteMembersSheet> {
 }
 
 class _GroupPostTile extends ConsumerStatefulWidget {
-  const _GroupPostTile({required this.post, required this.groupId});
+  const _GroupPostTile({
+    required this.post,
+    required this.groupId,
+    required this.canManage,
+  });
 
   final GroupPost post;
   final int groupId;
+  final bool canManage;
 
   @override
   ConsumerState<_GroupPostTile> createState() => _GroupPostTileState();
@@ -1382,6 +1439,9 @@ class _GroupPostTileState extends ConsumerState<_GroupPostTile> {
     if (post.isEntityPost) {
       final isEvent =
           post.postType == 'group_event' || post.postType == 'event';
+      final kind = isEvent
+          ? EntityActionKind.groupEvent
+          : EntityActionKind.groupAnnouncement;
       final lines = post.content
           .split('\n')
           .where((l) => l.isNotEmpty)
@@ -1436,11 +1496,54 @@ class _GroupPostTileState extends ConsumerState<_GroupPostTile> {
                     ],
                   ),
                 ),
-                Icon(
-                  Icons.chevron_right,
-                  size: 18,
-                  color: isEvent ? tokens.warning : tokens.success,
-                ),
+                if (widget.canManage && post.entityId != null) ...[
+                  EntityActionMenu(
+                    kind: kind,
+                    onUnpublish: () async {
+                      final ok = isEvent
+                          ? await ref
+                                .read(groupsActionControllerProvider.notifier)
+                                .setEventPublished(
+                                  groupId: widget.groupId,
+                                  eventId: post.entityId!,
+                                  publish: false,
+                                )
+                          : await ref
+                                .read(groupsActionControllerProvider.notifier)
+                                .setAnnouncementPublished(
+                                  groupId: widget.groupId,
+                                  announcementId: post.entityId!,
+                                  publish: false,
+                                );
+                      if (ok) {
+                        ref.invalidate(groupPostsProvider(widget.groupId));
+                      }
+                    },
+                    onDelete: () async {
+                      final ok = isEvent
+                          ? await ref
+                                .read(groupsActionControllerProvider.notifier)
+                                .deleteEvent(
+                                  groupId: widget.groupId,
+                                  eventId: post.entityId!,
+                                )
+                          : await ref
+                                .read(groupsActionControllerProvider.notifier)
+                                .deleteAnnouncement(
+                                  groupId: widget.groupId,
+                                  announcementId: post.entityId!,
+                                );
+                      if (ok) {
+                        ref.invalidate(groupPostsProvider(widget.groupId));
+                      }
+                    },
+                  ),
+                ] else
+                  Icon(
+                    Icons.chevron_right,
+                    size: 18,
+                    color: isEvent ? tokens.warning : tokens.success,
+                  ),
               ],
             ),
           ),
@@ -1575,11 +1678,13 @@ class _GroupEventTile extends StatelessWidget {
   const _GroupEventTile({
     required this.event,
     required this.canDelete,
+    required this.onUnpublish,
     required this.onDelete,
   });
 
   final GroupEventItem event;
   final bool canDelete;
+  final VoidCallback onUnpublish;
   final VoidCallback onDelete;
 
   @override
@@ -1606,9 +1711,10 @@ class _GroupEventTile extends StatelessWidget {
                   ),
                 ),
                 if (canDelete)
-                  IconButton(
-                    onPressed: onDelete,
-                    icon: const Icon(Icons.delete_outline),
+                  EntityActionMenu(
+                    kind: EntityActionKind.groupEvent,
+                    onUnpublish: () async => onUnpublish(),
+                    onDelete: () async => onDelete(),
                   ),
               ],
             ),
@@ -1642,11 +1748,13 @@ class _GroupAnnouncementTile extends StatelessWidget {
   const _GroupAnnouncementTile({
     required this.item,
     required this.canDelete,
+    required this.onUnpublish,
     required this.onDelete,
   });
 
   final GroupAnnouncementItem item;
   final bool canDelete;
+  final VoidCallback onUnpublish;
   final VoidCallback onDelete;
 
   @override
@@ -1672,9 +1780,10 @@ class _GroupAnnouncementTile extends StatelessWidget {
                   ),
                 ),
                 if (canDelete)
-                  IconButton(
-                    onPressed: onDelete,
-                    icon: const Icon(Icons.delete_outline),
+                  EntityActionMenu(
+                    kind: EntityActionKind.groupAnnouncement,
+                    onUnpublish: () async => onUnpublish(),
+                    onDelete: () async => onDelete(),
                   ),
               ],
             ),
@@ -1921,6 +2030,8 @@ class _EventSheetState extends ConsumerState<_EventSheet> {
   final _locationController = TextEditingController();
   final _startsAtController = TextEditingController();
   final _endsAtController = TextEditingController();
+  File? _imageFile;
+  bool _publishNow = true;
   bool _showInFeed = true;
 
   @override
@@ -1972,15 +2083,25 @@ class _EventSheetState extends ConsumerState<_EventSheet> {
             const SizedBox(height: 12),
             TextField(
               controller: _startsAtController,
+              readOnly: true,
+              onTap: state.isLoading
+                  ? null
+                  : () => _pickDateTime(_startsAtController),
               decoration: InputDecoration(
                 labelText: l10n.groupEventStartsAtLabel,
+                suffixIcon: const Icon(Icons.calendar_today_outlined),
               ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _endsAtController,
+              readOnly: true,
+              onTap: state.isLoading
+                  ? null
+                  : () => _pickDateTime(_endsAtController),
               decoration: InputDecoration(
                 labelText: l10n.groupEventEndsAtLabel,
+                suffixIcon: const Icon(Icons.calendar_today_outlined),
               ),
             ),
             const SizedBox(height: 8),
@@ -1988,12 +2109,45 @@ class _EventSheetState extends ConsumerState<_EventSheet> {
               l10n.groupEventScheduleHint,
               style: Theme.of(context).textTheme.bodySmall,
             ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: state.isLoading ? null : _pickImage,
+              icon: const Icon(Icons.photo_library_outlined),
+              label: Text(
+                _imageFile == null ? 'Görsel ekle' : 'Görsel değiştir',
+              ),
+            ),
+            if (_imageFile != null) ...[
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.file(
+                  _imageFile!,
+                  height: 180,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ],
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Hemen yayınla'),
+              subtitle: Text(
+                _publishNow
+                    ? 'Etkinlik yayın akışına hazırlanacak'
+                    : 'Etkinlik taslaklara kaydedilecek',
+              ),
+              value: _publishNow,
+              onChanged: state.isLoading
+                  ? null
+                  : (v) => setState(() => _publishNow = v),
+            ),
             SwitchListTile.adaptive(
               contentPadding: EdgeInsets.zero,
               title: const Text('Topluluk akışında göster'),
               subtitle: const Text('Etkinlik ana akışta herkese görünsün'),
               value: _showInFeed,
-              onChanged: state.isLoading
+              onChanged: state.isLoading || !_publishNow
                   ? null
                   : (v) => setState(() => _showInFeed = v),
             ),
@@ -2013,7 +2167,9 @@ class _EventSheetState extends ConsumerState<_EventSheet> {
                               location: _locationController.text.trim(),
                               startsAt: _startsAtController.text.trim(),
                               endsAt: _endsAtController.text.trim(),
+                              imageFile: _imageFile,
                               showInFeed: _showInFeed,
+                              publish: _publishNow,
                             );
                         if (!context.mounted || !ok) return;
                         ref.invalidate(groupDetailProvider(widget.groupId));
@@ -2032,6 +2188,41 @@ class _EventSheetState extends ConsumerState<_EventSheet> {
       ),
     );
   }
+
+  Future<void> _pickImage() async {
+    final picked = await pickAndCropImage(
+      context,
+      source: ImageSource.gallery,
+      aspectPreset: CropAspectPreset.wide169,
+      title: 'Etkinlik görselini hazırla',
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _imageFile = picked);
+  }
+
+  Future<void> _pickDateTime(TextEditingController controller) async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: now.subtract(const Duration(days: 1)),
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(now),
+    );
+    if (time == null || !mounted) return;
+    final value = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
+    setState(() => controller.text = value.toIso8601String());
+  }
 }
 
 class _AnnouncementSheet extends ConsumerStatefulWidget {
@@ -2046,6 +2237,8 @@ class _AnnouncementSheet extends ConsumerStatefulWidget {
 class _AnnouncementSheetState extends ConsumerState<_AnnouncementSheet> {
   final _titleController = TextEditingController();
   final _bodyController = TextEditingController();
+  File? _imageFile;
+  bool _publishNow = true;
   bool _showInFeed = true;
 
   @override
@@ -2087,12 +2280,43 @@ class _AnnouncementSheetState extends ConsumerState<_AnnouncementSheet> {
               labelText: l10n.groupAnnouncementBodyLabel,
             ),
           ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: state.isLoading ? null : _pickImage,
+            icon: const Icon(Icons.photo_library_outlined),
+            label: Text(_imageFile == null ? 'Görsel ekle' : 'Görsel değiştir'),
+          ),
+          if (_imageFile != null) ...[
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.file(
+                _imageFile!,
+                height: 180,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ],
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Hemen yayınla'),
+            subtitle: Text(
+              _publishNow
+                  ? 'Duyuru yayın akışına hazırlanacak'
+                  : 'Duyuru taslaklara kaydedilecek',
+            ),
+            value: _publishNow,
+            onChanged: state.isLoading
+                ? null
+                : (v) => setState(() => _publishNow = v),
+          ),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
             title: const Text('Topluluk akışında göster'),
             subtitle: const Text('Duyuru ana akışta herkese görünsün'),
             value: _showInFeed,
-            onChanged: state.isLoading
+            onChanged: state.isLoading || !_publishNow
                 ? null
                 : (v) => setState(() => _showInFeed = v),
           ),
@@ -2109,7 +2333,9 @@ class _AnnouncementSheetState extends ConsumerState<_AnnouncementSheet> {
                             groupId: widget.groupId,
                             title: _titleController.text.trim(),
                             body: _bodyController.text.trim(),
+                            imageFile: _imageFile,
                             showInFeed: _showInFeed,
+                            publish: _publishNow,
                           );
                       if (!context.mounted || !ok) return;
                       ref.invalidate(groupDetailProvider(widget.groupId));
@@ -2126,5 +2352,16 @@ class _AnnouncementSheetState extends ConsumerState<_AnnouncementSheet> {
         ],
       ),
     );
+  }
+
+  Future<void> _pickImage() async {
+    final picked = await pickAndCropImage(
+      context,
+      source: ImageSource.gallery,
+      aspectPreset: CropAspectPreset.wide169,
+      title: 'Duyuru görselini hazırla',
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _imageFile = picked);
   }
 }

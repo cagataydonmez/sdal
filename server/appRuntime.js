@@ -5572,8 +5572,8 @@ function ensureContentPublicationSchema() {
         'allow_likes INTEGER DEFAULT 1'
       ],
       jobs: ['work_mode TEXT', 'image TEXT'],
-      group_events: [],
-      group_announcements: [],
+      group_events: ['image TEXT'],
+      group_announcements: ['image TEXT'],
       posts: []
     };
     const commonColumns = [

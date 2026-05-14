@@ -231,7 +231,7 @@ export class LegacyFeedRepository extends FeedRepository {
       const [events, announcements] = await Promise.all([
         query(
           `SELECT e.id, e.title, e.description, e.location, e.starts_at, e.created_at, e.updated_at, e.created_by AS user_id,
-                  NULL AS image, u.kadi, u.isim, u.soyisim, u.resim, u.verified,
+                  e.image, u.kadi, u.isim, u.soyisim, u.resim, u.verified,
                   COALESCE(er.like_count, 0) AS like_count,
                   COALESCE(ec.comment_count, 0) AS comment_count,
                   CASE WHEN vl.entity_id IS NULL THEN 0 ELSE 1 END AS liked_by_viewer
@@ -246,7 +246,7 @@ export class LegacyFeedRepository extends FeedRepository {
         ),
         query(
           `SELECT a.id, a.title, a.body, a.created_at, a.updated_at, a.created_by AS user_id,
-                  NULL AS image, u.kadi, u.isim, u.soyisim, u.resim, u.verified,
+                  a.image, u.kadi, u.isim, u.soyisim, u.resim, u.verified,
                   COALESCE(er.like_count, 0) AS like_count,
                   COALESCE(ec.comment_count, 0) AS comment_count,
                   CASE WHEN vl.entity_id IS NULL THEN 0 ELSE 1 END AS liked_by_viewer

@@ -130,6 +130,13 @@ abstract class FeedItem with _$FeedItem {
     return url.isNotEmpty ? url : image;
   }
 
+  bool get isEntityPost =>
+      postType == 'event' ||
+      postType == 'announcement' ||
+      postType == 'job' ||
+      postType == 'group_event' ||
+      postType == 'group_announcement';
+
   factory FeedItem.fromJson(Map<String, dynamic> json) => _$FeedItemFromJson(
     normalizeJsonAliases(json, {
       'createdAt': ['created_at'],

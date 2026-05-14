@@ -159,6 +159,7 @@ class GroupEventItem {
     required this.location,
     required this.startsAt,
     required this.endsAt,
+    required this.image,
     required this.createdAt,
     required this.creatorHandle,
   });
@@ -169,6 +170,7 @@ class GroupEventItem {
   final String location;
   final String startsAt;
   final String endsAt;
+  final String image;
   final String createdAt;
   final String creatorHandle;
 
@@ -180,6 +182,7 @@ class GroupEventItem {
       location: coalesceText([map['location']], fallback: ''),
       startsAt: coalesceText([map['starts_at']], fallback: ''),
       endsAt: coalesceText([map['ends_at']], fallback: ''),
+      image: coalesceText([map['image']], fallback: ''),
       createdAt: coalesceText([map['created_at']], fallback: ''),
       creatorHandle: coalesceText([map['creator_kadi']], fallback: ''),
     );
@@ -191,6 +194,7 @@ class GroupAnnouncementItem {
     required this.id,
     required this.title,
     required this.body,
+    required this.image,
     required this.createdAt,
     required this.creatorHandle,
   });
@@ -198,6 +202,7 @@ class GroupAnnouncementItem {
   final int id;
   final String title;
   final String body;
+  final String image;
   final String createdAt;
   final String creatorHandle;
 
@@ -206,6 +211,7 @@ class GroupAnnouncementItem {
       id: asInt(map['id']) ?? 0,
       title: coalesceText([map['title']], fallback: 'Duyuru'),
       body: coalesceText([map['body']], fallback: ''),
+      image: coalesceText([map['image']], fallback: ''),
       createdAt: coalesceText([map['created_at']], fallback: ''),
       creatorHandle: coalesceText([map['creator_kadi']], fallback: ''),
     );
@@ -710,18 +716,29 @@ class GroupsRepository {
     required String location,
     required String startsAt,
     required String endsAt,
+    File? imageFile,
     bool showInFeed = true,
+    bool publish = true,
   }) {
+    final fields = {
+      'title': title,
+      'description': description,
+      'location': location,
+      'starts_at': startsAt,
+      'ends_at': endsAt,
+      'show_in_feed': showInFeed ? '1' : '0',
+      'publish': publish ? '1' : '0',
+    };
+    if (imageFile != null) {
+      return _apiClient.multipart<dynamic>(
+        '/api/new/groups/$groupId/events/upload',
+        files: {'image': imageFile},
+        fields: fields,
+      );
+    }
     return _apiClient.post<dynamic>(
       '/api/new/groups/$groupId/events',
-      body: {
-        'title': title,
-        'description': description,
-        'location': location,
-        'starts_at': startsAt,
-        'ends_at': endsAt,
-        'show_in_feed': showInFeed ? '1' : '0',
-      },
+      body: fields,
     );
   }
 
@@ -734,19 +751,41 @@ class GroupsRepository {
     );
   }
 
+  Future<ApiResult<dynamic>> setEventPublished({
+    required int groupId,
+    required int eventId,
+    required bool publish,
+  }) {
+    return _apiClient.patch<dynamic>(
+      '/api/new/groups/$groupId/events/$eventId',
+      body: {'publish': publish ? '1' : '0'},
+    );
+  }
+
   Future<ApiResult<dynamic>> createAnnouncement({
     required int groupId,
     required String title,
     required String body,
+    File? imageFile,
     bool showInFeed = true,
+    bool publish = true,
   }) {
+    final fields = {
+      'title': title,
+      'body': body,
+      'show_in_feed': showInFeed ? '1' : '0',
+      'publish': publish ? '1' : '0',
+    };
+    if (imageFile != null) {
+      return _apiClient.multipart<dynamic>(
+        '/api/new/groups/$groupId/announcements/upload',
+        files: {'image': imageFile},
+        fields: fields,
+      );
+    }
     return _apiClient.post<dynamic>(
       '/api/new/groups/$groupId/announcements',
-      body: {
-        'title': title,
-        'body': body,
-        'show_in_feed': showInFeed ? '1' : '0',
-      },
+      body: fields,
     );
   }
 
@@ -756,6 +795,17 @@ class GroupsRepository {
   }) {
     return _apiClient.delete<dynamic>(
       '/api/new/groups/$groupId/announcements/$announcementId',
+    );
+  }
+
+  Future<ApiResult<dynamic>> setAnnouncementPublished({
+    required int groupId,
+    required int announcementId,
+    required bool publish,
+  }) {
+    return _apiClient.patch<dynamic>(
+      '/api/new/groups/$groupId/announcements/$announcementId',
+      body: {'publish': publish ? '1' : '0'},
     );
   }
 

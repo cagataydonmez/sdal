@@ -398,6 +398,16 @@ class CommunityRepository {
     );
   }
 
+  Future<ApiResult<dynamic>> setAnnouncementPublished({
+    required int announcementId,
+    required bool publish,
+  }) {
+    return _apiClient.patch<dynamic>(
+      '/api/new/announcements/$announcementId',
+      body: {'publish': publish ? '1' : '0'},
+    );
+  }
+
   Future<ApiResult<dynamic>> deleteAnnouncement(int announcementId) {
     return _apiClient.delete<dynamic>('/api/new/announcements/$announcementId');
   }
@@ -464,6 +474,16 @@ class CommunityRepository {
     return _apiClient.post<dynamic>(
       '/api/new/events/$eventId/approve',
       body: {'approved': approved ? '1' : '0'},
+    );
+  }
+
+  Future<ApiResult<dynamic>> setEventPublished({
+    required int eventId,
+    required bool publish,
+  }) {
+    return _apiClient.patch<dynamic>(
+      '/api/new/events/$eventId',
+      body: {'publish': publish ? '1' : '0'},
     );
   }
 

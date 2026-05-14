@@ -72,6 +72,37 @@ class CommunityActionController extends Notifier<AsyncActionState> {
     return false;
   }
 
+  Future<bool> setAnnouncementPublished({
+    required int announcementId,
+    required bool publish,
+  }) async {
+    state = AsyncActionState.loading(
+      scope: 'announcements:publish:$announcementId',
+    );
+    final result = await _repository.setAnnouncementPublished(
+      announcementId: announcementId,
+      publish: publish,
+    );
+    if (result.ok) {
+      ref.invalidate(feedPageProvider);
+      ref.invalidate(feedItemsProvider);
+      state = AsyncActionState.success(
+        scope: 'announcements:publish:$announcementId',
+        message: publish
+            ? 'Duyuru yayına alındı.'
+            : 'Duyuru taslaklara alındı.',
+      );
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'announcements:publish:$announcementId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Duyuru durumu güncellenemedi.',
+    );
+    return false;
+  }
+
   Future<bool> deleteAnnouncement(int announcementId) async {
     state = AsyncActionState.loading(
       scope: 'announcements:delete:$announcementId',
@@ -152,6 +183,35 @@ class CommunityActionController extends Notifier<AsyncActionState> {
     }
     state = AsyncActionState.error(
       scope: 'events:approve:$eventId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Etkinlik durumu güncellenemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> setEventPublished({
+    required int eventId,
+    required bool publish,
+  }) async {
+    state = AsyncActionState.loading(scope: 'events:publish:$eventId');
+    final result = await _repository.setEventPublished(
+      eventId: eventId,
+      publish: publish,
+    );
+    if (result.ok) {
+      ref.invalidate(feedPageProvider);
+      ref.invalidate(feedItemsProvider);
+      state = AsyncActionState.success(
+        scope: 'events:publish:$eventId',
+        message: publish
+            ? 'Etkinlik yayına alındı.'
+            : 'Etkinlik taslaklara alındı.',
+      );
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'events:publish:$eventId',
       message: result.message.isNotEmpty
           ? result.message
           : 'Etkinlik durumu güncellenemedi.',

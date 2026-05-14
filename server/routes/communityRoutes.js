@@ -203,8 +203,15 @@ export function registerCommunityRoutes(app, {
     }
   });
 
-  app.delete('/api/new/events/:id', requireAdmin, async (req, res) => {
+  app.delete('/api/new/events/:id', requireAuth, async (req, res) => {
     try {
+      const user = getCurrentUser(req);
+      const isAdmin = hasAdminSession(req, user);
+      const event = await sqlGetAsync('SELECT id, created_by FROM events WHERE id = ?', [req.params.id]);
+      if (!event) return res.status(404).send('Etkinlik bulunamadı.');
+      if (!isAdmin && !sameUserId(event.created_by, req.session.userId)) {
+        return res.status(403).send('Bu etkinliği silme yetkin yok.');
+      }
       await sqlRunAsync('DELETE FROM event_comments WHERE event_id = ?', [req.params.id]);
       await sqlRunAsync('DELETE FROM event_responses WHERE event_id = ?', [req.params.id]);
       await sqlRunAsync('DELETE FROM events WHERE id = ?', [req.params.id]);
@@ -588,8 +595,15 @@ export function registerCommunityRoutes(app, {
     }
   });
 
-  app.delete('/api/new/announcements/:id', requireAdmin, async (req, res) => {
+  app.delete('/api/new/announcements/:id', requireAuth, async (req, res) => {
     try {
+      const user = getCurrentUser(req);
+      const isAdmin = hasAdminSession(req, user);
+      const announcement = await sqlGetAsync('SELECT id, created_by FROM announcements WHERE id = ?', [req.params.id]);
+      if (!announcement) return res.status(404).send('Duyuru bulunamadı.');
+      if (!isAdmin && !sameUserId(announcement.created_by, req.session.userId)) {
+        return res.status(403).send('Bu duyuruyu silme yetkin yok.');
+      }
       await sqlRunAsync('DELETE FROM announcements WHERE id = ?', [req.params.id]);
       invalidateFeedCache?.();
       res.json({ ok: true });

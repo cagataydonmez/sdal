@@ -352,6 +352,16 @@ class OpportunitiesRepository {
     return _apiClient.delete<dynamic>('/api/new/jobs/$jobId');
   }
 
+  Future<ApiResult<dynamic>> setJobPublished({
+    required int jobId,
+    required bool publish,
+  }) {
+    return _apiClient.patch<dynamic>(
+      '/api/new/jobs/$jobId',
+      body: {'publish': publish ? '1' : '0'},
+    );
+  }
+
   Future<ApiResult<dynamic>> applyToJob({
     required int jobId,
     String coverLetter = '',

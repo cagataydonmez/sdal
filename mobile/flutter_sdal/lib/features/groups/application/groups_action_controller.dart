@@ -239,7 +239,9 @@ class GroupsActionController extends Notifier<AsyncActionState> {
     required String location,
     required String startsAt,
     required String endsAt,
+    File? imageFile,
     bool showInFeed = true,
+    bool publish = true,
   }) async {
     state = AsyncActionState.loading(scope: 'groups:event:$groupId');
     final result = await _repository.createEvent(
@@ -249,7 +251,9 @@ class GroupsActionController extends Notifier<AsyncActionState> {
       location: location,
       startsAt: startsAt,
       endsAt: endsAt,
+      imageFile: imageFile,
       showInFeed: showInFeed,
+      publish: publish,
     );
     if (result.ok) {
       state = const AsyncActionState.success(scope: 'groups:event');
@@ -283,18 +287,51 @@ class GroupsActionController extends Notifier<AsyncActionState> {
     return false;
   }
 
+  Future<bool> setEventPublished({
+    required int groupId,
+    required int eventId,
+    required bool publish,
+  }) async {
+    state = AsyncActionState.loading(scope: 'groups:event-publish:$eventId');
+    final result = await _repository.setEventPublished(
+      groupId: groupId,
+      eventId: eventId,
+      publish: publish,
+    );
+    if (result.ok) {
+      state = AsyncActionState.success(
+        scope: 'groups:event-publish:$eventId',
+        message: publish
+            ? 'Etkinlik yayına alındı.'
+            : 'Etkinlik taslaklara alındı.',
+      );
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'groups:event-publish:$eventId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Etkinlik durumu güncellenemedi.',
+    );
+    return false;
+  }
+
   Future<bool> createAnnouncement({
     required int groupId,
     required String title,
     required String body,
+    File? imageFile,
     bool showInFeed = true,
+    bool publish = true,
   }) async {
     state = AsyncActionState.loading(scope: 'groups:announcement:$groupId');
     final result = await _repository.createAnnouncement(
       groupId: groupId,
       title: title,
       body: body,
+      imageFile: imageFile,
       showInFeed: showInFeed,
+      publish: publish,
     );
     if (result.ok) {
       state = const AsyncActionState.success(scope: 'groups:announcement');
@@ -331,6 +368,37 @@ class GroupsActionController extends Notifier<AsyncActionState> {
       message: result.message.isNotEmpty
           ? result.message
           : 'Duyuru silinemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> setAnnouncementPublished({
+    required int groupId,
+    required int announcementId,
+    required bool publish,
+  }) async {
+    state = AsyncActionState.loading(
+      scope: 'groups:announcement-publish:$announcementId',
+    );
+    final result = await _repository.setAnnouncementPublished(
+      groupId: groupId,
+      announcementId: announcementId,
+      publish: publish,
+    );
+    if (result.ok) {
+      state = AsyncActionState.success(
+        scope: 'groups:announcement-publish:$announcementId',
+        message: publish
+            ? 'Duyuru yayına alındı.'
+            : 'Duyuru taslaklara alındı.',
+      );
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'groups:announcement-publish:$announcementId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Duyuru durumu güncellenemedi.',
     );
     return false;
   }

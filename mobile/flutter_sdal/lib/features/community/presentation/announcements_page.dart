@@ -17,6 +17,7 @@ import '../../../core/widgets/surface_card.dart';
 import '../application/community_action_controller.dart';
 import '../../feed/application/feed_action_controller.dart';
 import '../data/community_repository.dart';
+import 'entity_action_menu.dart';
 
 class AnnouncementsPage extends ConsumerStatefulWidget {
   const AnnouncementsPage({super.key});
@@ -249,8 +250,7 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                   child: _AnnouncementAdminMenu(
                     item: item,
                     isOwner: isOwner,
-                    onApprove: (approved) =>
-                        _approveAnnouncement(item.id, approved: approved),
+                    onUnpublish: () => _unpublishAnnouncement(item.id),
                     onEdit: () => _editAnnouncement(item),
                     onDelete: () => _deleteAnnouncement(item.id),
                     dark: true,
@@ -329,8 +329,7 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                 _AnnouncementAdminMenu(
                   item: item,
                   isOwner: isOwner,
-                  onApprove: (approved) =>
-                      _approveAnnouncement(item.id, approved: approved),
+                  onUnpublish: () => _unpublishAnnouncement(item.id),
                   onEdit: () => _editAnnouncement(item),
                   onDelete: () => _deleteAnnouncement(item.id),
                   dark: false,
@@ -368,15 +367,20 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
     );
   }
 
-  Future<void> _approveAnnouncement(
-    int announcementId, {
-    required bool approved,
-  }) async {
+  Future<void> _editAnnouncement(AnnouncementItem item) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) =>
+          _AnnouncementEditDialog(item: item, onSave: () => _load(reset: true)),
+    );
+  }
+
+  Future<void> _unpublishAnnouncement(int announcementId) async {
     final ok = await ref
         .read(communityActionControllerProvider.notifier)
-        .approveAnnouncement(
+        .setAnnouncementPublished(
           announcementId: announcementId,
-          approved: approved,
+          publish: false,
         );
     if (!mounted) return;
     final state = ref.read(communityActionControllerProvider);
@@ -385,22 +389,12 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
         content: Text(
           state.message ??
               (ok
-                  ? (approved
-                        ? 'Duyuru onaylandı.'
-                        : 'Duyuru yayından kaldırıldı.')
-                  : 'İşlem başarısız oldu.'),
+                  ? 'Duyuru taslaklara alındı.'
+                  : 'Duyuru yayından kaldırılamadı.'),
         ),
       ),
     );
     if (ok) _load(reset: true);
-  }
-
-  Future<void> _editAnnouncement(AnnouncementItem item) async {
-    await showDialog<void>(
-      context: context,
-      builder: (context) =>
-          _AnnouncementEditDialog(item: item, onSave: () => _load(reset: true)),
-    );
   }
 
   Future<void> _deleteAnnouncement(int announcementId) async {
@@ -505,7 +499,7 @@ class _AnnouncementAdminMenu extends StatelessWidget {
   const _AnnouncementAdminMenu({
     required this.item,
     required this.isOwner,
-    required this.onApprove,
+    required this.onUnpublish,
     required this.onEdit,
     required this.onDelete,
     required this.dark,
@@ -513,33 +507,19 @@ class _AnnouncementAdminMenu extends StatelessWidget {
 
   final AnnouncementItem item;
   final bool isOwner;
-  final void Function(bool approved) onApprove;
+  final VoidCallback onUnpublish;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final bool dark;
 
   @override
   Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      icon: Icon(Icons.more_vert, color: dark ? Colors.white : null),
-      onSelected: (value) {
-        if (value == 'approve') onApprove(true);
-        if (value == 'reject') onApprove(false);
-        if (value == 'edit') onEdit();
-        if (value == 'delete') onDelete();
-      },
-      itemBuilder: (context) => [
-        if (!item.approved && !isOwner)
-          const PopupMenuItem<String>(value: 'approve', child: Text('Onayla')),
-        if (item.approved && !isOwner)
-          const PopupMenuItem<String>(
-            value: 'reject',
-            child: Text('Yayından kaldır'),
-          ),
-        if (isOwner)
-          const PopupMenuItem<String>(value: 'edit', child: Text('Düzenle')),
-        const PopupMenuItem<String>(value: 'delete', child: Text('Sil')),
-      ],
+    return EntityActionMenu(
+      kind: EntityActionKind.announcement,
+      dark: dark,
+      onEdit: isOwner ? () async => onEdit() : null,
+      onUnpublish: item.approved ? () async => onUnpublish() : null,
+      onDelete: () async => onDelete(),
     );
   }
 }

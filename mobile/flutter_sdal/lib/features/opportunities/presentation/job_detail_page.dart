@@ -13,6 +13,7 @@ import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../../community/presentation/entity_action_menu.dart';
 import '../application/jobs_action_controller.dart';
 import '../data/opportunities_repository.dart';
 
@@ -184,22 +185,15 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent> {
                       icon: const Icon(Icons.people_outline, size: 18),
                       label: const Text('Başvuranlar'),
                     ),
-                    PopupMenuButton<String>(
-                      onSelected: _handleMenuAction,
+                    EntityActionMenu(
+                      kind: EntityActionKind.job,
+                      onEdit: _showEditDialog,
+                      onUnpublish: _unpublishJob,
+                      onDelete: _deleteJob,
                       child: const Chip(
                         label: Text('Diğer'),
                         avatar: Icon(Icons.more_horiz, size: 16),
                       ),
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                          value: 'edit',
-                          child: Text('Düzenle'),
-                        ),
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Text('Yayından kaldır'),
-                        ),
-                      ],
                     ),
                   ],
                 ),
@@ -298,15 +292,7 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent> {
     );
   }
 
-  Future<void> _handleMenuAction(String action) async {
-    if (action == 'edit') {
-      _showEditDialog();
-    } else if (action == 'delete') {
-      _showDeleteConfirmation();
-    }
-  }
-
-  void _showEditDialog() async {
+  Future<void> _showEditDialog() async {
     final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (ctx) => _JobEditDialog(job: widget.job),
@@ -333,33 +319,21 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent> {
     }
   }
 
-  void _showDeleteConfirmation() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('İlanı yayından kaldır'),
-        content: const Text(
-          'Bu ilan kalıcı olarak silinecek. Devam edilsin mi?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('İptal'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Kaldır'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true && mounted) {
-      final success = await widget.ref
-          .read(jobsActionControllerProvider.notifier)
-          .deleteJob(widget.jobId);
-      if (success && mounted) {
-        Navigator.pop(context, true);
-      }
+  Future<void> _unpublishJob() async {
+    final success = await widget.ref
+        .read(jobsActionControllerProvider.notifier)
+        .setJobPublished(jobId: widget.jobId, publish: false);
+    if (success && mounted) {
+      Navigator.pop(context, true);
+    }
+  }
+
+  Future<void> _deleteJob() async {
+    final success = await widget.ref
+        .read(jobsActionControllerProvider.notifier)
+        .deleteJob(widget.jobId);
+    if (success && mounted) {
+      Navigator.pop(context, true);
     }
   }
 

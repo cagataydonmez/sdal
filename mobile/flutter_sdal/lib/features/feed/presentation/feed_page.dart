@@ -19,6 +19,9 @@ import '../../../core/widgets/skeleton_view.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../stories/data/stories_repository.dart';
 import '../../stories/presentation/stories_rail.dart';
+import '../../community/data/community_repository.dart';
+import '../../groups/data/groups_repository.dart';
+import '../../opportunities/data/opportunities_repository.dart';
 import '../application/feed_action_controller.dart';
 import '../data/feed_repository.dart';
 import 'feed_edit_text_dialog.dart';
@@ -270,7 +273,33 @@ class _FeedPageState extends ConsumerState<FeedPage> {
                           if (session?.user?.id != null &&
                               session!.user!.id == item.authorId)
                             _FeedPostMenuButton(
+                              editLabel: _entityEditLabel(item),
+                              unpublishLabel: item.isEntityPost
+                                  ? _entityUnpublishLabel(item)
+                                  : null,
+                              unpublishTitle: item.isEntityPost
+                                  ? _entityUnpublishTitle(item)
+                                  : null,
+                              unpublishMessage: item.isEntityPost
+                                  ? _entityUnpublishMessage(item)
+                                  : null,
+                              deleteLabel: item.isEntityPost
+                                  ? _entityDeleteLabel(item)
+                                  : null,
+                              deleteTitle: item.isEntityPost
+                                  ? _entityDeleteTitle(item)
+                                  : null,
+                              deleteMessage: item.isEntityPost
+                                  ? _entityDeleteMessage(item)
+                                  : null,
                               onEdit: () async {
+                                if (item.isEntityPost) {
+                                  await context.push(_routeForItem(item));
+                                  if (context.mounted) {
+                                    await _refreshCurrentFeed();
+                                  }
+                                  return;
+                                }
                                 final result =
                                     await showModalBottomSheet<
                                       FeedEditPostResult
@@ -337,7 +366,50 @@ class _FeedPageState extends ConsumerState<FeedPage> {
                                   );
                                 }
                               },
+                              onUnpublish: _canUnpublishEntityPost(item)
+                                  ? () async {
+                                      final ok = await _unpublishEntityPost(
+                                        item,
+                                      );
+                                      if (!context.mounted) return;
+                                      if (ok) {
+                                        setState(() {
+                                          _items.removeWhere(
+                                            (i) => i.id == item.id,
+                                          );
+                                        });
+                                        return;
+                                      }
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Yayından kaldırılamadı.',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  : null,
                               onDelete: () async {
+                                if (item.isEntityPost) {
+                                  final ok = await _deleteEntityPost(item);
+                                  if (!context.mounted) return;
+                                  if (ok) {
+                                    setState(() {
+                                      _items.removeWhere(
+                                        (i) => i.id == item.id,
+                                      );
+                                    });
+                                    return;
+                                  }
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Silinemedi.'),
+                                    ),
+                                  );
+                                  return;
+                                }
                                 final ok = await ref
                                     .read(feedActionControllerProvider.notifier)
                                     .deletePost(item.id);
@@ -447,6 +519,154 @@ class _FeedPageState extends ConsumerState<FeedPage> {
   String _routeForItem(FeedItem item) =>
       _entityRoutes[item.id] ?? '/posts/${item.id}';
 
+  String _entityEditLabel(FeedItem item) {
+    return switch (item.postType) {
+      'event' || 'group_event' => 'Etkinliği düzenle',
+      'announcement' || 'group_announcement' => 'Duyuruyu düzenle',
+      'job' => 'İş ilanını düzenle',
+      _ => context.l10n.feedPostEditTitle,
+    };
+  }
+
+  String _entityUnpublishLabel(FeedItem item) {
+    return switch (item.postType) {
+      'event' || 'group_event' => 'Etkinliği yayından kaldır',
+      'announcement' || 'group_announcement' => 'Duyuruyu yayından kaldır',
+      'job' => 'İş ilanını yayından kaldır',
+      _ => context.l10n.feedPostDeleteTitle,
+    };
+  }
+
+  String _entityUnpublishTitle(FeedItem item) {
+    return switch (item.postType) {
+      'event' || 'group_event' => 'Etkinlik yayından kaldırılsın mı?',
+      'announcement' ||
+      'group_announcement' => 'Duyuru yayından kaldırılsın mı?',
+      'job' => 'İş ilanı yayından kaldırılsın mı?',
+      _ => context.l10n.feedPostDeleteTitle,
+    };
+  }
+
+  String _entityUnpublishMessage(FeedItem item) {
+    return switch (item.postType) {
+      'event' ||
+      'group_event' => 'Bu etkinlik akıştan kaldırılır ve taslaklara döner.',
+      'announcement' || 'group_announcement' =>
+        'Bu duyuru akıştan kaldırılır ve taslaklara döner.',
+      'job' => 'Bu iş ilanı akıştan kaldırılır ve taslaklara döner.',
+      _ => context.l10n.feedPostDeleteMessage,
+    };
+  }
+
+  String _entityDeleteLabel(FeedItem item) {
+    return switch (item.postType) {
+      'event' || 'group_event' => 'Etkinliği sil',
+      'announcement' || 'group_announcement' => 'Duyuruyu sil',
+      'job' => 'İş ilanını sil',
+      _ => context.l10n.feedPostDeleteTitle,
+    };
+  }
+
+  String _entityDeleteTitle(FeedItem item) {
+    return switch (item.postType) {
+      'event' || 'group_event' => 'Etkinlik silinsin mi?',
+      'announcement' || 'group_announcement' => 'Duyuru silinsin mi?',
+      'job' => 'İş ilanı silinsin mi?',
+      _ => context.l10n.feedPostDeleteTitle,
+    };
+  }
+
+  String _entityDeleteMessage(FeedItem item) {
+    return switch (item.postType) {
+      'event' || 'group_event' => 'Bu etkinlik kalıcı olarak silinir.',
+      'announcement' ||
+      'group_announcement' => 'Bu duyuru kalıcı olarak silinir.',
+      'job' => 'Bu iş ilanı kalıcı olarak silinir.',
+      _ => context.l10n.feedPostDeleteMessage,
+    };
+  }
+
+  bool _canUnpublishEntityPost(FeedItem item) {
+    return switch (item.postType) {
+      'event' || 'announcement' || 'job' => true,
+      'group_event' || 'group_announcement' => item.groupId != null,
+      _ => false,
+    };
+  }
+
+  Future<bool> _unpublishEntityPost(FeedItem item) async {
+    final entityId = item.entityId;
+    if (entityId == null || entityId <= 0) return false;
+    final result = switch (item.postType) {
+      'event' =>
+        await ref
+            .read(communityRepositoryProvider)
+            .setEventPublished(eventId: entityId, publish: false),
+      'announcement' =>
+        await ref
+            .read(communityRepositoryProvider)
+            .setAnnouncementPublished(announcementId: entityId, publish: false),
+      'job' =>
+        await ref
+            .read(opportunitiesRepositoryProvider)
+            .setJobPublished(jobId: entityId, publish: false),
+      'group_event' when item.groupId != null =>
+        await ref
+            .read(groupsRepositoryProvider)
+            .setEventPublished(
+              groupId: item.groupId!,
+              eventId: entityId,
+              publish: false,
+            ),
+      'group_announcement' when item.groupId != null =>
+        await ref
+            .read(groupsRepositoryProvider)
+            .setAnnouncementPublished(
+              groupId: item.groupId!,
+              announcementId: entityId,
+              publish: false,
+            ),
+      _ => null,
+    };
+    return result?.ok ?? false;
+  }
+
+  Future<bool> _deleteEntityPost(FeedItem item) async {
+    final entityId = item.entityId;
+    if (entityId == null || entityId <= 0) return false;
+    final result = switch (item.postType) {
+      'event' =>
+        await ref.read(communityRepositoryProvider).deleteEvent(entityId),
+      'announcement' =>
+        await ref
+            .read(communityRepositoryProvider)
+            .deleteAnnouncement(entityId),
+      'job' =>
+        await ref.read(opportunitiesRepositoryProvider).deleteJob(entityId),
+      'group_event' when item.groupId != null =>
+        await ref
+            .read(groupsRepositoryProvider)
+            .deleteEvent(groupId: item.groupId!, eventId: entityId),
+      'group_announcement' when item.groupId != null =>
+        await ref
+            .read(groupsRepositoryProvider)
+            .deleteAnnouncement(
+              groupId: item.groupId!,
+              announcementId: entityId,
+            ),
+      _ => null,
+    };
+    return result?.ok ?? false;
+  }
+
+  Future<void> _refreshCurrentFeed() async {
+    final query = ref.read(feedQueryProvider);
+    ref.invalidate(feedPageProvider);
+    ref.invalidate(feedItemsProvider);
+    ref.invalidate(feedStoriesProvider(query.feedType.apiValue));
+    await ref.read(feedPageProvider.future);
+  }
+
   Future<void> _loadMore(FeedQuery query) async {
     if (_isLoadingMore || !_hasMore) return;
     setState(() => _isLoadingMore = true);
@@ -519,10 +739,29 @@ class _FeedPostSkeleton extends StatelessWidget {
 }
 
 class _FeedPostMenuButton extends StatelessWidget {
-  const _FeedPostMenuButton({required this.onEdit, required this.onDelete});
+  const _FeedPostMenuButton({
+    required this.onEdit,
+    required this.onDelete,
+    this.editLabel,
+    this.onUnpublish,
+    this.unpublishLabel,
+    this.unpublishTitle,
+    this.unpublishMessage,
+    this.deleteLabel,
+    this.deleteTitle,
+    this.deleteMessage,
+  });
 
   final Future<void> Function() onEdit;
   final Future<void> Function() onDelete;
+  final Future<void> Function()? onUnpublish;
+  final String? editLabel;
+  final String? unpublishLabel;
+  final String? unpublishTitle;
+  final String? unpublishMessage;
+  final String? deleteLabel;
+  final String? deleteTitle;
+  final String? deleteMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -534,23 +773,22 @@ class _FeedPostMenuButton extends StatelessWidget {
           await onEdit();
           return;
         }
+        if (value == 'unpublish') {
+          final confirmed = await _confirm(
+            context,
+            title: unpublishTitle ?? l10n.feedPostDeleteTitle,
+            message: unpublishMessage ?? l10n.feedPostDeleteMessage,
+            actionLabel: 'Yayından kaldır',
+          );
+          if (confirmed == true) await onUnpublish?.call();
+          return;
+        }
         if (value != 'delete') return;
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text(l10n.feedPostDeleteTitle),
-            content: Text(l10n.feedPostDeleteMessage),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: Text(l10n.cancelAction),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: Text(l10n.deleteAction),
-              ),
-            ],
-          ),
+        final confirmed = await _confirm(
+          context,
+          title: deleteTitle ?? l10n.feedPostDeleteTitle,
+          message: deleteMessage ?? l10n.feedPostDeleteMessage,
+          actionLabel: l10n.deleteAction,
         );
         if (confirmed == true) {
           await onDelete();
@@ -559,13 +797,44 @@ class _FeedPostMenuButton extends StatelessWidget {
       itemBuilder: (context) => [
         PopupMenuItem<String>(
           value: 'edit',
-          child: Text(l10n.feedPostEditTitle),
+          child: Text(editLabel ?? l10n.feedPostEditTitle),
         ),
+        if (onUnpublish != null)
+          PopupMenuItem<String>(
+            value: 'unpublish',
+            child: Text(unpublishLabel ?? 'Yayından kaldır'),
+          ),
         PopupMenuItem<String>(
           value: 'delete',
-          child: Text(l10n.feedPostDeleteTitle),
+          child: Text(deleteLabel ?? l10n.feedPostDeleteTitle),
         ),
       ],
+    );
+  }
+
+  Future<bool?> _confirm(
+    BuildContext context, {
+    required String title,
+    required String message,
+    required String actionLabel,
+  }) {
+    final l10n = context.l10n;
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.cancelAction),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(actionLabel),
+          ),
+        ],
+      ),
     );
   }
 }

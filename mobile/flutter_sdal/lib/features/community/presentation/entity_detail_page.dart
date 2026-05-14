@@ -14,10 +14,12 @@ import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../../groups/application/groups_action_controller.dart';
 import '../../groups/data/groups_repository.dart';
 import '../application/community_action_controller.dart';
 import '../data/community_repository.dart';
 import '../../feed/application/feed_action_controller.dart';
+import 'entity_action_menu.dart';
 
 // ── Entry points ─────────────────────────────────────────────────────────────
 
@@ -105,36 +107,30 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                         }
                       }
                     : null,
+                onUnpublish:
+                    detail.item.createdBy == (session?.user?.id ?? 0) ||
+                        session?.hasAdminAccess == true
+                    ? () async {
+                        final success = await ref
+                            .read(communityActionControllerProvider.notifier)
+                            .setEventPublished(
+                              eventId: widget.eventId,
+                              publish: false,
+                            );
+                        if (success && context.mounted) {
+                          Navigator.pop(context, true);
+                        }
+                      }
+                    : null,
                 onDelete:
                     detail.item.createdBy == (session?.user?.id ?? 0) ||
                         session?.hasAdminAccess == true
                     ? () async {
-                        final confirmed = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('Etkinliği sil'),
-                            content: const Text(
-                              'Bu etkinliği silmek istediğinizden emin misiniz?',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text('İptal'),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, true),
-                                child: const Text('Sil'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (confirmed == true && mounted) {
-                          final success = await ref
-                              .read(feedActionControllerProvider.notifier)
-                              .deleteEvent(widget.eventId);
-                          if (success && context.mounted) {
-                            Navigator.pop(context, true);
-                          }
+                        final success = await ref
+                            .read(feedActionControllerProvider.notifier)
+                            .deleteEvent(widget.eventId);
+                        if (success && context.mounted) {
+                          Navigator.pop(context, true);
                         }
                       }
                     : null,
@@ -230,36 +226,30 @@ class _AnnouncementDetailPageState
                         }
                       }
                     : null,
+                onUnpublish:
+                    detail.item.createdBy == (session?.user?.id ?? 0) ||
+                        session?.hasAdminAccess == true
+                    ? () async {
+                        final success = await ref
+                            .read(communityActionControllerProvider.notifier)
+                            .setAnnouncementPublished(
+                              announcementId: widget.announcementId,
+                              publish: false,
+                            );
+                        if (success && context.mounted) {
+                          Navigator.pop(context, true);
+                        }
+                      }
+                    : null,
                 onDelete:
                     detail.item.createdBy == (session?.user?.id ?? 0) ||
                         session?.hasAdminAccess == true
                     ? () async {
-                        final confirmed = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('Duyuruyu sil'),
-                            content: const Text(
-                              'Bu duyuruyu silmek istediğinizden emin misiniz?',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text('İptal'),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, true),
-                                child: const Text('Sil'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (confirmed == true && mounted) {
-                          final success = await ref
-                              .read(feedActionControllerProvider.notifier)
-                              .deleteAnnouncement(widget.announcementId);
-                          if (success && context.mounted) {
-                            Navigator.pop(context, true);
-                          }
+                        final success = await ref
+                            .read(feedActionControllerProvider.notifier)
+                            .deleteAnnouncement(widget.announcementId);
+                        if (success && context.mounted) {
+                          Navigator.pop(context, true);
                         }
                       }
                     : null,
@@ -304,7 +294,7 @@ class GroupEventDetailPage extends ConsumerWidget {
             : _GroupEntityBody(
                 title: detail.event.title,
                 body: detail.event.description,
-                image: '',
+                image: detail.event.image,
                 creatorHandle: detail.event.creatorHandle,
                 createdAt: detail.event.createdAt,
                 extraMeta: _buildEventMeta(context, detail.event),
@@ -314,7 +304,28 @@ class GroupEventDetailPage extends ConsumerWidget {
                 allowComments: detail.allowComments,
                 allowLikes: detail.allowLikes,
                 canManage: detail.canManage,
+                kind: EntityActionKind.groupEvent,
                 onRefresh: () => ref.invalidate(futureProvider),
+                onUnpublish: detail.canManage
+                    ? () async {
+                        final ok = await ref
+                            .read(groupsActionControllerProvider.notifier)
+                            .setEventPublished(
+                              groupId: groupId,
+                              eventId: eventId,
+                              publish: false,
+                            );
+                        if (ok && context.mounted) Navigator.pop(context, true);
+                      }
+                    : null,
+                onDelete: detail.canManage
+                    ? () async {
+                        final ok = await ref
+                            .read(groupsActionControllerProvider.notifier)
+                            .deleteEvent(groupId: groupId, eventId: eventId);
+                        if (ok && context.mounted) Navigator.pop(context, true);
+                      }
+                    : null,
                 onAddComment: (comment) => ref
                     .read(groupsRepositoryProvider)
                     .addGroupEventComment(
@@ -386,7 +397,7 @@ class GroupAnnouncementDetailPage extends ConsumerWidget {
             : _GroupEntityBody(
                 title: detail.announcement.title,
                 body: detail.announcement.body,
-                image: '',
+                image: detail.announcement.image,
                 creatorHandle: detail.announcement.creatorHandle,
                 createdAt: detail.announcement.createdAt,
                 extraMeta: const [],
@@ -396,7 +407,31 @@ class GroupAnnouncementDetailPage extends ConsumerWidget {
                 allowComments: detail.allowComments,
                 allowLikes: detail.allowLikes,
                 canManage: detail.canManage,
+                kind: EntityActionKind.groupAnnouncement,
                 onRefresh: () => ref.invalidate(futureProvider),
+                onUnpublish: detail.canManage
+                    ? () async {
+                        final ok = await ref
+                            .read(groupsActionControllerProvider.notifier)
+                            .setAnnouncementPublished(
+                              groupId: groupId,
+                              announcementId: announcementId,
+                              publish: false,
+                            );
+                        if (ok && context.mounted) Navigator.pop(context, true);
+                      }
+                    : null,
+                onDelete: detail.canManage
+                    ? () async {
+                        final ok = await ref
+                            .read(groupsActionControllerProvider.notifier)
+                            .deleteAnnouncement(
+                              groupId: groupId,
+                              announcementId: announcementId,
+                            );
+                        if (ok && context.mounted) Navigator.pop(context, true);
+                      }
+                    : null,
                 onAddComment: (comment) => ref
                     .read(groupsRepositoryProvider)
                     .addGroupAnnouncementComment(
@@ -438,6 +473,7 @@ class _EntityDetailBody<T> extends ConsumerStatefulWidget {
     required this.onToggleLike,
     required this.onToggleInteraction,
     this.onEdit,
+    this.onUnpublish,
     this.onDelete,
   });
 
@@ -452,6 +488,7 @@ class _EntityDetailBody<T> extends ConsumerStatefulWidget {
   final Future<dynamic> Function(bool? allowComments, bool? allowLikes)
   onToggleInteraction;
   final VoidCallback? onEdit;
+  final Future<void> Function()? onUnpublish;
   final VoidCallback? onDelete;
 
   @override
@@ -626,28 +663,20 @@ class _EntityDetailBodyState<T> extends ConsumerState<_EntityDetailBody<T>> {
                       ),
                     ),
                     const Spacer(),
-                    if (widget.onEdit != null || widget.onDelete != null)
-                      PopupMenuButton(
-                        onSelected: (value) {
-                          if (value == 'edit' && widget.onEdit != null) {
-                            widget.onEdit!();
-                          } else if (value == 'delete' &&
-                              widget.onDelete != null) {
-                            widget.onDelete!();
-                          }
-                        },
-                        itemBuilder: (context) => [
-                          if (widget.onEdit != null)
-                            const PopupMenuItem(
-                              value: 'edit',
-                              child: Text('Düzenle'),
-                            ),
-                          if (widget.onDelete != null)
-                            const PopupMenuItem(
-                              value: 'delete',
-                              child: Text('Sil'),
-                            ),
-                        ],
+                    if (widget.onEdit != null ||
+                        widget.onUnpublish != null ||
+                        widget.onDelete != null)
+                      EntityActionMenu(
+                        kind: isEvent
+                            ? EntityActionKind.event
+                            : EntityActionKind.announcement,
+                        onEdit: widget.onEdit == null
+                            ? null
+                            : () async => widget.onEdit!(),
+                        onUnpublish: widget.onUnpublish,
+                        onDelete: widget.onDelete == null
+                            ? null
+                            : () async => widget.onDelete!(),
                       ),
                   ],
                 ),
@@ -855,10 +884,13 @@ class _GroupEntityBody extends ConsumerStatefulWidget {
     required this.allowComments,
     required this.allowLikes,
     required this.canManage,
+    required this.kind,
     required this.onRefresh,
     required this.onAddComment,
     required this.onToggleLike,
     required this.onToggleInteraction,
+    this.onUnpublish,
+    this.onDelete,
   });
 
   final String title;
@@ -873,11 +905,14 @@ class _GroupEntityBody extends ConsumerStatefulWidget {
   final bool allowComments;
   final bool allowLikes;
   final bool canManage;
+  final EntityActionKind kind;
   final VoidCallback onRefresh;
   final Future<dynamic> Function(String comment) onAddComment;
   final Future<dynamic> Function() onToggleLike;
   final Future<dynamic> Function(bool? allowComments, bool? allowLikes)
   onToggleInteraction;
+  final Future<void> Function()? onUnpublish;
+  final Future<void> Function()? onDelete;
 
   @override
   ConsumerState<_GroupEntityBody> createState() => _GroupEntityBodyState();
@@ -934,9 +969,21 @@ class _GroupEntityBodyState extends ConsumerState<_GroupEntityBody> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  widget.title,
-                  style: Theme.of(context).textTheme.headlineSmall,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.title,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                    ),
+                    if (widget.onUnpublish != null || widget.onDelete != null)
+                      EntityActionMenu(
+                        kind: widget.kind,
+                        onUnpublish: widget.onUnpublish,
+                        onDelete: widget.onDelete,
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 Text(

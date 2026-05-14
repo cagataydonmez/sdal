@@ -18,6 +18,7 @@ import '../../../core/widgets/surface_card.dart';
 import '../application/community_action_controller.dart';
 import '../data/community_repository.dart';
 import '../../feed/application/feed_action_controller.dart';
+import 'entity_action_menu.dart';
 
 class EventsPage extends ConsumerStatefulWidget {
   const EventsPage({super.key});
@@ -147,8 +148,8 @@ class _EventsPageState extends ConsumerState<EventsPage> {
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: () async {
-                  final result = await context.push('/events/create');
-                  if (mounted && result == true) _load(reset: true);
+                  await context.push('/events/create');
+                  if (mounted) _load(reset: true);
                 },
                 icon: const Icon(Icons.add_outlined),
                 label: const Text('Yeni etkinlik öner'),
@@ -263,8 +264,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                   right: 10,
                   child: _EventAdminMenu(
                     item: item,
-                    onApprove: (approved) =>
-                        _approveEvent(item.id, approved: approved),
+                    onUnpublish: () => _unpublishEvent(item.id),
                     onDelete: () => _deleteEvent(item.id),
                     onEdit: isOwner ? () => _editEvent(item) : null,
                     isOwner: isOwner,
@@ -354,8 +354,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
               if (isAdmin || isOwner)
                 _EventAdminMenu(
                   item: item,
-                  onApprove: (approved) =>
-                      _approveEvent(item.id, approved: approved),
+                  onUnpublish: () => _unpublishEvent(item.id),
                   onDelete: () => _deleteEvent(item.id),
                   onEdit: isOwner ? () => _editEvent(item) : null,
                   isOwner: isOwner,
@@ -394,27 +393,6 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     );
   }
 
-  Future<void> _approveEvent(int eventId, {required bool approved}) async {
-    final ok = await ref
-        .read(communityActionControllerProvider.notifier)
-        .approveEvent(eventId: eventId, approved: approved);
-    if (!mounted) return;
-    final state = ref.read(communityActionControllerProvider);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          state.message ??
-              (ok
-                  ? (approved
-                        ? 'Etkinlik onaylandı.'
-                        : 'Etkinlik yayından kaldırıldı.')
-                  : 'İşlem başarısız oldu.'),
-        ),
-      ),
-    );
-    if (ok) _load(reset: true);
-  }
-
   Future<void> _editEvent(EventItem item) async {
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -437,6 +415,25 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(ok ? 'Etkinlik güncellendi.' : 'Etkinlik düzenlenemedi.'),
+      ),
+    );
+    if (ok) _load(reset: true);
+  }
+
+  Future<void> _unpublishEvent(int eventId) async {
+    final ok = await ref
+        .read(communityActionControllerProvider.notifier)
+        .setEventPublished(eventId: eventId, publish: false);
+    if (!mounted) return;
+    final state = ref.read(communityActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          state.message ??
+              (ok
+                  ? 'Etkinlik taslaklara alındı.'
+                  : 'Etkinlik yayından kaldırılamadı.'),
+        ),
       ),
     );
     if (ok) _load(reset: true);
@@ -543,7 +540,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
 class _EventAdminMenu extends StatelessWidget {
   const _EventAdminMenu({
     required this.item,
-    required this.onApprove,
+    required this.onUnpublish,
     required this.onDelete,
     required this.dark,
     this.onEdit,
@@ -551,7 +548,7 @@ class _EventAdminMenu extends StatelessWidget {
   });
 
   final EventItem item;
-  final void Function(bool approved) onApprove;
+  final VoidCallback onUnpublish;
   final VoidCallback onDelete;
   final VoidCallback? onEdit;
   final bool dark;
@@ -559,32 +556,13 @@ class _EventAdminMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      icon: Icon(Icons.more_vert, color: dark ? Colors.white : null),
-      onSelected: (value) {
-        if (value == 'edit' && onEdit != null) onEdit!();
-        if (value == 'approve') onApprove(true);
-        if (value == 'reject') onApprove(false);
-        if (value == 'delete') onDelete();
-      },
-      itemBuilder: (context) => [
-        if (isOwner) ...[
-          const PopupMenuItem<String>(value: 'edit', child: Text('Düzenle')),
-          const PopupMenuItem<String>(value: 'delete', child: Text('Sil')),
-        ] else ...[
-          if (!item.approved)
-            const PopupMenuItem<String>(
-              value: 'approve',
-              child: Text('Onayla'),
-            ),
-          if (item.approved)
-            const PopupMenuItem<String>(
-              value: 'reject',
-              child: Text('Yayından kaldır'),
-            ),
-          const PopupMenuItem<String>(value: 'delete', child: Text('Sil')),
-        ],
-      ],
+    return EntityActionMenu(
+      kind: EntityActionKind.event,
+      dark: dark,
+      onEdit: onEdit == null ? null : () async => onEdit!(),
+      onUnpublish: item.approved ? () async => onUnpublish() : null,
+      onDelete: () async => onDelete(),
+      child: null,
     );
   }
 }

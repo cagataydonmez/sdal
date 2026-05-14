@@ -3,6 +3,7 @@ import {
   PUBLICATION_STATUS,
   buildInitialContentState,
   publicQuery,
+  wantsPublish,
   wantsShowInFeed
 } from '../src/shared/contentState.js';
 
@@ -781,7 +782,7 @@ export function registerCommunityGroupRoutes(app, {
         )
         : [];
       const groupEvents = await sqlAllAsync(
-        `SELECT e.id, e.group_id, e.title, e.description, e.location, e.starts_at, e.ends_at, e.created_at, e.created_by, u.kadi AS creator_kadi
+        `SELECT e.id, e.group_id, e.title, e.description, e.location, e.starts_at, e.ends_at, e.image, e.created_at, e.created_by, u.kadi AS creator_kadi
          FROM group_events e
          LEFT JOIN uyeler u ON u.id = e.created_by
          WHERE e.group_id = ?
@@ -790,7 +791,7 @@ export function registerCommunityGroupRoutes(app, {
         [groupId]
       );
       const groupAnnouncements = await sqlAllAsync(
-        `SELECT a.id, a.group_id, a.title, a.body, a.created_at, a.created_by, u.kadi AS creator_kadi
+        `SELECT a.id, a.group_id, a.title, a.body, a.image, a.created_at, a.created_by, u.kadi AS creator_kadi
          FROM group_announcements a
          LEFT JOIN uyeler u ON u.id = a.created_by
          WHERE a.group_id = ?
@@ -862,14 +863,14 @@ export function registerCommunityGroupRoutes(app, {
           [groupId]
         ),
         sqlAllAsync(
-          `SELECT e.id, e.title, e.description, e.location, e.starts_at, e.created_at,
+          `SELECT e.id, e.title, e.description, e.location, e.starts_at, e.created_at, e.image,
                   u.id as user_id, u.kadi, u.isim, u.soyisim, u.resim, u.verified
            FROM group_events e LEFT JOIN uyeler u ON u.id = e.created_by
            WHERE e.group_id = ? ${canManageGroup ? '' : `AND ${publicQuery('e', false)}`} ORDER BY e.id DESC`,
           [groupId]
         ),
         sqlAllAsync(
-          `SELECT a.id, a.title, a.body, a.created_at,
+          `SELECT a.id, a.title, a.body, a.created_at, a.image,
                   u.id as user_id, u.kadi, u.isim, u.soyisim, u.resim, u.verified
            FROM group_announcements a LEFT JOIN uyeler u ON u.id = a.created_by
            WHERE a.group_id = ? ${canManageGroup ? '' : `AND ${publicQuery('a', false)}`} ORDER BY a.id DESC`,
@@ -880,7 +881,7 @@ export function registerCommunityGroupRoutes(app, {
       const eventItems = events.map((e) => ({
         id: e.id,
         content: [e.title, stripHtml(e.description), e.location ? `📍 ${e.location}` : '', e.starts_at ? `🗓 ${e.starts_at}` : ''].filter(Boolean).join('\n'),
-        image: null, created_at: e.created_at,
+        image: e.image || null, created_at: e.created_at,
         post_type: 'group_event', entity_id: e.id,
         user_id: e.user_id, kadi: e.kadi, isim: e.isim, soyisim: e.soyisim, resim: e.resim, verified: e.verified,
         likeCount: 0, commentCount: 0, liked: false
@@ -889,7 +890,7 @@ export function registerCommunityGroupRoutes(app, {
       const announcementItems = announcements.map((a) => ({
         id: a.id,
         content: [a.title, stripHtml(a.body)].filter(Boolean).join('\n'),
-        image: null, created_at: a.created_at,
+        image: a.image || null, created_at: a.created_at,
         post_type: 'group_announcement', entity_id: a.id,
         user_id: a.user_id, kadi: a.kadi, isim: a.isim, soyisim: a.soyisim, resim: a.resim, verified: a.verified,
         likeCount: 0, commentCount: 0, liked: false
@@ -1089,8 +1090,8 @@ export function registerCommunityGroupRoutes(app, {
         actorIsTrusted: false
       });
       const result = await sqlRunAsync(
-        `INSERT INTO group_events (group_id, title, description, location, starts_at, ends_at, created_at, created_by, show_in_feed, publication_status, approval_status, published_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO group_events (group_id, title, description, location, starts_at, ends_at, image, created_at, created_by, show_in_feed, publication_status, approval_status, published_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           groupId,
           title,
@@ -1098,6 +1099,7 @@ export function registerCommunityGroupRoutes(app, {
           location,
           startsAt,
           endsAt,
+          req.body?.image || null,
           now,
           req.session.userId,
           contentState.showInFeed ? 1 : 0,
@@ -1122,6 +1124,98 @@ export function registerCommunityGroupRoutes(app, {
         }
       }
       res.json({ ok: true, id: eventId, pending: contentState.approvalStatus === APPROVAL_STATUS.PENDING, publication_status: contentState.publicationStatus, approval_status: contentState.approvalStatus });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.post('/api/new/groups/:id/events/upload', requireAuth, uploadRateLimit, postUpload.single('image'), async (req, res) => {
+    try {
+      let processedUpload = null;
+      if (req.file?.path) {
+        processedUpload = await processDiskImageUpload({
+          req,
+          res,
+          file: req.file,
+          bucket: 'group_event_image',
+          preset: uploadImagePresets.eventImage
+        });
+        if (!processedUpload.ok) return res.status(processedUpload.statusCode).send(processedUpload.message);
+      }
+      req.body.image = processedUpload?.url || req.body?.image || null;
+      const groupId = req.params.id;
+      const group = await sqlGetAsync('SELECT id FROM groups WHERE id = ?', [groupId]);
+      if (!group) return res.status(404).send('Grup bulunamadı.');
+      if (!isGroupManager(req, groupId)) return res.status(403).send('Yetki yok. Sadece owner/moderator etkinlik ekleyebilir.');
+      const title = sanitizePlainUserText(String(req.body?.title || '').trim(), 180);
+      if (!title) return res.status(400).send('Başlık gerekli.');
+      const now = new Date().toISOString();
+      const desc = formatUserText(req.body?.description || '');
+      const location = sanitizePlainUserText(String(req.body?.location || '').trim(), 180);
+      const startsAt = String(req.body?.starts_at || '');
+      const endsAt = String(req.body?.ends_at || '');
+      const contentState = await buildInitialContentState({
+        sqlGetAsync,
+        entityType: 'group_event',
+        groupId: Number(groupId),
+        body: req.body,
+        actorIsTrusted: false
+      });
+      const result = await sqlRunAsync(
+        `INSERT INTO group_events (group_id, title, description, location, starts_at, ends_at, image, created_at, created_by, show_in_feed, publication_status, approval_status, published_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          groupId,
+          title,
+          desc,
+          location,
+          startsAt,
+          endsAt,
+          req.body.image || null,
+          now,
+          req.session.userId,
+          contentState.showInFeed ? 1 : 0,
+          contentState.publicationStatus,
+          contentState.approvalStatus,
+          contentState.publicationStatus === PUBLICATION_STATUS.PUBLISHED ? now : null
+        ]
+      );
+      res.json({ ok: true, id: result?.lastInsertRowid, pending: contentState.approvalStatus === APPROVAL_STATUS.PENDING, publication_status: contentState.publicationStatus, approval_status: contentState.approvalStatus });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.patch('/api/new/groups/:id/events/:eventId', requireAuth, async (req, res) => {
+    try {
+      const groupId = req.params.id;
+      if (!isGroupManager(req, groupId)) return res.status(403).send('Yetki yok.');
+      const event = await sqlGetAsync('SELECT id FROM group_events WHERE id = ? AND group_id = ?', [req.params.eventId, groupId]);
+      if (!event) return res.status(404).send('Etkinlik bulunamadı.');
+
+      const updates = [];
+      const updateParams = [];
+      if (req.body.show_in_feed !== undefined || req.body.showInFeed !== undefined) {
+        updates.push('show_in_feed = ?');
+        updateParams.push(wantsShowInFeed(req.body) ? 1 : 0);
+      }
+      if (req.body.publish !== undefined || req.body.published !== undefined || req.body.approved !== undefined) {
+        const publish = wantsPublish(req.body);
+        const now = new Date().toISOString();
+        updates.push('publication_status = ?');
+        updates.push('approval_status = ?');
+        updates.push('published_at = ?');
+        updateParams.push(publish ? PUBLICATION_STATUS.PUBLISHED : PUBLICATION_STATUS.DRAFT);
+        updateParams.push(publish ? APPROVAL_STATUS.NOT_REQUIRED : APPROVAL_STATUS.NOT_REQUIRED);
+        updateParams.push(publish ? now : null);
+      }
+      if (updates.length === 0) return res.status(400).send('Güncellenecek alan yok.');
+      updateParams.push(req.params.eventId, groupId);
+      await sqlRunAsync(`UPDATE group_events SET ${updates.join(', ')} WHERE id = ? AND group_id = ?`, updateParams);
+      const updated = await sqlGetAsync('SELECT * FROM group_events WHERE id = ? AND group_id = ?', [req.params.eventId, groupId]);
+      res.json({ ok: true, ...updated });
     } catch (err) {
       console.error(err);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
@@ -1184,12 +1278,13 @@ export function registerCommunityGroupRoutes(app, {
         actorIsTrusted: false
       });
       const result = await sqlRunAsync(
-        `INSERT INTO group_announcements (group_id, title, body, created_at, created_by, show_in_feed, publication_status, approval_status, published_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO group_announcements (group_id, title, body, image, created_at, created_by, show_in_feed, publication_status, approval_status, published_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           groupId,
           title,
           body,
+          req.body?.image || null,
           now,
           req.session.userId,
           contentState.showInFeed ? 1 : 0,
@@ -1214,6 +1309,92 @@ export function registerCommunityGroupRoutes(app, {
         }
       }
       res.json({ ok: true, id: announcementId, pending: contentState.approvalStatus === APPROVAL_STATUS.PENDING, publication_status: contentState.publicationStatus, approval_status: contentState.approvalStatus });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.post('/api/new/groups/:id/announcements/upload', requireAuth, uploadRateLimit, postUpload.single('image'), async (req, res) => {
+    try {
+      let processedUpload = null;
+      if (req.file?.path) {
+        processedUpload = await processDiskImageUpload({
+          req,
+          res,
+          file: req.file,
+          bucket: 'group_announcement_image',
+          preset: uploadImagePresets.announcementImage
+        });
+        if (!processedUpload.ok) return res.status(processedUpload.statusCode).send(processedUpload.message);
+      }
+      req.body.image = processedUpload?.url || req.body?.image || null;
+      const groupId = req.params.id;
+      const group = await sqlGetAsync('SELECT id FROM groups WHERE id = ?', [groupId]);
+      if (!group) return res.status(404).send('Grup bulunamadı.');
+      if (!isGroupManager(req, groupId)) return res.status(403).send('Yetki yok. Sadece owner/moderator duyuru ekleyebilir.');
+      const title = sanitizePlainUserText(String(req.body?.title || '').trim(), 180);
+      const body = formatUserText(req.body?.body || '');
+      if (!title || isFormattedContentEmpty(body)) return res.status(400).send('Başlık ve içerik gerekli.');
+      const now = new Date().toISOString();
+      const contentState = await buildInitialContentState({
+        sqlGetAsync,
+        entityType: 'group_announcement',
+        groupId: Number(groupId),
+        body: req.body,
+        actorIsTrusted: false
+      });
+      const result = await sqlRunAsync(
+        `INSERT INTO group_announcements (group_id, title, body, image, created_at, created_by, show_in_feed, publication_status, approval_status, published_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          groupId,
+          title,
+          body,
+          req.body.image || null,
+          now,
+          req.session.userId,
+          contentState.showInFeed ? 1 : 0,
+          contentState.publicationStatus,
+          contentState.approvalStatus,
+          contentState.publicationStatus === PUBLICATION_STATUS.PUBLISHED ? now : null
+        ]
+      );
+      res.json({ ok: true, id: result?.lastInsertRowid, pending: contentState.approvalStatus === APPROVAL_STATUS.PENDING, publication_status: contentState.publicationStatus, approval_status: contentState.approvalStatus });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.patch('/api/new/groups/:id/announcements/:announcementId', requireAuth, async (req, res) => {
+    try {
+      const groupId = req.params.id;
+      if (!isGroupManager(req, groupId)) return res.status(403).send('Yetki yok.');
+      const announcement = await sqlGetAsync('SELECT id FROM group_announcements WHERE id = ? AND group_id = ?', [req.params.announcementId, groupId]);
+      if (!announcement) return res.status(404).send('Duyuru bulunamadı.');
+
+      const updates = [];
+      const updateParams = [];
+      if (req.body.show_in_feed !== undefined || req.body.showInFeed !== undefined) {
+        updates.push('show_in_feed = ?');
+        updateParams.push(wantsShowInFeed(req.body) ? 1 : 0);
+      }
+      if (req.body.publish !== undefined || req.body.published !== undefined || req.body.approved !== undefined) {
+        const publish = wantsPublish(req.body);
+        const now = new Date().toISOString();
+        updates.push('publication_status = ?');
+        updates.push('approval_status = ?');
+        updates.push('published_at = ?');
+        updateParams.push(publish ? PUBLICATION_STATUS.PUBLISHED : PUBLICATION_STATUS.DRAFT);
+        updateParams.push(publish ? APPROVAL_STATUS.NOT_REQUIRED : APPROVAL_STATUS.NOT_REQUIRED);
+        updateParams.push(publish ? now : null);
+      }
+      if (updates.length === 0) return res.status(400).send('Güncellenecek alan yok.');
+      updateParams.push(req.params.announcementId, groupId);
+      await sqlRunAsync(`UPDATE group_announcements SET ${updates.join(', ')} WHERE id = ? AND group_id = ?`, updateParams);
+      const updated = await sqlGetAsync('SELECT * FROM group_announcements WHERE id = ? AND group_id = ?', [req.params.announcementId, groupId]);
+      res.json({ ok: true, ...updated });
     } catch (err) {
       console.error(err);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');

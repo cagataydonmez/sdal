@@ -13,6 +13,7 @@ import '../../../core/widgets/page_onboarding_card.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../../core/session/session_controller.dart';
+import '../../community/presentation/entity_action_menu.dart';
 import '../application/jobs_action_controller.dart';
 import '../../feed/application/feed_action_controller.dart';
 import '../data/opportunities_repository.dart';
@@ -305,6 +306,7 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                   child: _JobOwnerMenu(
                     job: job,
                     onEdit: () => _editJob(job),
+                    onUnpublish: () => _unpublishJob(job.id),
                     onDelete: () => _deleteJob(job.id),
                     dark: true,
                   ),
@@ -415,6 +417,7 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                 _JobOwnerMenu(
                   job: job,
                   onEdit: () => _editJob(job),
+                  onUnpublish: () => _unpublishJob(job.id),
                   onDelete: () => _deleteJob(job.id),
                   dark: false,
                 ),
@@ -430,6 +433,25 @@ class _JobsPageState extends ConsumerState<JobsPage> {
       context: context,
       builder: (context) => _JobEditDialog(job: job, onSave: () => _load()),
     );
+  }
+
+  Future<void> _unpublishJob(int jobId) async {
+    final ok = await ref
+        .read(jobsActionControllerProvider.notifier)
+        .setJobPublished(jobId: jobId, publish: false);
+    if (!mounted) return;
+    final state = ref.read(jobsActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          state.message ??
+              (ok
+                  ? 'İş ilanı taslaklara alındı.'
+                  : 'İş ilanı yayından kaldırılamadı.'),
+        ),
+      ),
+    );
+    if (ok) _load();
   }
 
   Future<void> _deleteJob(int jobId) async {
@@ -532,27 +554,25 @@ class _JobOwnerMenu extends StatelessWidget {
   const _JobOwnerMenu({
     required this.job,
     required this.onEdit,
+    required this.onUnpublish,
     required this.onDelete,
     required this.dark,
   });
 
   final JobItem job;
   final VoidCallback onEdit;
+  final VoidCallback onUnpublish;
   final VoidCallback onDelete;
   final bool dark;
 
   @override
   Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      icon: Icon(Icons.more_vert, color: dark ? Colors.white : null),
-      onSelected: (value) {
-        if (value == 'edit') onEdit();
-        if (value == 'delete') onDelete();
-      },
-      itemBuilder: (context) => [
-        const PopupMenuItem<String>(value: 'edit', child: Text('Düzenle')),
-        const PopupMenuItem<String>(value: 'delete', child: Text('Sil')),
-      ],
+    return EntityActionMenu(
+      kind: EntityActionKind.job,
+      dark: dark,
+      onEdit: () async => onEdit(),
+      onUnpublish: () async => onUnpublish(),
+      onDelete: () async => onDelete(),
     );
   }
 }
