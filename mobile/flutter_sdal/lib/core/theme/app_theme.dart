@@ -6,69 +6,102 @@ final ThemeData sdalLightTheme = buildSdalLightTheme();
 final ThemeData sdalDarkTheme = buildSdalDarkTheme();
 
 ThemeData buildSdalLightTheme([SdalAppTheme appTheme = SdalAppTheme.kor]) =>
-    _buildSdalTheme(brightness: Brightness.light, tokens: appTheme.lightTokens);
+    _buildSdalTheme(
+      brightness: Brightness.light,
+      tokens: appTheme.lightTokens,
+      appTheme: appTheme,
+    );
 
 ThemeData buildSdalDarkTheme([SdalAppTheme appTheme = SdalAppTheme.kor]) =>
-    _buildSdalTheme(brightness: Brightness.dark, tokens: appTheme.darkTokens);
+    _buildSdalTheme(
+      brightness: Brightness.dark,
+      tokens: appTheme.darkTokens,
+      appTheme: appTheme,
+    );
 
 ThemeData _buildSdalTheme({
   required Brightness brightness,
   required SdalThemeTokens tokens,
+  SdalAppTheme appTheme = SdalAppTheme.kor,
 }) {
-  final colorScheme =
-      ColorScheme.fromSeed(
-        seedColor: tokens.accent,
-        brightness: brightness,
-      ).copyWith(
-        primary: tokens.accent,
-        secondary: tokens.info,
-        surface: tokens.panel,
-        onSurface: tokens.foreground,
-        onPrimary: tokens.foregroundOnAccent,
-        onSecondary: tokens.foregroundOnAccent,
-        outline: tokens.panelBorder,
-        error: tokens.danger,
-        onError: tokens.foregroundOnAccent,
-      );
+  final colorScheme = ColorScheme.fromSeed(
+    seedColor: tokens.accent,
+    brightness: brightness,
+  ).copyWith(
+    primary: tokens.accent,
+    secondary: tokens.info,
+    surface: tokens.panel,
+    onSurface: tokens.foreground,
+    onPrimary: tokens.foregroundOnAccent,
+    onSecondary: tokens.foregroundOnAccent,
+    outline: tokens.panelBorder,
+    error: tokens.danger,
+    onError: tokens.foregroundOnAccent,
+  );
+
+  // For Kor we use the local Manrope asset via fontFamily.
+  // For all other themes Google Fonts handles font loading.
+  final fontFamily = appTheme == SdalAppTheme.kor
+      ? 'Manrope'
+      : appTheme.materialFontFamily;
 
   final base = ThemeData(
     useMaterial3: true,
     colorScheme: colorScheme,
     scaffoldBackgroundColor: tokens.canvas,
     brightness: brightness,
-    fontFamily: 'Manrope',
+    fontFamily: fontFamily,
     extensions: <ThemeExtension<dynamic>>[tokens],
   );
 
+  // Apply the per-theme typeface across all text styles.
+  final tt = appTheme.applyFont(base.textTheme);
+
+  // Shape helpers derived from per-theme tokens.
+  final cardShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(tokens.cardRadius),
+    side: tokens.panelBorderWidth > 0
+        ? BorderSide(color: tokens.panelBorder, width: tokens.panelBorderWidth)
+        : BorderSide.none,
+  );
+  final buttonShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(tokens.buttonRadius),
+  );
+  final inputRadius = BorderRadius.circular(tokens.inputRadius);
+  final inputBorder = tokens.panelBorderWidth > 0
+      ? BorderSide(color: tokens.panelBorder, width: tokens.panelBorderWidth)
+      : BorderSide.none;
+  final inputFocusedBorder = tokens.panelBorderWidth > 0
+      ? BorderSide(color: tokens.accent, width: tokens.panelBorderWidth + 0.5)
+      : BorderSide(color: tokens.accent, width: 1.5);
+
   return base.copyWith(
-    textTheme: base.textTheme.copyWith(
-      headlineMedium: base.textTheme.headlineMedium?.copyWith(
+    textTheme: tt.copyWith(
+      headlineMedium: tt.headlineMedium?.copyWith(
         fontWeight: FontWeight.w800,
         letterSpacing: -0.8,
         color: tokens.foreground,
       ),
-      headlineSmall: base.textTheme.headlineSmall?.copyWith(
+      headlineSmall: tt.headlineSmall?.copyWith(
         fontWeight: FontWeight.w800,
         letterSpacing: -0.4,
         color: tokens.foreground,
       ),
-      titleLarge: base.textTheme.titleLarge?.copyWith(
+      titleLarge: tt.titleLarge?.copyWith(
         fontWeight: FontWeight.w700,
         color: tokens.foreground,
       ),
-      titleMedium: base.textTheme.titleMedium?.copyWith(
+      titleMedium: tt.titleMedium?.copyWith(
         fontWeight: FontWeight.w700,
         color: tokens.foreground,
       ),
-      labelLarge: base.textTheme.labelLarge?.copyWith(
+      labelLarge: tt.labelLarge?.copyWith(
         fontWeight: FontWeight.w600,
         color: tokens.foreground,
       ),
-      bodyLarge: base.textTheme.bodyLarge?.copyWith(color: tokens.foreground),
-      bodyMedium: base.textTheme.bodyMedium?.copyWith(color: tokens.foreground),
-      bodySmall: base.textTheme.bodySmall?.copyWith(
-        color: tokens.foregroundMuted,
-      ),
+      bodyLarge: tt.bodyLarge?.copyWith(color: tokens.foreground),
+      bodyMedium: tt.bodyMedium?.copyWith(color: tokens.foreground),
+      bodySmall: tt.bodySmall?.copyWith(color: tokens.foregroundMuted),
     ),
     appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
@@ -80,10 +113,7 @@ ThemeData _buildSdalTheme({
     cardTheme: CardThemeData(
       color: tokens.panel,
       elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(SdalThemeTokens.radius2xl),
-        side: BorderSide(color: tokens.panelBorder),
-      ),
+      shape: cardShape,
       margin: EdgeInsets.zero,
     ),
     navigationBarTheme: NavigationBarThemeData(
@@ -106,16 +136,16 @@ ThemeData _buildSdalTheme({
       fillColor: tokens.panel,
       contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusXl),
-        borderSide: BorderSide(color: tokens.panelBorder),
+        borderRadius: inputRadius,
+        borderSide: inputBorder,
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusXl),
-        borderSide: BorderSide(color: tokens.panelBorder),
+        borderRadius: inputRadius,
+        borderSide: inputBorder,
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusXl),
-        borderSide: BorderSide(color: tokens.accent, width: 1.5),
+        borderRadius: inputRadius,
+        borderSide: inputFocusedBorder,
       ),
       labelStyle: TextStyle(color: tokens.foregroundMuted),
       hintStyle: TextStyle(color: tokens.foregroundMuted),
@@ -150,9 +180,7 @@ ThemeData _buildSdalTheme({
     floatingActionButtonTheme: FloatingActionButtonThemeData(
       backgroundColor: tokens.accent,
       foregroundColor: tokens.foregroundOnAccent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusXl),
-      ),
+      shape: buttonShape,
     ),
     segmentedButtonTheme: SegmentedButtonThemeData(
       style: ButtonStyle(
@@ -161,12 +189,13 @@ ThemeData _buildSdalTheme({
           return tokens.panel;
         }),
         foregroundColor: WidgetStateProperty.all(tokens.foreground),
-        side: WidgetStateProperty.all(BorderSide(color: tokens.panelBorder)),
-        shape: WidgetStateProperty.all(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(SdalThemeTokens.radiusLg),
+        side: WidgetStateProperty.all(
+          BorderSide(
+            color: tokens.panelBorder,
+            width: tokens.panelBorderWidth.clamp(0.5, 2.0),
           ),
         ),
+        shape: WidgetStateProperty.all(buttonShape),
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
@@ -174,9 +203,7 @@ ThemeData _buildSdalTheme({
         backgroundColor: tokens.accent,
         foregroundColor: tokens.foregroundOnAccent,
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(SdalThemeTokens.radiusLg),
-        ),
+        shape: buttonShape,
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -184,9 +211,7 @@ ThemeData _buildSdalTheme({
         foregroundColor: tokens.foreground,
         side: BorderSide(color: tokens.panelBorder),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(SdalThemeTokens.radiusLg),
-        ),
+        shape: buttonShape,
       ),
     ),
     textButtonTheme: TextButtonThemeData(

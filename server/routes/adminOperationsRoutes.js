@@ -277,7 +277,7 @@ export function registerAdminOperationsRoutes(app, deps) {
         } catch { /* column may not exist yet on older deployments */ }
       }
       if (updates.activeTheme !== undefined) {
-        const validThemes = new Set(['kor', 'atlas', 'vibe']);
+        const validThemes = new Set(['kor', 'atlas', 'vibe', 'zinc', 'ember', 'mist']);
         const nextTheme = String(updates.activeTheme || 'kor').toLowerCase().trim();
         const safeTheme = validThemes.has(nextTheme) ? nextTheme : 'kor';
         try {

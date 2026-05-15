@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 @immutable
 class SdalThemeTokens extends ThemeExtension<SdalThemeTokens> {
+  // Legacy static constants kept for any widget that still references them.
   static const double radiusXs = 12;
   static const double radiusSm = 14;
   static const double radiusMd = 16;
@@ -38,6 +39,11 @@ class SdalThemeTokens extends ThemeExtension<SdalThemeTokens> {
     required this.foregroundMuted,
     required this.foregroundOnAccent,
     required this.adminExperiment,
+    // ── Shape tokens (per-theme, same for light & dark) ──────────────
+    this.cardRadius = 20.0,
+    this.buttonRadius = 18.0,
+    this.inputRadius = 20.0,
+    this.panelBorderWidth = 1.0,
   });
 
   final Color canvas;
@@ -68,6 +74,18 @@ class SdalThemeTokens extends ThemeExtension<SdalThemeTokens> {
   final Color foregroundOnAccent;
   final Color adminExperiment;
 
+  /// Radius used for card surfaces.
+  final double cardRadius;
+
+  /// Radius used for filled/outlined buttons and FAB.
+  final double buttonRadius;
+
+  /// Radius used for text input fields.
+  final double inputRadius;
+
+  /// Width of panel border lines. 0.0 = borderless.
+  final double panelBorderWidth;
+
   static const light = SdalThemeTokens(
     canvas: Color(0xFFF7F2E9),
     canvasSubtle: Color(0xFFEDE2D3),
@@ -96,6 +114,10 @@ class SdalThemeTokens extends ThemeExtension<SdalThemeTokens> {
     foregroundMuted: Color(0xFF66594C),
     foregroundOnAccent: Color(0xFFFFFAF4),
     adminExperiment: Color(0xFF7055A6),
+    cardRadius: 20,
+    buttonRadius: 18,
+    inputRadius: 20,
+    panelBorderWidth: 1.0,
   );
 
   static const dark = SdalThemeTokens(
@@ -126,6 +148,10 @@ class SdalThemeTokens extends ThemeExtension<SdalThemeTokens> {
     foregroundMuted: Color(0xFFCDBCAA),
     foregroundOnAccent: Color(0xFF1E130C),
     adminExperiment: Color(0xFFB79AF0),
+    cardRadius: 20,
+    buttonRadius: 18,
+    inputRadius: 20,
+    panelBorderWidth: 1.0,
   );
 
   @override
@@ -157,6 +183,10 @@ class SdalThemeTokens extends ThemeExtension<SdalThemeTokens> {
     Color? foregroundMuted,
     Color? foregroundOnAccent,
     Color? adminExperiment,
+    double? cardRadius,
+    double? buttonRadius,
+    double? inputRadius,
+    double? panelBorderWidth,
   }) {
     return SdalThemeTokens(
       canvas: canvas ?? this.canvas,
@@ -186,6 +216,10 @@ class SdalThemeTokens extends ThemeExtension<SdalThemeTokens> {
       foregroundMuted: foregroundMuted ?? this.foregroundMuted,
       foregroundOnAccent: foregroundOnAccent ?? this.foregroundOnAccent,
       adminExperiment: adminExperiment ?? this.adminExperiment,
+      cardRadius: cardRadius ?? this.cardRadius,
+      buttonRadius: buttonRadius ?? this.buttonRadius,
+      inputRadius: inputRadius ?? this.inputRadius,
+      panelBorderWidth: panelBorderWidth ?? this.panelBorderWidth,
     );
   }
 
@@ -214,22 +248,20 @@ class SdalThemeTokens extends ThemeExtension<SdalThemeTokens> {
       storyActive: Color.lerp(storyActive, other.storyActive, t)!,
       storyInactive: Color.lerp(storyInactive, other.storyInactive, t)!,
       storyOverlay: Color.lerp(storyOverlay, other.storyOverlay, t)!,
-      imagePlaceholder: Color.lerp(
-        imagePlaceholder,
-        other.imagePlaceholder,
-        t,
-      )!,
+      imagePlaceholder: Color.lerp(imagePlaceholder, other.imagePlaceholder, t)!,
       imageError: Color.lerp(imageError, other.imageError, t)!,
       foreground: Color.lerp(foreground, other.foreground, t)!,
       foregroundMuted: Color.lerp(foregroundMuted, other.foregroundMuted, t)!,
-      foregroundOnAccent: Color.lerp(
-        foregroundOnAccent,
-        other.foregroundOnAccent,
-        t,
-      )!,
+      foregroundOnAccent: Color.lerp(foregroundOnAccent, other.foregroundOnAccent, t)!,
       adminExperiment: Color.lerp(adminExperiment, other.adminExperiment, t)!,
+      cardRadius: lerpDouble(cardRadius, other.cardRadius, t),
+      buttonRadius: lerpDouble(buttonRadius, other.buttonRadius, t),
+      inputRadius: lerpDouble(inputRadius, other.inputRadius, t),
+      panelBorderWidth: lerpDouble(panelBorderWidth, other.panelBorderWidth, t),
     );
   }
+
+  static double lerpDouble(double a, double b, double t) => a + (b - a) * t;
 }
 
 extension SdalThemeTokensThemeData on ThemeData {

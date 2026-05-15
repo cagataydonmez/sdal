@@ -9,7 +9,6 @@ import 'app/app.dart';
 import 'app/providers.dart';
 import 'core/config/app_config.dart';
 import 'core/network/api_client.dart';
-import 'core/theme/sdal_active_theme_store.dart';
 import 'core/theme/theme_mode_store.dart';
 import 'features/push_notifications/application/push_notifications_service.dart';
 
@@ -57,6 +56,8 @@ Future<void> main() async {
   final initialThemeModePreference = await themeModeStore.load();
   final activeThemeStore = await SdalActiveThemeStore.create();
   final initialActiveTheme = await activeThemeStore.load();
+  final userThemeStore = await SdalUserThemeStore.create();
+  final initialUserTheme = await userThemeStore.load();
 
   runApp(
     ProviderScope(
@@ -69,6 +70,8 @@ Future<void> main() async {
         ),
         sdalActiveThemeStoreProvider.overrideWithValue(activeThemeStore),
         initialActiveThemeProvider.overrideWithValue(initialActiveTheme),
+        sdalUserThemeStoreProvider.overrideWithValue(userThemeStore),
+        initialUserThemeProvider.overrideWithValue(initialUserTheme),
       ],
       child: const SdalFlutterApp(),
     ),

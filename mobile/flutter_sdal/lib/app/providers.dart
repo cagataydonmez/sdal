@@ -7,9 +7,15 @@ import '../core/theme/theme_mode_store.dart';
 export '../core/theme/sdal_active_theme_store.dart'
     show
         SdalActiveThemeStore,
+        SdalUserThemeNotifier,
         sdalActiveThemeStoreProvider,
         initialActiveThemeProvider,
+        initialUserThemeProvider,
+        sdalAdminThemeProvider,
+        sdalUserThemeProvider,
         sdalActiveThemeProvider;
+export '../core/theme/sdal_user_theme_store.dart'
+    show SdalUserThemeStore, sdalUserThemeStoreProvider;
 export '../core/theme/sdal_app_theme.dart' show SdalAppTheme;
 
 final appConfigProvider = Provider<AppConfig>(

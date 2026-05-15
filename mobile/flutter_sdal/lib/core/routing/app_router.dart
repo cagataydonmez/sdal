@@ -36,6 +36,7 @@ import '../../features/profile/presentation/profile_page.dart';
 import '../../features/profile/presentation/profile_edit_page.dart';
 import '../../features/profile/presentation/email_change_verify_page.dart';
 import '../../features/profile/presentation/profile_photo_page.dart';
+import '../../features/profile/presentation/profile_settings_page.dart';
 import '../../features/profile/presentation/profile_verification_page.dart';
 import '../../features/opportunities/presentation/jobs_page.dart';
 import '../../features/opportunities/presentation/jobs_create_page.dart';
@@ -592,6 +593,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: '/profile/verification',
                 pageBuilder: (context, state) =>
                     _slidePage(const ProfileVerificationPage()),
+              ),
+              GoRoute(
+                path: '/profile/settings',
+                pageBuilder: (context, state) =>
+                    _slidePage(const ProfileSettingsPage()),
               ),
               GoRoute(
                 path: '/profile/stories/expired',

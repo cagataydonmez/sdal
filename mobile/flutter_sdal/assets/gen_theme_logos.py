@@ -16,6 +16,9 @@ THEMES = {
     "kor":   (0xE9, 0x9A, 0x73),  # warm rust/terracotta
     "atlas": (0x82, 0xB8, 0xE0),  # cool steel blue
     "vibe":  (0xBB, 0x96, 0xF5),  # vivid violet
+    "zinc":  (0xC8, 0xCD, 0xD6),  # cool silver slate
+    "ember": (0xF0, 0xC0, 0x50),  # warm amber gold
+    "mist":  (0x80, 0xC8, 0x9C),  # sage green
 }
 
 img = Image.open(SRC).convert("RGBA")

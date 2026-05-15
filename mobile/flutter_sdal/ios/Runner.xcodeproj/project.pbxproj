@@ -470,7 +470,6 @@
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				AF720B5926B33A385CE78F8A /* Embed App Extensions */,
-				WA0012345678901ABCDEF002 /* Embed Watch Content */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				5A5E4CC62A1F4A8CBFD3E001 /* Strip Extended Attributes (Pre-embed) */,
 				72984A24260C997F15464F39 /* [CP] Copy Pods Resources */,
@@ -481,7 +480,6 @@
 			);
 			dependencies = (
 				D3A8DF3C87C55AE1687C97AF /* PBXTargetDependency */,
-				WA0012345678901ABCDEF004 /* PBXTargetDependency */,
 			);
 			name = Runner;
 			productName = Runner;
@@ -527,7 +525,6 @@
 				97C146ED1CF9000F007C117D /* Runner */,
 				331C8080294A63A400263BE5 /* RunnerTests */,
 				2CC7DDDB656D64EFF2CC2121 /* SdalNotificationExtension */,
-				7CBE429371BD4E21AA16AB37 /* SdalWatch */,
 			);
 		};
 /* End PBXProject section */

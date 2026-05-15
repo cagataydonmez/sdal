@@ -5,6 +5,11 @@ import '../session/session_controller.dart';
 import '../storage/app_support_directory.dart';
 import 'sdal_app_theme.dart';
 
+// ---------------------------------------------------------------------------
+// Admin default theme — persisted so the correct palette shows on cold start
+// before the first network response arrives.
+// ---------------------------------------------------------------------------
+
 class SdalActiveThemeStore {
   SdalActiveThemeStore._(this._file);
 
@@ -39,15 +44,44 @@ class SdalActiveThemeStore {
   }
 }
 
-/// Provides the active [SdalAppTheme] from the session snapshot.
-/// Falls back to the persisted last-known theme so the correct palette
-/// is shown immediately on launch without waiting for a network call.
-final sdalActiveThemeProvider = Provider<SdalAppTheme>((ref) {
+// ---------------------------------------------------------------------------
+// Providers
+// ---------------------------------------------------------------------------
+
+/// The admin-set default theme. Reads from the live session when available,
+/// falls back to the cold-start value loaded in main().
+final sdalAdminThemeProvider = Provider<SdalAppTheme>((ref) {
   final sessionValue = ref.watch(sessionControllerProvider);
   if (sessionValue.hasValue && sessionValue.value != null) {
     return sessionValue.value!.siteAccess.activeTheme;
   }
   return ref.watch(initialActiveThemeProvider);
+});
+
+// ---------------------------------------------------------------------------
+// User theme notifier — Riverpod 3 compatible (no StateProvider)
+// ---------------------------------------------------------------------------
+
+/// The user's explicit theme choice. null = follow admin default.
+/// Initial value comes from [initialUserThemeProvider] (loaded in main()).
+class SdalUserThemeNotifier extends Notifier<SdalAppTheme?> {
+  @override
+  SdalAppTheme? build() => ref.read(initialUserThemeProvider);
+
+  void set(SdalAppTheme? theme) => state = theme;
+}
+
+final sdalUserThemeProvider =
+    NotifierProvider<SdalUserThemeNotifier, SdalAppTheme?>(
+      SdalUserThemeNotifier.new,
+    );
+
+/// Seed provider — overridden in main() with the value loaded from disk.
+final initialUserThemeProvider = Provider<SdalAppTheme?>((_) => null);
+
+/// The fully resolved active theme: user choice beats admin default.
+final sdalActiveThemeProvider = Provider<SdalAppTheme>((ref) {
+  return ref.watch(sdalUserThemeProvider) ?? ref.watch(sdalAdminThemeProvider);
 });
 
 // ---------------------------------------------------------------------------

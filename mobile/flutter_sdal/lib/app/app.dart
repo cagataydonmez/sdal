@@ -12,7 +12,6 @@ import '../core/routing/app_router.dart';
 import '../core/session/session_controller.dart';
 import '../core/session/session_models.dart';
 import '../core/theme/app_theme.dart';
-import '../core/theme/sdal_active_theme_store.dart';
 import '../core/theme/theme_mode_controller.dart';
 import '../core/theme/theme_mode_store.dart';
 import '../core/widgets/status_views.dart';
@@ -36,8 +35,10 @@ class _SdalFlutterAppState extends ConsumerState<SdalFlutterApp> {
   @override
   void initState() {
     super.initState();
-    // Persist theme changes so next cold-start shows the right palette.
-    ref.listenManual(sdalActiveThemeProvider, (previous, next) {
+    // Persist admin-driven theme changes so the correct palette shows on
+    // cold-start before the first network response. User-explicit picks are
+    // persisted directly in ProfileSettingsPage via SdalUserThemeStore.
+    ref.listenManual(sdalAdminThemeProvider, (previous, next) {
       if (previous == next) return;
       ref.read(sdalActiveThemeStoreProvider).save(next);
     });

@@ -28,6 +28,9 @@ final class WatchSessionManager: NSObject, ObservableObject, WCSessionDelegate {
         switch activeTheme {
         case "atlas": return Color(red: 0.51, green: 0.72, blue: 0.88)   // #82B8E0
         case "vibe":  return Color(red: 0.73, green: 0.59, blue: 0.96)   // #BB96F5
+        case "zinc":  return Color(red: 0.78, green: 0.80, blue: 0.84)   // #C8CDD6
+        case "ember": return Color(red: 0.94, green: 0.75, blue: 0.31)   // #F0C050
+        case "mist":  return Color(red: 0.50, green: 0.78, blue: 0.61)   // #80C89C
         default:      return Color(red: 0.91, green: 0.60, blue: 0.45)   // #E99A73 — kor
         }
     }
@@ -36,6 +39,9 @@ final class WatchSessionManager: NSObject, ObservableObject, WCSessionDelegate {
         switch activeTheme {
         case "atlas": return "SdalLogoAtlas"
         case "vibe":  return "SdalLogoVibe"
+        case "zinc":  return "SdalLogoZinc"
+        case "ember": return "SdalLogoEmber"
+        case "mist":  return "SdalLogoMist"
         default:      return "SdalLogoKor"
         }
     }
@@ -185,7 +191,7 @@ final class WatchSessionManager: NSObject, ObservableObject, WCSessionDelegate {
         let newUrl       = (context["baseUrl"]     as? String).flatMap { $0.isEmpty ? nil : $0 }
         let newUserId    = (context["userId"]      as? Int).flatMap { $0 > 0 ? $0 : nil }
         let newUserPhoto = (context["userPhoto"]   as? String).flatMap { $0.isEmpty ? nil : $0 }
-        let validThemes: Set<String> = ["kor", "atlas", "vibe"]
+        let validThemes: Set<String> = ["kor", "atlas", "vibe", "zinc", "ember", "mist"]
         let rawTheme     = (context["activeTheme"] as? String)?.lowercased().trimmingCharacters(in: .whitespaces)
         let newTheme     = rawTheme.flatMap { validThemes.contains($0) ? $0 : nil }
 

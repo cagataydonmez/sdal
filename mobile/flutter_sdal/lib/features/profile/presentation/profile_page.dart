@@ -5,9 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
-import '../../../core/theme/theme_mode_controller.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
-import '../../../core/theme/theme_mode_store.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/member_badges.dart';
@@ -20,7 +18,6 @@ import '../../albums/application/albums_action_controller.dart';
 import '../../albums/data/albums_repository.dart';
 import '../../stories/data/stories_repository.dart';
 import '../../stories/presentation/stories_rail.dart';
-import '../application/profile_action_controller.dart';
 import '../data/profile_repository.dart';
 import 'profile_album_section.dart';
 
@@ -52,6 +49,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       title: l10n.profileTitle,
       background: FeatureScaffoldBackground.neutral,
       actions: [
+        IconButton(
+          tooltip: 'Ayarlar',
+          onPressed: () => context.push('/profile/settings'),
+          icon: const Icon(Icons.settings_outlined),
+        ),
         IconButton(
           tooltip: l10n.refreshAction,
           onPressed: () {
@@ -378,51 +380,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     _ProfileRow(
                       label: l10n.profileEditSignatureLabel,
                       value: profile.signature,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              SurfaceCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.profileAccountActionsTitle,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 12),
-                    _ThemeModePreferenceCard(),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: [
-                        OutlinedButton(
-                          onPressed: () => _openEmailChangeDialog(context, ref),
-                          child: Text(l10n.changeEmailAction),
-                        ),
-                        OutlinedButton(
-                          onPressed: () => _openPasswordDialog(context, ref),
-                          child: Text(l10n.changePasswordAction),
-                        ),
-                        FilledButton(
-                          onPressed: () async {
-                            final message = await ref
-                                .read(sessionControllerProvider.notifier)
-                                .logout();
-                            if (!context.mounted) return;
-                            if (message == null) {
-                              context.go('/login');
-                              return;
-                            }
-                            ScaffoldMessenger.of(
-                              context,
-                            ).showSnackBar(SnackBar(content: Text(message)));
-                          },
-                          child: Text(l10n.logoutAction),
-                        ),
-                      ],
                     ),
                   ],
                 ),
@@ -805,68 +762,6 @@ Uri _normalizeProfileUrl(String value) {
   return Uri.parse(withScheme);
 }
 
-class _ThemeModePreferenceCard extends ConsumerWidget {
-  const _ThemeModePreferenceCard();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = context.l10n;
-    final preference = ref.watch(themeModeControllerProvider);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Theme.of(context).sdal.panelRaised,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Theme.of(context).sdal.panelBorder),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.themeModeTitle,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              l10n.themeModeHelper,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: SegmentedButton<ThemeModePreference>(
-                showSelectedIcon: false,
-                segments: [
-                  ButtonSegment(
-                    value: ThemeModePreference.system,
-                    label: Text(l10n.themeModeSystem),
-                  ),
-                  ButtonSegment(
-                    value: ThemeModePreference.light,
-                    label: Text(l10n.themeModeLight),
-                  ),
-                  ButtonSegment(
-                    value: ThemeModePreference.dark,
-                    label: Text(l10n.themeModeDark),
-                  ),
-                ],
-                selected: {preference},
-                onSelectionChanged: (selection) {
-                  if (selection.isEmpty) return;
-                  ref
-                      .read(themeModeControllerProvider.notifier)
-                      .setPreference(selection.first);
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _StatusChip extends StatelessWidget {
   const _StatusChip({required this.label, required this.color});
 
@@ -923,139 +818,3 @@ class _ProfileFactChip extends StatelessWidget {
   }
 }
 
-Future<void> _openEmailChangeDialog(BuildContext context, WidgetRef ref) async {
-  final l10n = context.l10n;
-  final controller = TextEditingController();
-  try {
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.changeEmailAction),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.emailAddress,
-          decoration: InputDecoration(
-            labelText: l10n.profileEmailChangeNewEmailLabel,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(l10n.cancelAction),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final ok = await ref
-                  .read(profileActionControllerProvider.notifier)
-                  .requestEmailChange(controller.text.trim());
-              if (!context.mounted) return;
-              Navigator.of(context).pop();
-              final actionState = ref.read(profileActionControllerProvider);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    actionState.message ??
-                        (ok
-                            ? l10n.profileEmailChangeSuccess
-                            : l10n.profileEmailChangeFailed),
-                  ),
-                ),
-              );
-            },
-            child: Text(l10n.profileEmailChangeSubmitAction),
-          ),
-        ],
-      ),
-    );
-  } finally {
-    controller.dispose();
-  }
-}
-
-Future<void> _openPasswordDialog(BuildContext context, WidgetRef ref) async {
-  final l10n = context.l10n;
-  final currentController = TextEditingController();
-  final nextController = TextEditingController();
-  final repeatController = TextEditingController();
-  try {
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.changePasswordAction),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _dialogField(
-              currentController,
-              l10n.profilePasswordChangeCurrentPasswordLabel,
-              obscureText: true,
-            ),
-            _dialogField(
-              nextController,
-              l10n.profilePasswordChangeNewPasswordLabel,
-              obscureText: true,
-            ),
-            _dialogField(
-              repeatController,
-              l10n.profilePasswordChangeRepeatPasswordLabel,
-              obscureText: true,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(l10n.cancelAction),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final ok = await ref
-                  .read(profileActionControllerProvider.notifier)
-                  .changePassword(
-                    currentPassword: currentController.text,
-                    nextPassword: nextController.text,
-                    nextPasswordRepeat: repeatController.text,
-                  );
-              if (!context.mounted) return;
-              Navigator.of(context).pop();
-              final actionState = ref.read(profileActionControllerProvider);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    actionState.message ??
-                        (ok
-                            ? l10n.profilePasswordChangeSuccess
-                            : l10n.profilePasswordChangeFailed),
-                  ),
-                ),
-              );
-            },
-            child: Text(l10n.profilePasswordChangeSubmitAction),
-          ),
-        ],
-      ),
-    );
-  } finally {
-    currentController.dispose();
-    nextController.dispose();
-    repeatController.dispose();
-  }
-}
-
-Widget _dialogField(
-  TextEditingController controller,
-  String label, {
-  bool obscureText = false,
-  int minLines = 1,
-}) {
-  return Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: TextField(
-      controller: controller,
-      obscureText: obscureText,
-      minLines: minLines,
-      maxLines: obscureText ? 1 : (minLines > 1 ? minLines + 2 : 1),
-      decoration: InputDecoration(labelText: label),
-    ),
-  );
-}
