@@ -61,6 +61,9 @@ _SiteAccessSnapshot _$SiteAccessSnapshotFromJson(Map<String, dynamic> json) =>
         json['modules'] as Map<String, dynamic>?,
       ),
       defaultLandingPage: readRequiredText(json['defaultLandingPage']),
+      activeTheme: json['activeTheme'] == null
+          ? SdalAppTheme.kor
+          : _themeFromJson(json['activeTheme']),
     );
 
 Map<String, dynamic> _$SiteAccessSnapshotToJson(_SiteAccessSnapshot instance) =>
@@ -69,4 +72,11 @@ Map<String, dynamic> _$SiteAccessSnapshotToJson(_SiteAccessSnapshot instance) =>
       'maintenanceMessage': instance.maintenanceMessage,
       'modules': const SiteModulesConverter().toJson(instance.modules),
       'defaultLandingPage': instance.defaultLandingPage,
+      'activeTheme': _$SdalAppThemeEnumMap[instance.activeTheme]!,
     };
+
+const _$SdalAppThemeEnumMap = {
+  SdalAppTheme.kor: 'kor',
+  SdalAppTheme.atlas: 'atlas',
+  SdalAppTheme.vibe: 'vibe',
+};

@@ -12,6 +12,7 @@ import '../core/routing/app_router.dart';
 import '../core/session/session_controller.dart';
 import '../core/session/session_models.dart';
 import '../core/theme/app_theme.dart';
+import '../core/theme/sdal_active_theme_store.dart';
 import '../core/theme/theme_mode_controller.dart';
 import '../core/theme/theme_mode_store.dart';
 import '../core/widgets/status_views.dart';
@@ -24,43 +25,60 @@ import '../features/feed/data/feed_repository.dart';
 import '../features/groups/data/groups_repository.dart';
 import '../features/push_notifications/presentation/push_notifications_bootstrap.dart';
 
-class SdalFlutterApp extends ConsumerWidget {
+class SdalFlutterApp extends ConsumerStatefulWidget {
   const SdalFlutterApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SdalFlutterApp> createState() => _SdalFlutterAppState();
+}
+
+class _SdalFlutterAppState extends ConsumerState<SdalFlutterApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Persist theme changes so next cold-start shows the right palette.
+    ref.listenManual(sdalActiveThemeProvider, (previous, next) {
+      if (previous == next) return;
+      ref.read(sdalActiveThemeStoreProvider).save(next);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final sessionState = ref.watch(sessionControllerProvider);
     final themeMode = ref.watch(themeModeControllerProvider).themeMode;
+    final appTheme = ref.watch(sdalActiveThemeProvider);
+    final light = buildSdalLightTheme(appTheme);
+    final dark = buildSdalDarkTheme(appTheme);
+
+    const localizationsDelegates = [
+      AppLocalizations.delegate,
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ];
+    const supportedLocales = [Locale('tr'), Locale('en')];
+    const locale = Locale('tr');
 
     return sessionState.when(
       loading: () => MaterialApp(
         debugShowCheckedModeBanner: false,
-        theme: sdalLightTheme,
-        darkTheme: sdalDarkTheme,
+        theme: light,
+        darkTheme: dark,
         themeMode: themeMode,
-        locale: const Locale('tr'),
-        supportedLocales: const [Locale('tr'), Locale('en')],
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
+        locale: locale,
+        supportedLocales: supportedLocales,
+        localizationsDelegates: localizationsDelegates,
         home: const AppSplashScreen(),
       ),
       error: (error, _) => MaterialApp(
         debugShowCheckedModeBanner: false,
-        theme: sdalLightTheme,
-        darkTheme: sdalDarkTheme,
+        theme: light,
+        darkTheme: dark,
         themeMode: themeMode,
-        locale: const Locale('tr'),
-        supportedLocales: const [Locale('tr'), Locale('en')],
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
+        locale: locale,
+        supportedLocales: supportedLocales,
+        localizationsDelegates: localizationsDelegates,
         home: Builder(
           builder: (context) => StatusScaffold(
             title: context.l10n.appInitFailedTitle,
@@ -75,17 +93,12 @@ class SdalFlutterApp extends ConsumerWidget {
         return MaterialApp.router(
           debugShowCheckedModeBanner: false,
           onGenerateTitle: (context) => AppLocalizations.of(context)!.appName,
-          theme: sdalLightTheme,
-          darkTheme: sdalDarkTheme,
+          theme: light,
+          darkTheme: dark,
           themeMode: themeMode,
-          locale: const Locale('tr'),
-          supportedLocales: const [Locale('tr'), Locale('en')],
-          localizationsDelegates: const [
-            AppLocalizations.delegate,
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
+          locale: locale,
+          supportedLocales: supportedLocales,
+          localizationsDelegates: localizationsDelegates,
           builder: (context, child) => GestureDetector(
             behavior: HitTestBehavior.translucent,
             onTap: () => FocusManager.instance.primaryFocus?.unfocus(),

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import WatchConnectivity
 
 extension Notification.Name {
@@ -13,13 +14,31 @@ final class WatchSessionManager: NSObject, ObservableObject, WCSessionDelegate {
     @Published private(set) var myUserId: Int = 0
     @Published private(set) var myUserPhoto: String = ""
     @Published private(set) var lastContextReceivedAt: Date?
+    @Published private(set) var activeTheme: String = "kor"
 
-    private let cookieKey   = "sdal_watch_cookie"
-    private let baseUrlKey  = "sdal_watch_base_url"
-    private let userIdKey   = "sdal_watch_user_id"
+    private let cookieKey    = "sdal_watch_cookie"
+    private let baseUrlKey   = "sdal_watch_base_url"
+    private let userIdKey    = "sdal_watch_user_id"
     private let userPhotoKey = "sdal_watch_user_photo"
+    private let themeKey     = "sdal_watch_active_theme"
     private var recoveryTask: Task<Void, Never>?
     private var photoRefreshTask: Task<Void, Never>?
+
+    var accentColor: Color {
+        switch activeTheme {
+        case "atlas": return Color(red: 0.51, green: 0.72, blue: 0.88)   // #82B8E0
+        case "vibe":  return Color(red: 0.73, green: 0.59, blue: 0.96)   // #BB96F5
+        default:      return Color(red: 0.91, green: 0.60, blue: 0.45)   // #E99A73 — kor
+        }
+    }
+
+    var logoImageName: String {
+        switch activeTheme {
+        case "atlas": return "SdalLogoAtlas"
+        case "vibe":  return "SdalLogoVibe"
+        default:      return "SdalLogoKor"
+        }
+    }
 
     override private init() {
         super.init()
@@ -27,6 +46,7 @@ final class WatchSessionManager: NSObject, ObservableObject, WCSessionDelegate {
         apiBaseUrl    = UserDefaults.standard.string(forKey: baseUrlKey) ?? "https://sdal.app"
         myUserId      = UserDefaults.standard.integer(forKey: userIdKey)
         myUserPhoto   = UserDefaults.standard.string(forKey: userPhotoKey) ?? ""
+        activeTheme   = UserDefaults.standard.string(forKey: themeKey) ?? "kor"
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleAuthRejected),
@@ -161,24 +181,29 @@ final class WatchSessionManager: NSObject, ObservableObject, WCSessionDelegate {
             return
         }
 
-        let newCookie  = (context["cookie"]  as? String).flatMap { $0.isEmpty ? nil : $0 }
-        let newUrl     = (context["baseUrl"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-        let newUserId  = (context["userId"]  as? Int).flatMap { $0 > 0 ? $0 : nil }
-        let newUserPhoto = (context["userPhoto"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        let newCookie    = (context["cookie"]      as? String).flatMap { $0.isEmpty ? nil : $0 }
+        let newUrl       = (context["baseUrl"]     as? String).flatMap { $0.isEmpty ? nil : $0 }
+        let newUserId    = (context["userId"]      as? Int).flatMap { $0 > 0 ? $0 : nil }
+        let newUserPhoto = (context["userPhoto"]   as? String).flatMap { $0.isEmpty ? nil : $0 }
+        let validThemes: Set<String> = ["kor", "atlas", "vibe"]
+        let rawTheme     = (context["activeTheme"] as? String)?.lowercased().trimmingCharacters(in: .whitespaces)
+        let newTheme     = rawTheme.flatMap { validThemes.contains($0) ? $0 : nil }
 
-        guard newCookie != nil || newUrl != nil || newUserId != nil || newUserPhoto != nil else { return }
+        guard newCookie != nil || newUrl != nil || newUserId != nil || newUserPhoto != nil || newTheme != nil else { return }
 
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            if let c  = newCookie  { self.sessionCookie = c }
-            if let u  = newUrl     { self.apiBaseUrl = u }
-            if let id = newUserId  { self.myUserId = id }
-            if let p = newUserPhoto { self.myUserPhoto = p }
+            if let c  = newCookie    { self.sessionCookie = c }
+            if let u  = newUrl       { self.apiBaseUrl = u }
+            if let id = newUserId    { self.myUserId = id }
+            if let p  = newUserPhoto { self.myUserPhoto = p }
+            if let t  = newTheme     { self.activeTheme = t }
             self.lastContextReceivedAt = Date()
             UserDefaults.standard.set(self.sessionCookie, forKey: self.cookieKey)
             UserDefaults.standard.set(self.apiBaseUrl,    forKey: self.baseUrlKey)
             UserDefaults.standard.set(self.myUserId,      forKey: self.userIdKey)
             UserDefaults.standard.set(self.myUserPhoto,   forKey: self.userPhotoKey)
+            UserDefaults.standard.set(self.activeTheme,   forKey: self.themeKey)
         }
     }
 

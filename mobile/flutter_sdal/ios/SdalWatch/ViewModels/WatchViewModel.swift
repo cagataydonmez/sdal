@@ -452,7 +452,7 @@ final class WatchViewModel: ObservableObject {
         if !silent { announcementsState = .loading }
         do {
             let raw = try await api.fetchArray(
-                path: "/api/new/announcements?status=published&limit=30&offset=0",
+                path: "/api/new/announcements?limit=30&offset=0",
                 baseUrl: baseUrl,
                 cookie: cookie
             )
@@ -469,7 +469,7 @@ final class WatchViewModel: ObservableObject {
         if !silent { eventsState = .loading }
         do {
             let raw = try await api.fetchArray(
-                path: "/api/new/events?status=published&limit=30&offset=0",
+                path: "/api/new/events?limit=30&offset=0",
                 baseUrl: baseUrl,
                 cookie: cookie
             )

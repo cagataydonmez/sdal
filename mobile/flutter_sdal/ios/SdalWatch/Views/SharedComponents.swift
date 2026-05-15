@@ -55,6 +55,13 @@ struct ErrorRetryView: View {
                 .foregroundStyle(Color.accentColor.opacity(0.8))
             Text("Yüklenemedi")
                 .font(.caption).fontWeight(.medium)
+            if !message.isEmpty {
+                Text(message)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+            }
             Button(action: onRetry) {
                 Text("Tekrar dene")
                     .font(.system(size: 11, weight: .semibold))

@@ -132,6 +132,7 @@ export function registerSystemRoutes(app, deps) {
       defaultLandingPage: site.defaultLandingPage || '',
       menuVisibility: site.menuVisibility || {},
       moduleMenuOrder: site.moduleMenuOrder || [],
+      activeTheme: site.activeTheme || 'kor',
       modules,
       moduleKey,
       moduleOpen: moduleKey ? !!modules[moduleKey] : true,

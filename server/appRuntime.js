@@ -640,6 +640,7 @@ async function ensureRuntimeDefaults() {
       `ALTER TABLE media_settings
        ADD COLUMN IF NOT EXISTS album_uploads_require_approval BOOLEAN NOT NULL DEFAULT FALSE`
     );
+    sqlRun(`ALTER TABLE site_settings ADD COLUMN IF NOT EXISTS active_theme TEXT DEFAULT 'kor'`);
     sqlRun(
       `INSERT INTO media_settings
         (id, storage_provider, local_base_path, thumb_width, feed_width, full_width, webp_quality, max_upload_bytes, avif_enabled, album_uploads_require_approval, updated_at)
@@ -703,6 +704,9 @@ async function ensureRuntimeDefaults() {
   }
   if (!hasColumn('site_controls', 'menu_order_json')) {
     sqlRun('ALTER TABLE site_controls ADD COLUMN menu_order_json TEXT');
+  }
+  if (!hasColumn('site_controls', 'active_theme')) {
+    sqlRun("ALTER TABLE site_controls ADD COLUMN active_theme TEXT DEFAULT 'kor'");
   }
   if (!hasColumn('media_settings', 'album_uploads_require_approval')) {
     sqlRun('ALTER TABLE media_settings ADD COLUMN album_uploads_require_approval INTEGER DEFAULT 0');
@@ -1073,18 +1077,22 @@ function readSiteControlFromDb() {
   if (hasColumn(tableName, 'default_landing_page')) columns.push('default_landing_page');
   if (hasColumn(tableName, 'menu_visibility_json')) columns.push('menu_visibility_json');
   if (hasColumn(tableName, 'menu_order_json')) columns.push('menu_order_json');
+  if (hasColumn(tableName, 'active_theme')) columns.push('active_theme');
   const row = dbDriver === 'postgres'
     ? (sqlGet(`SELECT ${columns.join(', ')} FROM site_settings WHERE id = 1`) || {})
     : (sqlGet(`SELECT ${columns.join(', ')} FROM site_controls WHERE id = 1`) || {});
   const rawSiteOpen = row.site_open;
   const menuVisibility = normalizeModuleMenuVisibility(parseOptionalJson(row.menu_visibility_json, null));
   const moduleMenuOrder = normalizeModuleMenuOrder(parseOptionalJson(row.menu_order_json, null));
+  const validThemes = new Set(['kor', 'atlas', 'vibe']);
+  const rawTheme = String(row.active_theme || 'kor').toLowerCase().trim();
   return {
     siteOpen: rawSiteOpen === true || Number(rawSiteOpen ?? 1) === 1,
     maintenanceMessage: String(row.maintenance_message || 'Site geçici bakım modundadır. Lütfen daha sonra tekrar deneyin.'),
     defaultLandingPage: String(row.default_landing_page || ''),
     menuVisibility,
     moduleMenuOrder,
+    activeTheme: validThemes.has(rawTheme) ? rawTheme : 'kor',
     updatedAt: row.updated_at || null
   };
 }

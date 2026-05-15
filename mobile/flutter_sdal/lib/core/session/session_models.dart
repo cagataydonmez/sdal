@@ -1,6 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import '../config/app_config.dart';
 import '../network/json_utils.dart';
+import '../theme/sdal_app_theme.dart';
 
 part 'session_models.freezed.dart';
 part 'session_models.g.dart';
@@ -86,6 +87,7 @@ abstract class SiteAccessSnapshot with _$SiteAccessSnapshot {
     @JsonKey(fromJson: readRequiredText) required String maintenanceMessage,
     @SiteModulesConverter() required Map<String, bool> modules,
     @JsonKey(fromJson: readRequiredText) required String defaultLandingPage,
+    @JsonKey(fromJson: _themeFromJson) @Default(SdalAppTheme.kor) SdalAppTheme activeTheme,
   }) = _SiteAccessSnapshot;
 
   bool isModuleOpen(String key) => modules[key] ?? true;
@@ -101,6 +103,9 @@ abstract class SiteAccessSnapshot with _$SiteAccessSnapshot {
   factory SiteAccessSnapshot.fromMap(JsonMap map) =>
       SiteAccessSnapshot.fromJson(map);
 }
+
+SdalAppTheme _themeFromJson(dynamic value) =>
+    SdalAppTheme.fromString(value?.toString());
 
 class SiteModulesConverter
     implements JsonConverter<Map<String, bool>, Map<String, dynamic>?> {

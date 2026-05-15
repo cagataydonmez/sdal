@@ -11,6 +11,7 @@ abstract final class WatchBridgeService {
     required String baseUrl,
     int userId = 0,
     String userPhoto = '',
+    String activeTheme = 'kor',
   }) async {
     if (!Platform.isIOS) return;
     try {
@@ -19,6 +20,7 @@ abstract final class WatchBridgeService {
         'baseUrl': baseUrl,
         'userId': userId,
         'userPhoto': userPhoto,
+        'activeTheme': activeTheme,
       });
     } on PlatformException {
       // Best-effort — watch sync failures must never crash the main app.

@@ -7,10 +7,11 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     static let shared = WatchBridge()
     private override init() {}
 
-    private let cookieKey  = "sdal_bridge_cookie"
-    private let baseUrlKey = "sdal_bridge_base_url"
-    private let userIdKey  = "sdal_bridge_user_id"
+    private let cookieKey    = "sdal_bridge_cookie"
+    private let baseUrlKey   = "sdal_bridge_base_url"
+    private let userIdKey    = "sdal_bridge_user_id"
     private let userPhotoKey = "sdal_bridge_user_photo"
+    private let themeKey     = "sdal_bridge_active_theme"
 
     // MARK: - Lifecycle
 
@@ -78,7 +79,7 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     // MARK: - Flutter → Watch push
 
     /// Called by the Flutter MethodChannel when the session changes.
-    func pushSession(cookie: String, baseUrl: String, userId: Int = 0, userPhoto: String = "") {
+    func pushSession(cookie: String, baseUrl: String, userId: Int = 0, userPhoto: String = "", activeTheme: String = "") {
         // Always persist so buildContext() can serve Watch requests even if
         // isWatchAppInstalled was false when this was first called.
         let ud = UserDefaults.standard
@@ -86,6 +87,9 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         ud.set(baseUrl, forKey: baseUrlKey)
         if userId > 0 { ud.set(userId, forKey: userIdKey) }
         if !userPhoto.isEmpty { ud.set(userPhoto, forKey: userPhotoKey) }
+        let validThemes: Set<String> = ["kor", "atlas", "vibe"]
+        let safeTheme = validThemes.contains(activeTheme) ? activeTheme : "kor"
+        ud.set(safeTheme, forKey: themeKey)
 
         guard WCSession.isSupported(),
               WCSession.default.activationState == .activated else { return }
@@ -98,6 +102,7 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         ud.removeObject(forKey: baseUrlKey)
         ud.removeObject(forKey: userIdKey)
         ud.removeObject(forKey: userPhotoKey)
+        ud.removeObject(forKey: themeKey)
 
         guard WCSession.isSupported(),
               WCSession.default.activationState == .activated else { return }
@@ -143,6 +148,8 @@ final class WatchBridge: NSObject, WCSessionDelegate {
             if let photo = ud.string(forKey: userPhotoKey), !photo.isEmpty {
                 ctx["userPhoto"] = photo
             }
+            let theme = ud.string(forKey: themeKey) ?? "kor"
+            ctx["activeTheme"] = theme
             return ctx
         }
         // Fallback: read cookie_jar v4 files written by Flutter.

@@ -220,6 +220,7 @@ export function registerAdminOperationsRoutes(app, deps) {
         defaultLandingPage: defaultLandingPage || site.defaultLandingPage || '',
         menuVisibility: site.menuVisibility || normalizeModuleMenuVisibility(null),
         moduleMenuOrder: site.moduleMenuOrder || normalizeModuleMenuOrder(null),
+        activeTheme: site.activeTheme || 'kor',
         modules,
         moduleDefinitions: MODULE_DEFINITIONS
       };
@@ -275,6 +276,18 @@ export function registerAdminOperationsRoutes(app, deps) {
           }
         } catch { /* column may not exist yet on older deployments */ }
       }
+      if (updates.activeTheme !== undefined) {
+        const validThemes = new Set(['kor', 'atlas', 'vibe']);
+        const nextTheme = String(updates.activeTheme || 'kor').toLowerCase().trim();
+        const safeTheme = validThemes.has(nextTheme) ? nextTheme : 'kor';
+        try {
+          if (dbDriver === 'postgres') {
+            await sqlRunAsync('UPDATE site_settings SET active_theme = ? WHERE id = 1', [safeTheme]);
+          } else {
+            await sqlRunAsync('UPDATE site_controls SET active_theme = ? WHERE id = 1', [safeTheme]);
+          }
+        } catch { /* column may not exist yet on older deployments */ }
+      }
       if (updates.modules && typeof updates.modules === 'object') {
         for (const def of MODULE_DEFINITIONS) {
           if (updates.modules[def.key] === undefined) continue;
@@ -305,6 +318,7 @@ export function registerAdminOperationsRoutes(app, deps) {
         defaultLandingPage: site.defaultLandingPage || '',
         menuVisibility: site.menuVisibility || normalizeModuleMenuVisibility(null),
         moduleMenuOrder: site.moduleMenuOrder || normalizeModuleMenuOrder(null),
+        activeTheme: site.activeTheme || 'kor',
         modules: getModuleControlMap()
       });
     } catch (err) {

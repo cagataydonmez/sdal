@@ -114,6 +114,7 @@ struct SdalWatchApp: App {
             ContentView()
                 .environmentObject(sessionManager)
                 .environmentObject(viewModel)
+                .tint(sessionManager.accentColor)
                 .onAppear {
                     sessionManager.activate()
                     appDelegate.viewModel   = viewModel

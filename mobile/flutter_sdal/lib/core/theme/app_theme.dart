@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
+import 'sdal_app_theme.dart';
 import 'sdal_theme_tokens.dart';
 
 final ThemeData sdalLightTheme = buildSdalLightTheme();
 final ThemeData sdalDarkTheme = buildSdalDarkTheme();
 
-ThemeData buildSdalLightTheme() => _buildSdalTheme(
-  brightness: Brightness.light,
-  tokens: SdalThemeTokens.light,
-);
+ThemeData buildSdalLightTheme([SdalAppTheme appTheme = SdalAppTheme.kor]) =>
+    _buildSdalTheme(brightness: Brightness.light, tokens: appTheme.lightTokens);
 
-ThemeData buildSdalDarkTheme() =>
-    _buildSdalTheme(brightness: Brightness.dark, tokens: SdalThemeTokens.dark);
+ThemeData buildSdalDarkTheme([SdalAppTheme appTheme = SdalAppTheme.kor]) =>
+    _buildSdalTheme(brightness: Brightness.dark, tokens: appTheme.darkTokens);
 
 ThemeData _buildSdalTheme({
   required Brightness brightness,

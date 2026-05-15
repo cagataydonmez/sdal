@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/json_utils.dart';
+import '../../../core/theme/sdal_app_theme.dart';
 
 class AdminSummarySnapshot {
   const AdminSummarySnapshot({
@@ -1723,6 +1724,7 @@ class AdminSiteControlsSnapshot {
     required this.moduleMenuOrder,
     required this.openModuleCount,
     required this.totalModuleCount,
+    this.activeTheme = SdalAppTheme.kor,
   });
 
   final bool siteOpen;
@@ -1733,6 +1735,7 @@ class AdminSiteControlsSnapshot {
   final List<String> moduleMenuOrder;
   final int openModuleCount;
   final int totalModuleCount;
+  final SdalAppTheme activeTheme;
 
   factory AdminSiteControlsSnapshot.fromMap(JsonMap map) {
     final modules = asJsonMap(map['modules']);
@@ -1763,6 +1766,9 @@ class AdminSiteControlsSnapshot {
               .toList(growable: false),
       openModuleCount: openCount,
       totalModuleCount: modules.length,
+      activeTheme: SdalAppTheme.fromString(
+        coalesceText([map['activeTheme']], fallback: 'kor'),
+      ),
     );
   }
 }
@@ -2668,6 +2674,7 @@ class AdminRepository {
     Map<String, bool>? modules,
     Map<String, bool>? menuVisibility,
     List<String>? moduleMenuOrder,
+    SdalAppTheme? activeTheme,
   }) async {
     await _apiClient.put<dynamic>(
       '/api/admin/site-controls',
@@ -2684,6 +2691,7 @@ class AdminRepository {
         ...?moduleMenuOrder == null
             ? null
             : {'moduleMenuOrder': moduleMenuOrder},
+        ...?activeTheme == null ? null : {'activeTheme': activeTheme.id},
       },
     );
   }

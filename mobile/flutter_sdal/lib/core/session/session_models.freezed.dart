@@ -583,7 +583,7 @@ as String?,
 /// @nodoc
 mixin _$SiteAccessSnapshot {
 
-@JsonKey(fromJson: readRequiredBool) bool get siteOpen;@JsonKey(fromJson: readRequiredText) String get maintenanceMessage;@SiteModulesConverter() Map<String, bool> get modules;@JsonKey(fromJson: readRequiredText) String get defaultLandingPage;
+@JsonKey(fromJson: readRequiredBool) bool get siteOpen;@JsonKey(fromJson: readRequiredText) String get maintenanceMessage;@SiteModulesConverter() Map<String, bool> get modules;@JsonKey(fromJson: readRequiredText) String get defaultLandingPage;@JsonKey(fromJson: _themeFromJson) SdalAppTheme get activeTheme;
 /// Create a copy of SiteAccessSnapshot
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -596,16 +596,16 @@ $SiteAccessSnapshotCopyWith<SiteAccessSnapshot> get copyWith => _$SiteAccessSnap
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SiteAccessSnapshot&&(identical(other.siteOpen, siteOpen) || other.siteOpen == siteOpen)&&(identical(other.maintenanceMessage, maintenanceMessage) || other.maintenanceMessage == maintenanceMessage)&&const DeepCollectionEquality().equals(other.modules, modules)&&(identical(other.defaultLandingPage, defaultLandingPage) || other.defaultLandingPage == defaultLandingPage));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SiteAccessSnapshot&&(identical(other.siteOpen, siteOpen) || other.siteOpen == siteOpen)&&(identical(other.maintenanceMessage, maintenanceMessage) || other.maintenanceMessage == maintenanceMessage)&&const DeepCollectionEquality().equals(other.modules, modules)&&(identical(other.defaultLandingPage, defaultLandingPage) || other.defaultLandingPage == defaultLandingPage)&&(identical(other.activeTheme, activeTheme) || other.activeTheme == activeTheme));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,siteOpen,maintenanceMessage,const DeepCollectionEquality().hash(modules),defaultLandingPage);
+int get hashCode => Object.hash(runtimeType,siteOpen,maintenanceMessage,const DeepCollectionEquality().hash(modules),defaultLandingPage,activeTheme);
 
 @override
 String toString() {
-  return 'SiteAccessSnapshot(siteOpen: $siteOpen, maintenanceMessage: $maintenanceMessage, modules: $modules, defaultLandingPage: $defaultLandingPage)';
+  return 'SiteAccessSnapshot(siteOpen: $siteOpen, maintenanceMessage: $maintenanceMessage, modules: $modules, defaultLandingPage: $defaultLandingPage, activeTheme: $activeTheme)';
 }
 
 
@@ -616,7 +616,7 @@ abstract mixin class $SiteAccessSnapshotCopyWith<$Res>  {
   factory $SiteAccessSnapshotCopyWith(SiteAccessSnapshot value, $Res Function(SiteAccessSnapshot) _then) = _$SiteAccessSnapshotCopyWithImpl;
 @useResult
 $Res call({
-@JsonKey(fromJson: readRequiredBool) bool siteOpen,@JsonKey(fromJson: readRequiredText) String maintenanceMessage,@SiteModulesConverter() Map<String, bool> modules,@JsonKey(fromJson: readRequiredText) String defaultLandingPage
+@JsonKey(fromJson: readRequiredBool) bool siteOpen,@JsonKey(fromJson: readRequiredText) String maintenanceMessage,@SiteModulesConverter() Map<String, bool> modules,@JsonKey(fromJson: readRequiredText) String defaultLandingPage,@JsonKey(fromJson: _themeFromJson) SdalAppTheme activeTheme
 });
 
 
@@ -633,13 +633,14 @@ class _$SiteAccessSnapshotCopyWithImpl<$Res>
 
 /// Create a copy of SiteAccessSnapshot
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? siteOpen = null,Object? maintenanceMessage = null,Object? modules = null,Object? defaultLandingPage = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? siteOpen = null,Object? maintenanceMessage = null,Object? modules = null,Object? defaultLandingPage = null,Object? activeTheme = null,}) {
   return _then(_self.copyWith(
 siteOpen: null == siteOpen ? _self.siteOpen : siteOpen // ignore: cast_nullable_to_non_nullable
 as bool,maintenanceMessage: null == maintenanceMessage ? _self.maintenanceMessage : maintenanceMessage // ignore: cast_nullable_to_non_nullable
 as String,modules: null == modules ? _self.modules : modules // ignore: cast_nullable_to_non_nullable
 as Map<String, bool>,defaultLandingPage: null == defaultLandingPage ? _self.defaultLandingPage : defaultLandingPage // ignore: cast_nullable_to_non_nullable
-as String,
+as String,activeTheme: null == activeTheme ? _self.activeTheme : activeTheme // ignore: cast_nullable_to_non_nullable
+as SdalAppTheme,
   ));
 }
 
@@ -724,10 +725,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: readRequiredBool)  bool siteOpen, @JsonKey(fromJson: readRequiredText)  String maintenanceMessage, @SiteModulesConverter()  Map<String, bool> modules, @JsonKey(fromJson: readRequiredText)  String defaultLandingPage)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: readRequiredBool)  bool siteOpen, @JsonKey(fromJson: readRequiredText)  String maintenanceMessage, @SiteModulesConverter()  Map<String, bool> modules, @JsonKey(fromJson: readRequiredText)  String defaultLandingPage, @JsonKey(fromJson: _themeFromJson)  SdalAppTheme activeTheme)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _SiteAccessSnapshot() when $default != null:
-return $default(_that.siteOpen,_that.maintenanceMessage,_that.modules,_that.defaultLandingPage);case _:
+return $default(_that.siteOpen,_that.maintenanceMessage,_that.modules,_that.defaultLandingPage,_that.activeTheme);case _:
   return orElse();
 
 }
@@ -745,10 +746,10 @@ return $default(_that.siteOpen,_that.maintenanceMessage,_that.modules,_that.defa
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: readRequiredBool)  bool siteOpen, @JsonKey(fromJson: readRequiredText)  String maintenanceMessage, @SiteModulesConverter()  Map<String, bool> modules, @JsonKey(fromJson: readRequiredText)  String defaultLandingPage)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: readRequiredBool)  bool siteOpen, @JsonKey(fromJson: readRequiredText)  String maintenanceMessage, @SiteModulesConverter()  Map<String, bool> modules, @JsonKey(fromJson: readRequiredText)  String defaultLandingPage, @JsonKey(fromJson: _themeFromJson)  SdalAppTheme activeTheme)  $default,) {final _that = this;
 switch (_that) {
 case _SiteAccessSnapshot():
-return $default(_that.siteOpen,_that.maintenanceMessage,_that.modules,_that.defaultLandingPage);case _:
+return $default(_that.siteOpen,_that.maintenanceMessage,_that.modules,_that.defaultLandingPage,_that.activeTheme);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -765,10 +766,10 @@ return $default(_that.siteOpen,_that.maintenanceMessage,_that.modules,_that.defa
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: readRequiredBool)  bool siteOpen, @JsonKey(fromJson: readRequiredText)  String maintenanceMessage, @SiteModulesConverter()  Map<String, bool> modules, @JsonKey(fromJson: readRequiredText)  String defaultLandingPage)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: readRequiredBool)  bool siteOpen, @JsonKey(fromJson: readRequiredText)  String maintenanceMessage, @SiteModulesConverter()  Map<String, bool> modules, @JsonKey(fromJson: readRequiredText)  String defaultLandingPage, @JsonKey(fromJson: _themeFromJson)  SdalAppTheme activeTheme)?  $default,) {final _that = this;
 switch (_that) {
 case _SiteAccessSnapshot() when $default != null:
-return $default(_that.siteOpen,_that.maintenanceMessage,_that.modules,_that.defaultLandingPage);case _:
+return $default(_that.siteOpen,_that.maintenanceMessage,_that.modules,_that.defaultLandingPage,_that.activeTheme);case _:
   return null;
 
 }
@@ -780,7 +781,7 @@ return $default(_that.siteOpen,_that.maintenanceMessage,_that.modules,_that.defa
 @JsonSerializable()
 
 class _SiteAccessSnapshot extends SiteAccessSnapshot {
-  const _SiteAccessSnapshot({@JsonKey(fromJson: readRequiredBool) required this.siteOpen, @JsonKey(fromJson: readRequiredText) required this.maintenanceMessage, @SiteModulesConverter() required final  Map<String, bool> modules, @JsonKey(fromJson: readRequiredText) required this.defaultLandingPage}): _modules = modules,super._();
+  const _SiteAccessSnapshot({@JsonKey(fromJson: readRequiredBool) required this.siteOpen, @JsonKey(fromJson: readRequiredText) required this.maintenanceMessage, @SiteModulesConverter() required final  Map<String, bool> modules, @JsonKey(fromJson: readRequiredText) required this.defaultLandingPage, @JsonKey(fromJson: _themeFromJson) this.activeTheme = SdalAppTheme.kor}): _modules = modules,super._();
   factory _SiteAccessSnapshot.fromJson(Map<String, dynamic> json) => _$SiteAccessSnapshotFromJson(json);
 
 @override@JsonKey(fromJson: readRequiredBool) final  bool siteOpen;
@@ -793,6 +794,7 @@ class _SiteAccessSnapshot extends SiteAccessSnapshot {
 }
 
 @override@JsonKey(fromJson: readRequiredText) final  String defaultLandingPage;
+@override@JsonKey(fromJson: _themeFromJson) final  SdalAppTheme activeTheme;
 
 /// Create a copy of SiteAccessSnapshot
 /// with the given fields replaced by the non-null parameter values.
@@ -807,16 +809,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SiteAccessSnapshot&&(identical(other.siteOpen, siteOpen) || other.siteOpen == siteOpen)&&(identical(other.maintenanceMessage, maintenanceMessage) || other.maintenanceMessage == maintenanceMessage)&&const DeepCollectionEquality().equals(other._modules, _modules)&&(identical(other.defaultLandingPage, defaultLandingPage) || other.defaultLandingPage == defaultLandingPage));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SiteAccessSnapshot&&(identical(other.siteOpen, siteOpen) || other.siteOpen == siteOpen)&&(identical(other.maintenanceMessage, maintenanceMessage) || other.maintenanceMessage == maintenanceMessage)&&const DeepCollectionEquality().equals(other._modules, _modules)&&(identical(other.defaultLandingPage, defaultLandingPage) || other.defaultLandingPage == defaultLandingPage)&&(identical(other.activeTheme, activeTheme) || other.activeTheme == activeTheme));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,siteOpen,maintenanceMessage,const DeepCollectionEquality().hash(_modules),defaultLandingPage);
+int get hashCode => Object.hash(runtimeType,siteOpen,maintenanceMessage,const DeepCollectionEquality().hash(_modules),defaultLandingPage,activeTheme);
 
 @override
 String toString() {
-  return 'SiteAccessSnapshot(siteOpen: $siteOpen, maintenanceMessage: $maintenanceMessage, modules: $modules, defaultLandingPage: $defaultLandingPage)';
+  return 'SiteAccessSnapshot(siteOpen: $siteOpen, maintenanceMessage: $maintenanceMessage, modules: $modules, defaultLandingPage: $defaultLandingPage, activeTheme: $activeTheme)';
 }
 
 
@@ -827,7 +829,7 @@ abstract mixin class _$SiteAccessSnapshotCopyWith<$Res> implements $SiteAccessSn
   factory _$SiteAccessSnapshotCopyWith(_SiteAccessSnapshot value, $Res Function(_SiteAccessSnapshot) _then) = __$SiteAccessSnapshotCopyWithImpl;
 @override @useResult
 $Res call({
-@JsonKey(fromJson: readRequiredBool) bool siteOpen,@JsonKey(fromJson: readRequiredText) String maintenanceMessage,@SiteModulesConverter() Map<String, bool> modules,@JsonKey(fromJson: readRequiredText) String defaultLandingPage
+@JsonKey(fromJson: readRequiredBool) bool siteOpen,@JsonKey(fromJson: readRequiredText) String maintenanceMessage,@SiteModulesConverter() Map<String, bool> modules,@JsonKey(fromJson: readRequiredText) String defaultLandingPage,@JsonKey(fromJson: _themeFromJson) SdalAppTheme activeTheme
 });
 
 
@@ -844,13 +846,14 @@ class __$SiteAccessSnapshotCopyWithImpl<$Res>
 
 /// Create a copy of SiteAccessSnapshot
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? siteOpen = null,Object? maintenanceMessage = null,Object? modules = null,Object? defaultLandingPage = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? siteOpen = null,Object? maintenanceMessage = null,Object? modules = null,Object? defaultLandingPage = null,Object? activeTheme = null,}) {
   return _then(_SiteAccessSnapshot(
 siteOpen: null == siteOpen ? _self.siteOpen : siteOpen // ignore: cast_nullable_to_non_nullable
 as bool,maintenanceMessage: null == maintenanceMessage ? _self.maintenanceMessage : maintenanceMessage // ignore: cast_nullable_to_non_nullable
 as String,modules: null == modules ? _self._modules : modules // ignore: cast_nullable_to_non_nullable
 as Map<String, bool>,defaultLandingPage: null == defaultLandingPage ? _self.defaultLandingPage : defaultLandingPage // ignore: cast_nullable_to_non_nullable
-as String,
+as String,activeTheme: null == activeTheme ? _self.activeTheme : activeTheme // ignore: cast_nullable_to_non_nullable
+as SdalAppTheme,
   ));
 }
 

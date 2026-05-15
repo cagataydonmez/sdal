@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/session/session_controller.dart';
 import '../../../core/text/sdal_date_time.dart';
+import '../../../core/theme/sdal_app_theme.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -1357,6 +1358,8 @@ class AdminModuleManagementPage extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 16),
+              _AppThemePickerCard(controls: controls),
+              const SizedBox(height: 16),
               for (final module in modules)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
@@ -2328,6 +2331,7 @@ Future<void> _saveSiteControls(
   String? defaultLandingPage,
   Map<String, bool>? modules,
   Map<String, bool>? menuVisibility,
+  SdalAppTheme? activeTheme,
 }) async {
   try {
     await ref
@@ -2339,6 +2343,7 @@ Future<void> _saveSiteControls(
           modules: modules,
           menuVisibility: menuVisibility,
           moduleMenuOrder: controls.moduleMenuOrder,
+          activeTheme: activeTheme,
         );
     ref.invalidate(adminSiteControlsProvider);
     ref.invalidate(sessionControllerProvider);
@@ -2351,5 +2356,183 @@ Future<void> _saveSiteControls(
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(error.toString())));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Theme picker card injected into AdminModuleManagementPage
+// ---------------------------------------------------------------------------
+
+class _AppThemePickerCard extends ConsumerStatefulWidget {
+  const _AppThemePickerCard({required this.controls});
+
+  final AdminSiteControlsSnapshot controls;
+
+  @override
+  ConsumerState<_AppThemePickerCard> createState() =>
+      _AppThemePickerCardState();
+}
+
+class _AppThemePickerCardState extends ConsumerState<_AppThemePickerCard> {
+  late SdalAppTheme _selected;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.controls.activeTheme;
+  }
+
+  @override
+  void didUpdateWidget(_AppThemePickerCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_saving && oldWidget.controls.activeTheme != widget.controls.activeTheme) {
+      _selected = widget.controls.activeTheme;
+    }
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await _saveSiteControls(
+        context,
+        ref,
+        widget.controls,
+        activeTheme: _selected,
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.sdal;
+
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Uygulama teması', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(
+            'Değişiklik sonraki oturum yenilemesiyle tüm kullanıcılara yansır.',
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 14),
+          for (final appTheme in SdalAppTheme.values) ...[
+            _ThemeOptionRow(
+              appTheme: appTheme,
+              selected: _selected == appTheme,
+              tokens: tokens,
+              onTap: () => setState(() => _selected = appTheme),
+            ),
+            if (appTheme != SdalAppTheme.values.last) const SizedBox(height: 8),
+          ],
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _selected == widget.controls.activeTheme || _saving
+                  ? null
+                  : _save,
+              child: _saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Kaydet'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ThemeOptionRow extends StatelessWidget {
+  const _ThemeOptionRow({
+    required this.appTheme,
+    required this.selected,
+    required this.tokens,
+    required this.onTap,
+  });
+
+  final SdalAppTheme appTheme;
+  final bool selected;
+  final SdalThemeTokens tokens;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: selected ? tokens.accentMuted : tokens.panelMuted,
+          borderRadius: BorderRadius.circular(SdalThemeTokens.radiusMd),
+          border: Border.all(
+            color: selected ? tokens.accent : tokens.panelBorder,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Row(
+              children: appTheme.swatches
+                  .asMap()
+                  .entries
+                  .map(
+                    (e) => Transform.translate(
+                      offset: Offset(-e.key * 6.0, 0),
+                      child: Container(
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: e.value,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: tokens.panel,
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    appTheme.displayName,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: selected ? tokens.accent : tokens.foreground,
+                    ),
+                  ),
+                  Text(
+                    appTheme.tagline,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: tokens.foregroundMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (selected)
+              Icon(Icons.check_circle_rounded, color: tokens.accent, size: 20),
+          ],
+        ),
+      ),
+    );
   }
 }

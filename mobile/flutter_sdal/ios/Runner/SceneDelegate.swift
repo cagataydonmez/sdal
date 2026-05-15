@@ -82,11 +82,13 @@ class SceneDelegate: FlutterSceneDelegate {
            let baseUrl = args["baseUrl"] as? String {
           let userId = args["userId"] as? Int ?? 0
           let userPhoto = args["userPhoto"] as? String ?? ""
+          let activeTheme = args["activeTheme"] as? String ?? "kor"
           WatchBridge.shared.pushSession(
             cookie: cookie,
             baseUrl: baseUrl,
             userId: userId,
-            userPhoto: userPhoto
+            userPhoto: userPhoto,
+            activeTheme: activeTheme
           )
         }
         result(nil)

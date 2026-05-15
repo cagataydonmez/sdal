@@ -28,7 +28,7 @@ private struct UnauthenticatedView: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            Image("SdalLogo")
+            Image(sessionManager.logoImageName)
                 .resizable()
                 .scaledToFit()
                 .frame(width: 44, height: 44)

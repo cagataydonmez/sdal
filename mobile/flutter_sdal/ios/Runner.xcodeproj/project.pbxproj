@@ -11,7 +11,7 @@
 		10A74DB5EA237C881B79307D /* WatchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB726CB8672695E22885E0AF /* WatchModels.swift */; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
 		178220FACC20E184270BE09A /* SdalNotificationExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = DFAE63C0EF95D32AC421520B /* SdalNotificationExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		WA0012345678901ABCDEF001 /* SdalWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 3912A4012FAA82B50078789A /* SdalWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		WA0012345678901ABCDEF001 /* SdalWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 3912A4012FAA82B50078789A /* SdalWatch.app */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		3089072191B9214EC522A5E3 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9F5A82521A8C7178051C75E2 /* Foundation.framework */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		383C0ECDC274428E91FAEE78 /* ExploreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0666DB327BD2493F9B49256F /* ExploreView.swift */; };
@@ -470,6 +470,7 @@
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				AF720B5926B33A385CE78F8A /* Embed App Extensions */,
+				WA0012345678901ABCDEF002 /* Embed Watch Content */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				5A5E4CC62A1F4A8CBFD3E001 /* Strip Extended Attributes (Pre-embed) */,
 				72984A24260C997F15464F39 /* [CP] Copy Pods Resources */,
@@ -480,6 +481,7 @@
 			);
 			dependencies = (
 				D3A8DF3C87C55AE1687C97AF /* PBXTargetDependency */,
+				WA0012345678901ABCDEF004 /* PBXTargetDependency */,
 			);
 			name = Runner;
 			productName = Runner;
@@ -504,6 +506,9 @@
 						CreatedOnToolsVersion = 7.3.1;
 						LastSwiftMigration = 1100;
 					};
+					7CBE429371BD4E21AA16AB37 = {
+						CreatedOnToolsVersion = 15.0;
+					};
 				};
 			};
 			buildConfigurationList = 97C146E91CF9000F007C117D /* Build configuration list for PBXProject "Runner" */;
@@ -522,6 +527,7 @@
 				97C146ED1CF9000F007C117D /* Runner */,
 				331C8080294A63A400263BE5 /* RunnerTests */,
 				2CC7DDDB656D64EFF2CC2121 /* SdalNotificationExtension */,
+				7CBE429371BD4E21AA16AB37 /* SdalWatch */,
 			);
 		};
 /* End PBXProject section */
@@ -816,6 +822,7 @@
 		};
 		WA0012345678901ABCDEF004 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
+			platformFilters = (ios, );
 			target = 7CBE429371BD4E21AA16AB37 /* SdalWatch */;
 			targetProxy = WA0012345678901ABCDEF003 /* PBXContainerItemProxy */;
 		};

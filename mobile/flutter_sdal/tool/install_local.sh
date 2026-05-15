@@ -1173,6 +1173,7 @@ build_ios_simulator_runner_app() {
   [[ "$build_mode" == "debug" ]] \
     || die "Only Debug builds are supported on iOS Simulator."
 
+  disable_runner_watch_embed_for_ios_simulator
   log "Building Runner.app for iOS Simulator with Xcode..."
   (
     cd "$ROOT_DIR"

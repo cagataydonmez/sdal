@@ -91,7 +91,7 @@ struct FeedView: View {
 
     private var feedHeaderTitle: some View {
         HStack(spacing: 6) {
-            Image("SdalLogo")
+            Image(sessionManager.logoImageName)
                 .resizable()
                 .scaledToFit()
                 .frame(width: 20, height: 20)
