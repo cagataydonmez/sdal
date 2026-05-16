@@ -63,7 +63,7 @@ class RootAdminToolsPage extends ConsumerWidget {
                 'Kayıtlı bir üyenin post, yorum, like, mesaj, profil ve fotoğraf görüntüleme izlerini incele.',
             icon: Icons.manage_search_outlined,
             tone: AdminTone.accent,
-            onTap: () => context.go('/admin/root/member-activity'),
+            onTap: () => context.push('/admin/root/member-activity'),
           ),
           const SizedBox(height: 10),
           AdminSectionCard(
@@ -71,7 +71,7 @@ class RootAdminToolsPage extends ConsumerWidget {
             subtitle: 'Rol ve özel izin setlerini düzenle.',
             icon: Icons.admin_panel_settings_outlined,
             tone: AdminTone.info,
-            onTap: () => context.go('/admin/permission-groups'),
+            onTap: () => context.push('/admin/permission-groups'),
           ),
           const SizedBox(height: 10),
           AdminSectionCard(
@@ -79,7 +79,7 @@ class RootAdminToolsPage extends ConsumerWidget {
             subtitle: 'Üyelere root kontrollü izin grupları ata.',
             icon: Icons.verified_user_outlined,
             tone: AdminTone.info,
-            onTap: () => context.go('/admin/user-permissions'),
+            onTap: () => context.push('/admin/user-permissions'),
           ),
           const SizedBox(height: 10),
           AdminSectionCard(
@@ -87,7 +87,7 @@ class RootAdminToolsPage extends ConsumerWidget {
             subtitle: 'Yüksek riskli sıfırlama akışı, ayrı doğrulama ister.',
             icon: Icons.delete_forever_outlined,
             tone: AdminTone.danger,
-            onTap: () => context.go('/admin/factory-reset'),
+            onTap: () => context.push('/admin/factory-reset'),
           ),
           const SizedBox(height: 10),
           AdminSectionCard(
@@ -96,7 +96,7 @@ class RootAdminToolsPage extends ConsumerWidget {
                 'Geliştirme ve doğrulama için kontrollü test datası üret.',
             icon: Icons.science_outlined,
             tone: AdminTone.warning,
-            onTap: () => context.go('/admin/test-data'),
+            onTap: () => context.push('/admin/test-data'),
           ),
         ],
       ),
