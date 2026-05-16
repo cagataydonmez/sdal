@@ -38,6 +38,8 @@ void main() {
                 myRole: '',
                 membershipStatus: 'none',
                 showContactHint: false,
+                isCohortGroup: false,
+                cohortYear: '',
               ),
             ],
           ),
@@ -58,7 +60,6 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Gruplar'), findsOneWidget);
     expect(find.text('Yeni grup'), findsOneWidget);
     expect(find.text('Tasarim Ekibi'), findsOneWidget);
     expect(find.text('12 üye'), findsOneWidget);

@@ -39,6 +39,8 @@ class _FakeCommunityRepository extends CommunityRepository {
     required String title,
     required String body,
     dynamic imageFile,
+    bool showInFeed = true,
+    bool publish = true,
   }) async {
     return const ApiResult<dynamic>(
       ok: true,

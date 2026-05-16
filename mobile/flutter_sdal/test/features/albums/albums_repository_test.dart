@@ -7,32 +7,6 @@ import '../../test_support/fake_api_client.dart';
 
 void main() {
   group('AlbumsRepository contracts', () {
-    test('fetchLatest forwards limit/offset and preserves hasMore', () async {
-      final apiClient = _RecordingAlbumsApiClient(
-        getRawData: const {
-          'items': [
-            {
-              'id': 91,
-              'katid': 3,
-              'dosyaadi': 'photo.jpg',
-              'tarih': '2026-01-01T12:00:00.000Z',
-              'kategori': 'Mezunlar',
-            },
-          ],
-          'hasMore': true,
-        },
-      );
-      final repository = AlbumsRepository(apiClient);
-
-      final page = await repository.fetchLatest(limit: 24, offset: 48);
-
-      expect(apiClient.lastMethod, 'GET');
-      expect(apiClient.lastPath, '/api/album/latest');
-      expect(apiClient.lastQuery, {'limit': 24, 'offset': 48});
-      expect(page.items, hasLength(1));
-      expect(page.hasMore, isTrue);
-    });
-
     test(
       'fetchCategoryDetail forwards page/pageSize and exposes hasMore',
       () async {

@@ -14,19 +14,19 @@ class AdminActionController extends Notifier<AsyncActionState> {
     return true;
   }
 
-  Future<bool> deleteContent({required String type, required int id}) async {
+  Future<bool> deleteContent({required String type, required int id, String reason = ''}) async {
     final scope = 'admin:$type:delete:$id';
     if (!_begin(scope)) return false;
     try {
       switch (type) {
         case 'post':
-          await _repository.deletePost(id);
+          await _repository.deletePost(id, reason: reason);
           break;
         case 'comment':
-          await _repository.deleteComment(id);
+          await _repository.deleteComment(id, reason: reason);
           break;
         case 'story':
-          await _repository.deleteStory(id);
+          await _repository.deleteStory(id, reason: reason);
           break;
         default:
           throw StateError('Unsupported admin content type: $type');

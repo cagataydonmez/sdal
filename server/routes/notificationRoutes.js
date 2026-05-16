@@ -38,7 +38,8 @@ export function registerNotificationRoutes(app, {
   readRecentPushDeliveries,
   parseNetworkWindowDays,
   toIsoThreshold,
-  notificationTypeInventory
+  notificationTypeInventory,
+  adminPushService = null
 }) {
   function ensureNotificationBroadcastTables() {
     return Promise.all([
@@ -717,6 +718,15 @@ export function registerNotificationRoutes(app, {
         );
       }
       await pruneNotificationBroadcastHistory({ keep: 10 });
+      if (adminPushService) {
+        adminPushService.notifyBroadcastResult({
+          actorId: req.authUser?.id || req.session?.userId || null,
+          actorHandle: safeSender,
+          inserted,
+          sentCount: inserted,
+          failedCount: skipped
+        }).catch(() => {});
+      }
       return res.json(apiSuccessEnvelope(
         'ADMIN_NOTIFICATIONS_BROADCAST_SENT',
         'Toplu bildirim gönderildi.',

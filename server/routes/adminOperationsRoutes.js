@@ -192,6 +192,7 @@ export function registerAdminOperationsRoutes(app, deps) {
       }
 
       await hardDeleteUser(user.id, { sqlRun, sqlGet, sqlAll, uploadsDir, writeAppLog });
+      logAdminAction(req, 'user_hard_delete', { targetType: 'user', targetId: String(user.id), handle: user.kadi, role: user.role });
       res.json({ ok: true, message: `@${user.kadi} ve tüm verileri başarıyla silindi.` });
     } catch (err) {
       console.error(err);
@@ -573,6 +574,7 @@ export function registerAdminOperationsRoutes(app, deps) {
       if (!hasValidGraduationYear(nextYear)) {
         return res.status(400).send(`Mezuniyet yılı ${MIN_GRADUATION_YEAR}-${MAX_GRADUATION_YEAR} aralığında olmalı veya Öğretmen seçilmelidir.`);
       }
+      const reason = String(req.body?.reason || '').trim().slice(0, 500);
       if (typeof applyUserGraduationYearChange === 'function') {
         applyUserGraduationYearChange(userId, nextYear, {
           previousYear: target.mezuniyetyili
@@ -584,7 +586,8 @@ export function registerAdminOperationsRoutes(app, deps) {
         targetType: 'user',
         targetId: userId,
         previous: String(target.mezuniyetyili || ''),
-        next: nextYear
+        next: nextYear,
+        reason: reason || undefined
       });
       res.json({ ok: true, userId, mezuniyetyili: nextYear });
     } catch (err) {

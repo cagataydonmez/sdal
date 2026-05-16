@@ -197,40 +197,43 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
     );
     final canSwipeBetweenTabs = _canSwipeBetweenTabs(context);
     return Scaffold(
-      body: Column(
+      body: Stack(
         children: [
+          _DragOffsetInheritedWidget(
+            dragOffset: _horizontalDragDistance,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onHorizontalDragStart: canSwipeBetweenTabs
+                  ? _onHorizontalDragStart
+                  : null,
+              onHorizontalDragUpdate: canSwipeBetweenTabs
+                  ? _onHorizontalDragUpdate
+                  : null,
+              onHorizontalDragEnd: canSwipeBetweenTabs
+                  ? _onHorizontalDragEnd
+                  : null,
+              child: widget.navigationShell,
+            ),
+          ),
           if (_shouldShowAccountSetupBanner(
             session,
             location,
             verificationRequestSubmitted,
           ))
-            _AccountSetupBanner(
-              requiresProfileCompletion:
-                  session?.requiresProfileCompletion == true,
-              requiresVerification:
-                  session?.requiresVerification == true &&
-                  !verificationRequestSubmitted,
-              onProfileTap: () => context.go('/profile/edit'),
-              onVerificationTap: () => context.go('/profile/verification'),
-            ),
-          Expanded(
-            child: _DragOffsetInheritedWidget(
-              dragOffset: _horizontalDragDistance,
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onHorizontalDragStart: canSwipeBetweenTabs
-                    ? _onHorizontalDragStart
-                    : null,
-                onHorizontalDragUpdate: canSwipeBetweenTabs
-                    ? _onHorizontalDragUpdate
-                    : null,
-                onHorizontalDragEnd: canSwipeBetweenTabs
-                    ? _onHorizontalDragEnd
-                    : null,
-                child: widget.navigationShell,
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _AccountSetupBanner(
+                requiresProfileCompletion:
+                    session?.requiresProfileCompletion == true,
+                requiresVerification:
+                    session?.requiresVerification == true &&
+                    !verificationRequestSubmitted,
+                onProfileTap: () => context.go('/profile/edit'),
+                onVerificationTap: () => context.go('/profile/verification'),
               ),
             ),
-          ),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -445,9 +448,10 @@ class _AccountSetupBanner extends StatelessWidget {
     return SafeArea(
       bottom: false,
       child: Material(
-        color: requiresProfileCompletion
-            ? tokens.warningMuted
-            : tokens.infoMuted,
+        color: (requiresProfileCompletion
+                ? tokens.warningMuted
+                : tokens.infoMuted)
+            .withValues(alpha: 0.92),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
           child: LayoutBuilder(

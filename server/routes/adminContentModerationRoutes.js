@@ -757,8 +757,9 @@ export function registerAdminContentModerationRoutes(app, {
       if (!comment) return res.status(404).send('Yorum bulunamadı.');
       const target = ensureCanModerateTargetUser(req, res, comment.user_id, { notFoundMessage: 'Yorum sahibi bulunamadı.' });
       if (!target) return;
+      const reason = String(req.body?.reason || '').trim().slice(0, 500);
       await sqlRunAsync('DELETE FROM post_comments WHERE id = ?', [commentId]);
-      logAdminAction(req, 'comment_delete', { targetType: 'comment', targetId: commentId, commentId, userId: comment.user_id });
+      logAdminAction(req, 'comment_delete', { targetType: 'comment', targetId: commentId, commentId, userId: comment.user_id, ...(reason && { reason }) });
       res.json({ ok: true });
     } catch (err) {
       console.error(err);
@@ -774,8 +775,9 @@ export function registerAdminContentModerationRoutes(app, {
       if (!post) return res.status(404).send('Gönderi bulunamadı.');
       const target = ensureCanModerateTargetUser(req, res, post.user_id, { notFoundMessage: 'Gönderi sahibi bulunamadı.' });
       if (!target) return;
+      const reason = String(req.body?.reason || '').trim().slice(0, 500);
       deletePostById(postId);
-      logAdminAction(req, 'post_delete', { targetType: 'post', targetId: postId, postId, userId: post.user_id });
+      logAdminAction(req, 'post_delete', { targetType: 'post', targetId: postId, postId, userId: post.user_id, ...(reason && { reason }) });
       scheduleEngagementRecalculation('post_deleted');
       res.json({ ok: true });
     } catch (err) {
@@ -792,9 +794,10 @@ export function registerAdminContentModerationRoutes(app, {
       if (!story) return res.status(404).send('Hikaye bulunamadı.');
       const target = ensureCanModerateTargetUser(req, res, story.user_id, { notFoundMessage: 'Hikaye sahibi bulunamadı.' });
       if (!target) return;
+      const reason = String(req.body?.reason || '').trim().slice(0, 500);
       await sqlRunAsync('DELETE FROM story_views WHERE story_id = ?', [storyId]);
       await sqlRunAsync('DELETE FROM stories WHERE id = ?', [storyId]);
-      logAdminAction(req, 'story_delete', { targetType: 'story', targetId: storyId, storyId, userId: story.user_id });
+      logAdminAction(req, 'story_delete', { targetType: 'story', targetId: storyId, storyId, userId: story.user_id, ...(reason && { reason }) });
       res.json({ ok: true });
     } catch (err) {
       console.error(err);

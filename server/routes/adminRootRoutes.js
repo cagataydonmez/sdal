@@ -28,7 +28,8 @@ export function registerAdminRootRoutes(app, {
   processUpload,
   verifyPassword,
   writeAppLog,
-  logAdminAction
+  logAdminAction,
+  adminPushService = null
 }) {
   const rootOnly = [requireAuth, requireRootAdmin];
   const seeder = testDataSeeder || createTestDataSeeder({
@@ -77,7 +78,15 @@ export function registerAdminRootRoutes(app, {
       dryRun
     });
 
-    if (!dryRun) req.session.destroy(() => {});
+    if (!dryRun) {
+      req.session.destroy(() => {});
+      if (adminPushService) {
+        adminPushService.notifyFactoryReset({
+          actorId: req.authUser?.id || null,
+          actorHandle: req.authUser?.username || req.authUser?.kadi || 'bilinmeyen'
+        }).catch((err) => writeAppLog('warn', 'admin_push_factory_reset_failed', { message: err?.message }));
+      }
+    }
 
     return res.json({
       ok: true,
@@ -144,6 +153,14 @@ export function registerAdminRootRoutes(app, {
         permissions: req.body?.permissions
       });
       logAdminAction(req, 'permission_group_created', { name: req.body?.name });
+      if (adminPushService) {
+        adminPushService.notifyPermissionGroupChange({
+          actorId: req.authUser?.id,
+          actorHandle: req.authUser?.username || req.authUser?.kadi || 'bilinmeyen',
+          groupName: String(req.body?.name || ''),
+          action: 'oluşturdu'
+        }).catch(() => {});
+      }
       res.status(201).json({ ok: true, groups: await rbacService.listGroups() });
     } catch (err) {
       res.status(statusForError(err)).json({ error: 'PERMISSION_GROUP_CREATE_FAILED', message: err?.message || 'Failed to create permission group.' });
@@ -158,6 +175,14 @@ export function registerAdminRootRoutes(app, {
         permissions: req.body?.permissions
       });
       logAdminAction(req, 'permission_group_updated', { targetType: 'permission_group', targetId: req.params.id });
+      if (adminPushService) {
+        adminPushService.notifyPermissionGroupChange({
+          actorId: req.authUser?.id,
+          actorHandle: req.authUser?.username || req.authUser?.kadi || 'bilinmeyen',
+          groupName: String(req.body?.name || req.params.id || ''),
+          action: 'güncelledi'
+        }).catch(() => {});
+      }
       res.json({ ok: true, groups: await rbacService.listGroups() });
     } catch (err) {
       res.status(statusForError(err)).json({ error: 'PERMISSION_GROUP_UPDATE_FAILED', message: err?.message || 'Failed to update permission group.' });
@@ -195,6 +220,14 @@ export function registerAdminRootRoutes(app, {
         targetId: req.params.id,
         groupId: Number(req.body?.groupId || req.body?.group_id || 0)
       });
+      if (adminPushService) {
+        adminPushService.notifyUserPermissionChange({
+          actorId: req.authUser?.id,
+          actorHandle: req.authUser?.username || req.authUser?.kadi || 'bilinmeyen',
+          targetHandle: String(req.body?.targetHandle || req.params.id || ''),
+          groupName: String(req.body?.groupName || req.body?.groupId || '')
+        }).catch(() => {});
+      }
       res.json({ ok: true });
     } catch (err) {
       res.status(statusForError(err)).json({ error: 'USER_PERMISSION_GROUP_UPDATE_FAILED', message: err?.message || 'Failed to update user permission group.' });

@@ -1,6 +1,24 @@
 import fs from 'fs';
 import path from 'path';
 
+// ARCHITECTURE NOTE — DUPLICATE ROUTE WARNING
+//
+// This file was historically split from adminOperationsRoutes.js. Both files
+// register many of the same Express routes (23 duplicates). Express uses
+// first-match routing: adminOperationsRoutes.js is registered first in
+// appRuntime.js (~line 4128) and adminManagementRoutes.js is registered
+// second (~line 4201), so the Operations version wins EVERY collision.
+//
+// THE 23 DUPLICATE ROUTES IN THIS FILE ARE DEAD CODE — they never fire.
+//
+// THREE ROUTES ARE UNIQUE TO THIS FILE (these DO fire):
+//   PUT  /api/admin/pages/reorder
+//   GET  /api/new/admin/teacher-accounts
+//   GET  /api/new/admin/users/:id/api-activity
+//
+// Future cleanup: extract these 3 routes to their own file (or merge into
+// adminOperationsRoutes.js) and delete the dead duplicates here.
+
 export function registerAdminManagementRoutes(app, {
   dbDriver,
   requireAdmin,
@@ -241,6 +259,7 @@ export function registerAdminManagementRoutes(app, {
 
     try {
       await hardDeleteUser(user.id, { sqlRunAsync, sqlGetAsync, sqlAllAsync, uploadsDir, writeAppLog });
+      logAdminAction(req, 'user_hard_delete', { targetType: 'user', targetId: String(user.id), handle: user.kadi, role: user.role });
       res.json({ ok: true, message: `@${user.kadi} ve tüm verileri başarıyla silindi.` });
     } catch (err) {
       console.error('Hard delete failed:', err);
@@ -368,6 +387,7 @@ export function registerAdminManagementRoutes(app, {
       if (!hasValidGraduationYear(nextYear)) {
         return res.status(400).send(`Mezuniyet yılı ${minGraduationYear}-${maxGraduationYear} aralığında olmalı veya Öğretmen seçilmelidir.`);
       }
+      const reason = String(req.body?.reason || '').trim().slice(0, 500);
       if (typeof applyUserGraduationYearChange === 'function') {
         applyUserGraduationYearChange(userId, nextYear, {
           previousYear: target.mezuniyetyili
@@ -379,7 +399,8 @@ export function registerAdminManagementRoutes(app, {
         targetType: 'user',
         targetId: userId,
         previous: String(target.mezuniyetyili || ''),
-        next: nextYear
+        next: nextYear,
+        reason: reason || undefined
       });
       res.json({ ok: true, userId, mezuniyetyili: nextYear });
     } catch (err) {

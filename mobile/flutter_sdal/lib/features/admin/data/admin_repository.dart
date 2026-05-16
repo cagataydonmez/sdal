@@ -3252,16 +3252,16 @@ class AdminRepository {
     );
   }
 
-  Future<void> deletePost(int id) async {
-    await _apiClient.delete<dynamic>('/api/new/admin/posts/$id');
+  Future<void> deletePost(int id, {String reason = ''}) async {
+    await _apiClient.delete<dynamic>('/api/new/admin/posts/$id', body: reason.isNotEmpty ? {'reason': reason} : null);
   }
 
-  Future<void> deleteComment(int id) async {
-    await _apiClient.delete<dynamic>('/api/new/admin/comments/$id');
+  Future<void> deleteComment(int id, {String reason = ''}) async {
+    await _apiClient.delete<dynamic>('/api/new/admin/comments/$id', body: reason.isNotEmpty ? {'reason': reason} : null);
   }
 
-  Future<void> deleteStory(int id) async {
-    await _apiClient.delete<dynamic>('/api/new/admin/stories/$id');
+  Future<void> deleteStory(int id, {String reason = ''}) async {
+    await _apiClient.delete<dynamic>('/api/new/admin/stories/$id', body: reason.isNotEmpty ? {'reason': reason} : null);
   }
 
   Future<void> reviewMemberRequest({

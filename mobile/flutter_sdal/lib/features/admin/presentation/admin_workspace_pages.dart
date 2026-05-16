@@ -251,15 +251,16 @@ class AdminWorkspacePage extends ConsumerWidget {
                     tone: _WorkspaceTone.accent,
                     onTap: () => context.go('/admin/modules'),
                   ),
-                  _WorkspaceNavCard(
-                    title: 'API monitörü',
-                    summary:
-                        'Seçili üye üzerinden canlı endpoint akışlarını izle.',
-                    countLabel: 'Canlı izleme aracı',
-                    icon: Icons.radar_outlined,
-                    tone: _WorkspaceTone.info,
-                    onTap: () => context.go('/admin/api-monitor'),
-                  ),
+                  if (user.isRootAdmin)
+                    _WorkspaceNavCard(
+                      title: 'API monitörü',
+                      summary:
+                          'Seçili üye üzerinden canlı endpoint akışlarını izle.',
+                      countLabel: 'Root admin — geliştirici aracı',
+                      icon: Icons.radar_outlined,
+                      tone: _WorkspaceTone.info,
+                      onTap: () => context.go('/admin/api-monitor'),
+                    ),
                   _WorkspaceNavCard(
                     title: 'Bildirimler ve push',
                     summary:
@@ -2218,29 +2219,22 @@ Future<void> _deleteContent(
   required String type,
   required int id,
 }) async {
-  final confirmed = await showDialog<bool>(
+  final reason = await showModalBottomSheet<String>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: const Text('İçeriği kaldır'),
-      content: const Text(
-        'Bu işlem geri alınmaz. Gerçekten kaldırmak istiyor musun?',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(dialogContext).pop(false),
-          child: const Text('Vazgeç'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(dialogContext).pop(true),
-          child: const Text('Kaldır'),
-        ),
-      ],
+    isScrollControlled: true,
+    builder: (sheetContext) => _DeleteReasonSheet(
+      typeLabel: switch (type) {
+        'post' => 'gönderi',
+        'comment' => 'yorum',
+        'story' => 'hikaye',
+        _ => type,
+      },
     ),
   );
-  if (confirmed != true) return;
+  if (reason == null) return;
   final ok = await ref
       .read(adminActionControllerProvider.notifier)
-      .deleteContent(type: type, id: id);
+      .deleteContent(type: type, id: id, reason: reason);
   if (!context.mounted) return;
   if (ok) _refreshModerationWorkspace(ref);
   ScaffoldMessenger.of(context).showSnackBar(
@@ -2248,6 +2242,110 @@ Future<void> _deleteContent(
       content: Text(ok ? 'İçerik kaldırıldı.' : 'İçerik kaldırılamadı.'),
     ),
   );
+}
+
+class _DeleteReasonSheet extends StatefulWidget {
+  const _DeleteReasonSheet({required this.typeLabel});
+
+  final String typeLabel;
+
+  @override
+  State<_DeleteReasonSheet> createState() => _DeleteReasonSheetState();
+}
+
+class _DeleteReasonSheetState extends State<_DeleteReasonSheet> {
+  final _controller = TextEditingController();
+  bool _confirmed = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.delete_outline, color: tokens.danger),
+              const SizedBox(width: 12),
+              Text(
+                '${widget.typeLabel.isNotEmpty ? widget.typeLabel[0].toUpperCase() + widget.typeLabel.substring(1) : "İçeriği"} kaldır',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Bu işlem geri alınamaz. Devam etmek için bir gerekçe girin.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: tokens.foregroundMuted,
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            maxLines: 3,
+            maxLength: 400,
+            decoration: const InputDecoration(
+              labelText: 'Gerekçe (zorunlu)',
+              hintText: 'Örn: Kural ihlali, spam içerik, kullanıcı şikayeti...',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Checkbox(
+                value: _confirmed,
+                activeColor: tokens.danger,
+                onChanged: (v) => setState(() => _confirmed = v ?? false),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Bu içeriği kalıcı olarak kaldırmak istediğimi onaylıyorum.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Vazgeç'),
+              ),
+              const SizedBox(width: 12),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: tokens.danger),
+                onPressed: (_confirmed && _controller.text.trim().isNotEmpty)
+                    ? () => Navigator.of(context).pop(_controller.text.trim())
+                    : null,
+                child: const Text('Kaldır'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 void _refreshModerationWorkspace(WidgetRef ref) {

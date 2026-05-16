@@ -5,12 +5,14 @@ export function registerAdminDbRoutes(app, {
   dbDriver,
   dbPath,
   requireAdmin,
+  requireRootAdmin,
   dbBackupUpload,
   validateUploadedFileSafety,
   cleanupUploadedFile,
   logAdminAction,
   writeAppLog,
-  runtime
+  runtime,
+  adminPushService = null
 }) {
   app.get('/api/new/admin/db/backups', requireAdmin, (_req, res) => {
     res.json({
@@ -63,7 +65,7 @@ export function registerAdminDbRoutes(app, {
     }
   });
 
-  app.post('/api/new/admin/db/driver/switch', requireAdmin, async (req, res) => {
+  app.post('/api/new/admin/db/driver/switch', requireRootAdmin, async (req, res) => {
     if (runtime.dbDriverSwitchState.inProgress) {
       return res.status(409).send('DB driver geçişi zaten devam ediyor.');
     }
@@ -139,6 +141,14 @@ export function registerAdminDbRoutes(app, {
       runtime.dbDriverSwitchState.lastSwitch = result;
       runtime.dbDriverSwitchState.lastSuccessAt = result.at;
       logAdminAction(req, 'db_driver_switch', result);
+      if (adminPushService) {
+        adminPushService.notifyDbDriverSwitch({
+          actorId: req.authUser?.id || req.session?.userId || null,
+          actorHandle: req.authUser?.username || req.authUser?.kadi || 'bilinmeyen',
+          from: result.switchedFrom,
+          to: result.switchedTo
+        }).catch(() => {});
+      }
 
       res.json({
         ok: true,
@@ -176,7 +186,7 @@ export function registerAdminDbRoutes(app, {
     }
   });
 
-  app.post('/api/new/admin/db/driver/copy-data', requireAdmin, async (req, res) => {
+  app.post('/api/new/admin/db/driver/copy-data', requireRootAdmin, async (req, res) => {
     if (runtime.dbDriverSwitchState.inProgress) {
       return res.status(409).send('DB driver geçişi devam ediyor; veri kopyalama şu an yapılamaz.');
     }
@@ -223,7 +233,7 @@ export function registerAdminDbRoutes(app, {
     res.download(fullPath, path.basename(fullPath));
   });
 
-  app.post('/api/new/admin/db/restore', requireAdmin, dbBackupUpload.single('backup'), (req, res) => {
+  app.post('/api/new/admin/db/restore', requireRootAdmin, dbBackupUpload.single('backup'), (req, res) => {
     try {
       if (!req.file?.path) return res.status(400).send('Yedek dosyası gerekli.');
       const backupValidation = validateUploadedFileSafety(req.file.path, { allowedMimes: [] });
@@ -237,6 +247,13 @@ export function registerAdminDbRoutes(app, {
         uploadedFile: restored.uploadedName,
         preRestoreBackup: restored.preRestoreName
       });
+      if (adminPushService) {
+        adminPushService.notifyDbRestore({
+          actorId: req.authUser?.id || req.session?.userId || null,
+          actorHandle: req.authUser?.username || req.authUser?.kadi || 'bilinmeyen',
+          operation: 'db_restore_upload'
+        }).catch(() => {});
+      }
       res.json({ ok: true, restored });
     } catch (err) {
       writeAppLog('error', 'db_restore_failed', { message: err?.message || 'unknown' });
@@ -250,7 +267,7 @@ export function registerAdminDbRoutes(app, {
     }
   });
 
-  app.post('/api/new/admin/db/restore-from-backup', requireAdmin, (req, res) => {
+  app.post('/api/new/admin/db/restore-from-backup', requireRootAdmin, (req, res) => {
     try {
       const name = String(req.body?.name || '').trim();
       if (!name) return res.status(400).send('Yedek adı gerekli.');
@@ -264,6 +281,13 @@ export function registerAdminDbRoutes(app, {
         uploadedFile: restored.uploadedName,
         preRestoreBackup: restored.preRestoreName
       });
+      if (adminPushService) {
+        adminPushService.notifyDbRestore({
+          actorId: req.authUser?.id || req.session?.userId || null,
+          actorHandle: req.authUser?.username || req.authUser?.kadi || 'bilinmeyen',
+          operation: 'db_restore_from_backup'
+        }).catch(() => {});
+      }
       res.json({ ok: true, restored });
     } catch (err) {
       writeAppLog('error', 'db_restore_from_backup_failed', { message: err?.message || 'unknown' });

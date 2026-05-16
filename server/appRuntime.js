@@ -50,6 +50,7 @@ import { hardDeleteUser as executeHardDeleteUser } from './src/admin/hardDeleteU
 import { createAdminInsightsRuntime } from './src/admin/createAdminInsightsRuntime.js';
 import { createFactoryResetService } from './src/admin/factoryResetService.js';
 import { createRbacService, ROOT_ADMIN_USERNAME } from './src/admin/rbacService.js';
+import { createAdminPushService } from './src/admin/adminPushService.js';
 import { createNotificationGovernanceRuntime } from './src/notifications/createNotificationGovernanceRuntime.js';
 import { createNotificationPresentationRuntime } from './src/notifications/createNotificationPresentationRuntime.js';
 import { createNotificationPushRuntime } from './src/notifications/createNotificationPushRuntime.js';
@@ -1591,6 +1592,14 @@ const {
 ensureNotificationPushSettingsTable();
 ensureNotificationPushDevicesTable();
 ensureNotificationPushDeliveryAuditTable();
+const adminPushService = createAdminPushService({
+  dbDriver,
+  sqlAllAsync,
+  dispatchPushNotification,
+  writeAppLog,
+  writeAuditLog,
+  ROOT_ADMIN_USERNAME
+});
 const notificationGovernanceRuntime = createNotificationGovernanceRuntime({
   sqlRun,
   sqlGet,
@@ -4004,34 +4013,6 @@ const phase1Domain = createPhase1DomainLayer({
   writeAuditLog
 });
 
-app.get('/hirsiz.asp', requireAdmin, (req, res) => {
-  const id = req.query.uyeid;
-  if (!id) {
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.send('<form method="get" action="hirsiz.asp">Üye Id : <input type="text" name="uyeid" size="20"><input type="submit" value="Gönder"></form>');
-  }
-  const received = sqlAll('SELECT id, kimden, konu FROM gelenkutusu WHERE kime = ? ORDER BY tarih DESC', [id]);
-  const sent = sqlAll('SELECT id, kime, konu FROM gelenkutusu WHERE kimden = ? ORDER BY tarih DESC', [id]);
-  const userMap = new Map(sqlAll('SELECT id, kadi FROM uyeler').map((u) => [String(u.id), u.kadi]));
-  let html = '<b><u>Gelenler</u></b><br>';
-  received.forEach((row, idx) => {
-    html += `${idx + 1}-) ${userMap.get(String(row.kimden)) || ''} - <a href="hirsiz2.asp?mid=${row.id}"><b>${String(row.konu || '').slice(0, 25)}</b></a><br>`;
-  });
-  html += '<b><u>Gidenler</u></b><br>';
-  sent.forEach((row, idx) => {
-    html += `${idx + 1}-) ${userMap.get(String(row.kime)) || ''} - <a href="hirsiz2.asp?mid=${row.id}"><b>${String(row.konu || '').slice(0, 25)}</b></a><br>`;
-  });
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(html);
-});
-
-app.get('/hirsiz2.asp', requireAdmin, (req, res) => {
-  const mid = req.query.mid;
-  const row = mid ? sqlGet('SELECT konu, mesaj FROM gelenkutusu WHERE id = ?', [mid]) : null;
-  if (!row) return res.status(404).send('Mesaj bulunamadı.');
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(`<u><b>Konu : ${row.konu || ''}</b></u><br>${row.mesaj || ''}`);
-});
 
 registerSystemRoutes(app, {
   dbDriver,
@@ -4140,7 +4121,8 @@ registerAdminRootRoutes(app, {
   processUpload,
   verifyPassword,
   writeAppLog,
-  logAdminAction
+  logAdminAction,
+  adminPushService
 });
 
 registerAdminOperationsRoutes(app, {
@@ -4829,7 +4811,8 @@ registerNotificationRoutes(app, {
   readRecentPushDeliveries,
   parseNetworkWindowDays: (...args) => parseNetworkWindowDays(...args),
   toIsoThreshold: (...args) => toIsoThreshold(...args),
-  notificationTypeInventory
+  notificationTypeInventory,
+  adminPushService
 });
 
 // Public endpoint: fetch language strings for a given locale
@@ -5865,12 +5848,14 @@ registerAdminDbRoutes(app, {
   dbDriver,
   dbPath,
   requireAdmin,
+  requireRootAdmin: rbacService.requireRootAdmin,
   dbBackupUpload,
   validateUploadedFileSafety,
   cleanupUploadedFile,
   logAdminAction,
   writeAppLog,
-  runtime: dbAdminRuntime
+  runtime: dbAdminRuntime,
+  adminPushService
 });
 
 registerAdminLanguageRoutes(app, {

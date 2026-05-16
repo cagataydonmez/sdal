@@ -6,6 +6,7 @@ import 'package:flutter_sdal/core/config/app_config.dart';
 import 'package:flutter_sdal/core/network/api_client.dart';
 import 'package:flutter_sdal/core/network/api_result.dart';
 import 'package:flutter_sdal/core/network/api_result_parser.dart';
+import 'package:flutter_sdal/core/security/device_identity_service.dart';
 import 'package:flutter_sdal/core/session/session_controller.dart';
 import 'package:flutter_sdal/core/session/session_models.dart';
 import 'package:flutter_sdal/core/state/async_action_state.dart';
@@ -13,6 +14,8 @@ import 'package:flutter_sdal/features/auth/application/auth_action_controller.da
 import '../../test_support/fake_api_client.dart';
 
 void main() {
+  setUpAll(TestWidgetsFlutterBinding.ensureInitialized);
+
   test('AuthActionController reports success for login', () async {
     final container = ProviderContainer(overrides: _baseOverrides());
     addTearDown(container.dispose);
@@ -69,11 +72,9 @@ void main() {
       final state = container.read(authActionControllerProvider);
       expect(state.status, AsyncActionStatus.success);
       expect(state.scope, 'activate');
-      expect(apiClient.lastActivationBody, {
-        'kadi': 'member',
-        'sifre': 'secret',
-        'akt': 'ABC123',
-      });
+      expect(apiClient.lastActivationBody, containsPair('kadi', 'member'));
+      expect(apiClient.lastActivationBody, containsPair('sifre', 'secret'));
+      expect(apiClient.lastActivationBody, containsPair('akt', 'ABC123'));
     },
   );
 
@@ -172,9 +173,22 @@ List<Override> _baseOverrides({
     sessionControllerProvider.overrideWith(
       sessionControllerFactory ?? _FakeSessionController.new,
     ),
+    deviceIdentityServiceProvider.overrideWithValue(_FakeDeviceIdentityService()),
     if (oauthAuthenticate != null)
       oauthAuthenticateProvider.overrideWithValue(oauthAuthenticate),
   ];
+}
+
+class _FakeDeviceIdentityService extends DeviceIdentityService {
+  @override
+  Future<AuthDeviceMetadata> metadata() async {
+    return const AuthDeviceMetadata(
+      deviceId: 'test-device-id',
+      platform: 'test',
+      deviceName: 'Test Device',
+      appVersion: '1.0.0+1',
+    );
+  }
 }
 
 class _FakeSessionController extends SessionController {
@@ -208,7 +222,10 @@ class _FakeSessionController extends SessionController {
   Future<List<OAuthProviderLink>> fetchOAuthProviders() async => oAuthProviders;
 
   @override
-  Future<String?> exchangeMobileOAuthToken(String token) async {
+  Future<String?> exchangeMobileOAuthToken(
+    String token, {
+    Map<String, dynamic> device = const {},
+  }) async {
     return exchangeMessage;
   }
 }
