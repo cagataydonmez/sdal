@@ -76,81 +76,76 @@ class AdminWorkspacePage extends ConsumerWidget {
           ],
           background: FeatureScaffoldBackground.utility,
           child: ListView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             children: [
-              _WorkspaceHeroCard(
-                eyebrow: 'Admin çalışma alanı',
-                title: 'Uygulamayı tek ekrandan yönet',
-                description:
-                    'Teknik detaylar yerine iş kuyruklarını, modülleri ve kritik durumları öne çıkarır.',
-                badges: [
-                  _HeroBadge(
+              _QuickStatsStrip(
+                stats: [
+                  (
                     icon: Icons.pending_actions_outlined,
-                    label: '$pendingRequestCount bekleyen talep',
+                    label: 'Bekleyen talep',
+                    value: '$pendingRequestCount',
+                    tone: pendingRequestCount > 0
+                        ? _WorkspaceTone.warning
+                        : _WorkspaceTone.success,
                   ),
-                  _HeroBadge(
+                  (
                     icon: Icons.groups_outlined,
-                    label:
-                        '${summary?.counts['users'] ?? 0} üye · ${summary?.counts['pendingUsers'] ?? 0} onay bekliyor',
+                    label: 'Üye · Onay bkl.',
+                    value:
+                        '${summary?.counts['users'] ?? 0}·${summary?.counts['pendingUsers'] ?? 0}',
+                    tone: _WorkspaceTone.info,
                   ),
-                  _HeroBadge(
+                  (
                     icon: Icons.dashboard_customize_outlined,
-                    label: siteControls == null
-                        ? 'Modül durumu yükleniyor'
-                        : '${siteControls.openModuleCount}/${siteControls.totalModuleCount} modül açık',
+                    label: 'Modül durumu',
+                    value: siteControls == null
+                        ? '—'
+                        : '${siteControls.openModuleCount}/${siteControls.totalModuleCount}',
+                    tone: _WorkspaceTone.accent,
                   ),
                 ],
               ),
+              if (pendingRequestCount > 0) ...[
+                const SizedBox(height: 10),
+                _AttentionBanner(
+                  message: '$pendingRequestCount bekleyen talep var',
+                  actionLabel: 'İncele',
+                  onTap: () => context.go('/admin/requests'),
+                ),
+              ],
               if (user.isRootAdmin) ...[
-                const SizedBox(height: 16),
-                SurfaceCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Root admin araçları',
-                        style: Theme.of(context).textTheme.titleLarge,
+                const _SectionLabel('Root admin araçları'),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => context.go('/admin/factory-reset'),
+                      icon: const Icon(Icons.delete_forever_outlined, size: 18),
+                      label: const Text('Factory reset'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => context.go('/admin/test-data'),
+                      icon: const Icon(Icons.science_outlined, size: 18),
+                      label: const Text('Test verisi'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => context.go('/admin/permission-groups'),
+                      icon: const Icon(
+                        Icons.admin_panel_settings_outlined,
+                        size: 18,
                       ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Factory reset ve izin grubu yönetimi yalnızca @cagatay root admin oturumunda görünür.',
-                      ),
-                      const SizedBox(height: 14),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: [
-                          FilledButton.icon(
-                            onPressed: () => context.go('/admin/factory-reset'),
-                            icon: const Icon(Icons.delete_forever_outlined),
-                            label: const Text('Factory reset'),
-                          ),
-                          FilledButton.tonalIcon(
-                            onPressed: () => context.go('/admin/test-data'),
-                            icon: const Icon(Icons.science_outlined),
-                            label: const Text('Test verisi'),
-                          ),
-                          FilledButton.tonalIcon(
-                            onPressed: () =>
-                                context.go('/admin/permission-groups'),
-                            icon: const Icon(
-                              Icons.admin_panel_settings_outlined,
-                            ),
-                            label: const Text('İzin grupları'),
-                          ),
-                          FilledButton.tonalIcon(
-                            onPressed: () =>
-                                context.go('/admin/user-permissions'),
-                            icon: const Icon(Icons.manage_accounts_outlined),
-                            label: const Text('Kullanıcı izinleri'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                      label: const Text('İzin grupları'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => context.go('/admin/user-permissions'),
+                      icon: const Icon(Icons.manage_accounts_outlined, size: 18),
+                      label: const Text('Kullanıcı izinleri'),
+                    ),
+                  ],
                 ),
               ] else if (user.kadi.trim().toLowerCase() == 'cagatay') ...[
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 SurfaceCard(
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -167,10 +162,10 @@ class AdminWorkspacePage extends ConsumerWidget {
                   ),
                 ),
               ],
-              const SizedBox(height: 16),
+              const _SectionLabel('Kuyruk yönetimi'),
               Wrap(
-                spacing: 14,
-                runSpacing: 14,
+                spacing: 12,
+                runSpacing: 12,
                 children: [
                   _WorkspaceNavCard(
                     title: 'Talepler',
@@ -179,6 +174,7 @@ class AdminWorkspacePage extends ConsumerWidget {
                     countLabel: '$pendingRequestCount bekleyen iş',
                     icon: Icons.assignment_turned_in_outlined,
                     tone: _WorkspaceTone.success,
+                    badgeCount: pendingRequestCount,
                     onTap: () => context.go('/admin/requests'),
                   ),
                   _WorkspaceNavCard(
@@ -199,6 +195,13 @@ class AdminWorkspacePage extends ConsumerWidget {
                     tone: _WorkspaceTone.accent,
                     onTap: () => context.go('/admin/teacher-accounts'),
                   ),
+                ],
+              ),
+              const _SectionLabel('İçerik ve topluluk'),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
                   _WorkspaceNavCard(
                     title: 'İçerik güvenliği',
                     summary:
@@ -220,7 +223,7 @@ class AdminWorkspacePage extends ConsumerWidget {
                     tone: _WorkspaceTone.info,
                     onTap: () => context.go('/admin/management'),
                   ),
-                  if (user.isRootAdmin)
+                  if (user.isRootAdmin) ...[
                     _WorkspaceNavCard(
                       title: 'İzin grupları',
                       summary:
@@ -230,7 +233,6 @@ class AdminWorkspacePage extends ConsumerWidget {
                       tone: _WorkspaceTone.info,
                       onTap: () => context.go('/admin/permission-groups'),
                     ),
-                  if (user.isRootAdmin)
                     _WorkspaceNavCard(
                       title: 'Kullanıcı izinleri',
                       summary:
@@ -240,6 +242,14 @@ class AdminWorkspacePage extends ConsumerWidget {
                       tone: _WorkspaceTone.accent,
                       onTap: () => context.go('/admin/user-permissions'),
                     ),
+                  ],
+                ],
+              ),
+              const _SectionLabel('Sistem ve teknik'),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
                   _WorkspaceNavCard(
                     title: 'Modül yönetimi',
                     summary:
@@ -288,7 +298,7 @@ class AdminWorkspacePage extends ConsumerWidget {
                     tone: _WorkspaceTone.danger,
                     onTap: () => context.go('/admin/operations'),
                   ),
-                  if (user.isRootAdmin)
+                  if (user.isRootAdmin) ...[
                     _WorkspaceNavCard(
                       title: 'Test verisi',
                       summary:
@@ -298,7 +308,6 @@ class AdminWorkspacePage extends ConsumerWidget {
                       tone: _WorkspaceTone.warning,
                       onTap: () => context.go('/admin/test-data'),
                     ),
-                  if (user.isRootAdmin)
                     _WorkspaceNavCard(
                       title: 'Factory reset',
                       summary:
@@ -308,6 +317,7 @@ class AdminWorkspacePage extends ConsumerWidget {
                       tone: _WorkspaceTone.danger,
                       onTap: () => context.go('/admin/factory-reset'),
                     ),
+                  ],
                 ],
               ),
               const SizedBox(height: 16),
@@ -514,38 +524,12 @@ class ModeratorWorkspacePage extends ConsumerWidget {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              _WorkspaceHeroCard(
-                eyebrow: 'Moderasyon çalışma alanı',
-                title: scopedYears.isEmpty
-                    ? 'Kapsam bekleyen moderatör'
-                    : 'Cohort bazlı moderasyon masası',
-                description: scopedYears.isEmpty
-                    ? 'Yetkilerin açık, ancak henüz mezuniyet yılı kapsam ataması tanımlanmamış.'
-                    : 'Yalnızca ${_formatYears(scopedYears)} cohortları içindeki üye ve içerikleri görebilir, inceleyebilir ve karar verebilirsin.',
-                badges: [
-                  _HeroBadge(
-                    icon: Icons.school_outlined,
-                    label: scopedYears.isEmpty
-                        ? 'Cohort ataması yok'
-                        : 'Cohort: ${scopedYears.join(', ')}',
-                  ),
-                  _HeroBadge(
-                    icon: Icons.assignment_late_outlined,
-                    label: '$requestTotal talep',
-                  ),
-                  _HeroBadge(
-                    icon: Icons.verified_user_outlined,
-                    label: '$verificationTotal doğrulama',
-                  ),
-                  _HeroBadge(
-                    icon: Icons.school_outlined,
-                    label: '$teacherNetworkLinkTotal öğretmen ağı',
-                  ),
-                  _HeroBadge(
-                    icon: Icons.shield_outlined,
-                    label: '$contentTotal içerik kaydı',
-                  ),
-                ],
+              _ModeratorStatusCard(
+                scopedYears: scopedYears,
+                requestTotal: requestTotal,
+                verificationTotal: verificationTotal,
+                teacherNetworkLinkTotal: teacherNetworkLinkTotal,
+                contentTotal: contentTotal,
               ),
               const SizedBox(height: 16),
               if (permissionKeys.isEmpty)
@@ -1555,6 +1539,7 @@ class _WorkspaceNavCard extends StatelessWidget {
     required this.icon,
     required this.tone,
     required this.onTap,
+    this.badgeCount,
   });
 
   final String title;
@@ -1563,6 +1548,7 @@ class _WorkspaceNavCard extends StatelessWidget {
   final IconData icon;
   final _WorkspaceTone tone;
   final VoidCallback onTap;
+  final int? badgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -1593,16 +1579,44 @@ class _WorkspaceNavCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: muted,
-                    borderRadius: BorderRadius.circular(
-                      SdalThemeTokens.radiusMd,
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: muted,
+                        borderRadius: BorderRadius.circular(
+                          SdalThemeTokens.radiusMd,
+                        ),
+                      ),
+                      child: Icon(icon, color: color),
                     ),
-                  ),
-                  child: Icon(icon, color: color),
+                    if (badgeCount != null && badgeCount! > 0)
+                      Positioned(
+                        top: -5,
+                        right: -5,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: color,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            '$badgeCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 14),
                 Text(title, style: Theme.of(context).textTheme.titleMedium),
@@ -1662,6 +1676,341 @@ class _AsyncSurfaceCard<T> extends StatelessWidget {
             error: (error, _) => Text(error.toString()),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _QuickStatsStrip extends StatelessWidget {
+  const _QuickStatsStrip({required this.stats});
+
+  final List<
+    ({IconData icon, String label, String value, _WorkspaceTone tone})
+  >
+  stats;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return Card(
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            for (int i = 0; i < stats.length; i++) ...[
+              if (i > 0)
+                VerticalDivider(width: 1, color: tokens.panelBorder),
+              Expanded(child: _StatCell(stat: stats[i])),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatCell extends StatelessWidget {
+  const _StatCell({required this.stat});
+
+  final ({IconData icon, String label, String value, _WorkspaceTone tone}) stat;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    final color = switch (stat.tone) {
+      _WorkspaceTone.info => tokens.info,
+      _WorkspaceTone.success => tokens.success,
+      _WorkspaceTone.warning => tokens.warning,
+      _WorkspaceTone.danger => tokens.danger,
+      _WorkspaceTone.accent => tokens.accent,
+    };
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(stat.icon, size: 18, color: color),
+          const SizedBox(height: 6),
+          Text(
+            stat.value,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+          Text(
+            stat.label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: tokens.foregroundMuted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AttentionBanner extends StatelessWidget {
+  const _AttentionBanner({
+    required this.message,
+    required this.actionLabel,
+    required this.onTap,
+  });
+
+  final String message;
+  final String actionLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return Card(
+      color: tokens.warningMuted,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                color: tokens.warning,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: tokens.warning,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Text(
+                actionLabel,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: tokens.warning,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.arrow_forward_rounded,
+                color: tokens.warning,
+                size: 16,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 20, 0, 8),
+      child: Text(
+        text.toUpperCase(),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: tokens.foregroundMuted,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+}
+
+class _ModeratorStatusCard extends StatelessWidget {
+  const _ModeratorStatusCard({
+    required this.scopedYears,
+    required this.requestTotal,
+    required this.verificationTotal,
+    required this.teacherNetworkLinkTotal,
+    required this.contentTotal,
+  });
+
+  final List<String> scopedYears;
+  final int requestTotal;
+  final int verificationTotal;
+  final int teacherNetworkLinkTotal;
+  final int contentTotal;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    final totalPending =
+        requestTotal + verificationTotal + teacherNetworkLinkTotal;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.verified_user_outlined,
+                  size: 18,
+                  color: tokens.accent,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Moderasyon kapsamı',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                if (totalPending > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: tokens.warningMuted,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '$totalPending bekleyen',
+                      style: TextStyle(
+                        color: tokens.warning,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (scopedYears.isEmpty)
+              Text(
+                'Cohort ataması yok — admin kapsamını tanımlamalı',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: tokens.foregroundMuted,
+                ),
+              )
+            else
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: scopedYears
+                    .map(
+                      (y) => Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: tokens.accentMuted,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          y,
+                          style: TextStyle(
+                            color: tokens.accent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                _StatusPill(
+                  label: 'Talep',
+                  count: requestTotal,
+                  color: tokens.warning,
+                  muted: tokens.warningMuted,
+                ),
+                const SizedBox(width: 8),
+                _StatusPill(
+                  label: 'Doğrulama',
+                  count: verificationTotal,
+                  color: tokens.info,
+                  muted: tokens.infoMuted,
+                ),
+                const SizedBox(width: 8),
+                _StatusPill(
+                  label: 'İçerik',
+                  count: contentTotal,
+                  color: tokens.danger,
+                  muted: tokens.dangerMuted,
+                ),
+                const SizedBox(width: 8),
+                _StatusPill(
+                  label: 'Öğretmen',
+                  count: teacherNetworkLinkTotal,
+                  color: tokens.info,
+                  muted: tokens.infoMuted,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({
+    required this.label,
+    required this.count,
+    required this.color,
+    required this.muted,
+  });
+
+  final String label;
+  final int count;
+  final Color color;
+  final Color muted;
+
+  @override
+  Widget build(BuildContext context) {
+    final panel = Theme.of(context).sdal.panel;
+    final fgMuted = Theme.of(context).sdal.foregroundMuted;
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        decoration: BoxDecoration(
+          color: count > 0 ? muted : panel,
+          borderRadius: BorderRadius.circular(SdalThemeTokens.radiusMd),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '$count',
+              style: TextStyle(
+                color: count > 0 ? color : fgMuted,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            Text(
+              label,
+              style: TextStyle(
+                color: fgMuted,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2039,10 +2388,6 @@ bool _hasAnyPermission(
   return keys.any(assigned.contains);
 }
 
-String _formatYears(List<String> years) {
-  if (years.length <= 3) return years.join(', ');
-  return '${years.take(3).join(', ')} ve ${years.length - 3} cohort daha';
-}
 
 String _humanizeModuleKey(String key) {
   return key
