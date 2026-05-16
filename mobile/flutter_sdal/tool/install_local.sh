@@ -1441,7 +1441,7 @@ build_sign_install_launch_ios_release() {
       "BUILD_DIR=$IOS_RELEASE_BUILD_DIR_ABS" \
       "OBJROOT=$IOS_RELEASE_BUILD_DIR_ABS" \
       -sdk iphoneos \
-      -destination generic/platform=iOS \
+      -destination "id=$device_identifier" \
       FLUTTER_SUPPRESS_ANALYTICS=true \
       COMPILER_INDEX_STORE_ENABLE=NO
   )

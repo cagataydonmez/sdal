@@ -87,7 +87,7 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         ud.set(baseUrl, forKey: baseUrlKey)
         if userId > 0 { ud.set(userId, forKey: userIdKey) }
         if !userPhoto.isEmpty { ud.set(userPhoto, forKey: userPhotoKey) }
-        let validThemes: Set<String> = ["kor", "atlas", "vibe"]
+        let validThemes: Set<String> = ["kor", "atlas", "vibe", "zinc", "ember", "mist"]
         let safeTheme = validThemes.contains(activeTheme) ? activeTheme : "kor"
         ud.set(safeTheme, forKey: themeKey)
 
