@@ -39,6 +39,10 @@ class FeatureScaffold extends ConsumerWidget {
     final shellSidebar = ref.watch(shellSidebarProvider).value;
     final location = _resolveCurrentLocation(context);
     final canPop = Navigator.of(context).canPop();
+    final isAdminSurface = _isAdminSurface(location);
+    final showAdminBack = isAdminSurface && session?.user != null;
+    final fallbackBackLocation = session?.defaultHomePath ?? '/feed';
+    _FeatureRouteHistory.record(location);
     final resolvedActions = <Widget>[
       ...?actions,
       if (showAppMenu)
@@ -50,66 +54,105 @@ class FeatureScaffold extends ConsumerWidget {
         ),
     ];
 
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        leadingWidth: session?.user != null ? (canPop ? 108 : 64) : null,
-        leading: session?.user != null
-            ? _ProfileLeading(session: session!, canPop: canPop)
-            : (canPop ? const BackButton() : null),
-        centerTitle: true,
-        title: canPop
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const ExcludeSemantics(
-                    child: SdalLogoBadge(size: 24, frameSize: 32),
+    return PopScope<Object?>(
+      canPop: !showAdminBack || canPop,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!showAdminBack) return;
+        if (didPop) {
+          _FeatureRouteHistory.remove(location);
+          return;
+        }
+        _goBack(
+          context,
+          currentLocation: location,
+          fallbackLocation: fallbackBackLocation,
+        );
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          leadingWidth: showAdminBack
+              ? 56
+              : session?.user != null
+              ? (canPop ? 108 : 64)
+              : null,
+          leading: showAdminBack
+              ? IconButton(
+                  tooltip: l10n.backAction,
+                  onPressed: () => _goBack(
+                    context,
+                    currentLocation: location,
+                    fallbackLocation: fallbackBackLocation,
                   ),
-                  const SizedBox(width: 10),
-                  Flexible(child: Text(title, overflow: TextOverflow.ellipsis)),
-                ],
-              )
-            : Tooltip(
-                message: l10n.tabFeed,
-                child: Semantics(
-                  button: true,
-                  label: l10n.tabFeed,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () => context.go('/feed'),
-                    child: const ExcludeSemantics(
-                      child: SdalLogoBadge(size: 28, frameSize: 36),
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                )
+              : session?.user != null
+              ? _ProfileLeading(session: session!, canPop: canPop)
+              : (canPop ? const BackButton() : null),
+          centerTitle: true,
+          title: (canPop || showAdminBack)
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const ExcludeSemantics(
+                      child: SdalLogoBadge(size: 24, frameSize: 32),
+                    ),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(title, overflow: TextOverflow.ellipsis),
+                    ),
+                  ],
+                )
+              : Tooltip(
+                  message: l10n.tabFeed,
+                  child: Semantics(
+                    button: true,
+                    label: l10n.tabFeed,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => context.go('/feed'),
+                      child: const ExcludeSemantics(
+                        child: SdalLogoBadge(size: 28, frameSize: 36),
+                      ),
                     ),
                   ),
                 ),
+          actions: resolvedActions,
+        ),
+        floatingActionButton: floatingActionButton,
+        body: _AdminBackSwipeRegion(
+          enabled: showAdminBack,
+          onBack: () => _goBack(
+            context,
+            currentLocation: location,
+            fallbackLocation: fallbackBackLocation,
+          ),
+          child: Container(
+            decoration: switch (background) {
+              FeatureScaffoldBackground.editorial => BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [tokens.canvas, tokens.canvasSubtle],
+                ),
               ),
-        actions: resolvedActions,
-      ),
-      floatingActionButton: floatingActionButton,
-      body: Container(
-        decoration: switch (background) {
-          FeatureScaffoldBackground.editorial => BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [tokens.canvas, tokens.canvasSubtle],
-            ),
+              FeatureScaffoldBackground.utility => BoxDecoration(
+                color: tokens.panelMuted,
+              ),
+              FeatureScaffoldBackground.immersive => BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [tokens.canvasSubtle, tokens.canvas],
+                ),
+              ),
+              FeatureScaffoldBackground.neutral => BoxDecoration(
+                color: tokens.canvas,
+              ),
+            },
+            child: SafeArea(top: false, child: child),
           ),
-          FeatureScaffoldBackground.utility => BoxDecoration(
-            color: tokens.panelMuted,
-          ),
-          FeatureScaffoldBackground.immersive => BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [tokens.canvasSubtle, tokens.canvas],
-            ),
-          ),
-          FeatureScaffoldBackground.neutral => BoxDecoration(
-            color: tokens.canvas,
-          ),
-        },
-        child: SafeArea(top: false, child: child),
+        ),
       ),
     );
   }
@@ -122,6 +165,112 @@ class FeatureScaffold extends ConsumerWidget {
       final routeName = route?.settings.name?.trim() ?? '';
       return routeName.isNotEmpty ? routeName : '/';
     }
+  }
+
+  bool _isAdminSurface(String location) {
+    return location == '/admin' ||
+        location.startsWith('/admin/') ||
+        location == '/moderation' ||
+        location.startsWith('/moderation/');
+  }
+
+  void _goBack(
+    BuildContext context, {
+    required String currentLocation,
+    required String fallbackLocation,
+  }) {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      _FeatureRouteHistory.remove(currentLocation);
+      navigator.maybePop();
+      return;
+    }
+    final target = _FeatureRouteHistory.previous(
+      currentLocation,
+      fallback: fallbackLocation,
+    );
+    context.go(target);
+  }
+}
+
+class _FeatureRouteHistory {
+  static final List<String> _locations = <String>[];
+
+  static void record(String location) {
+    final normalized = location.trim();
+    if (normalized.isEmpty) return;
+    if (_locations.isNotEmpty && _locations.last == normalized) return;
+    _locations.add(normalized);
+    if (_locations.length > 30) {
+      _locations.removeRange(0, _locations.length - 30);
+    }
+  }
+
+  static void remove(String location) {
+    final normalized = location.trim();
+    if (normalized.isEmpty) return;
+    if (_locations.isNotEmpty && _locations.last == normalized) {
+      _locations.removeLast();
+      return;
+    }
+    final index = _locations.lastIndexOf(normalized);
+    if (index >= 0) _locations.removeAt(index);
+  }
+
+  static String previous(String currentLocation, {required String fallback}) {
+    remove(currentLocation);
+    if (_locations.isEmpty) return fallback;
+    return _locations.last;
+  }
+}
+
+class _AdminBackSwipeRegion extends StatefulWidget {
+  const _AdminBackSwipeRegion({
+    required this.enabled,
+    required this.onBack,
+    required this.child,
+  });
+
+  final bool enabled;
+  final VoidCallback onBack;
+  final Widget child;
+
+  @override
+  State<_AdminBackSwipeRegion> createState() => _AdminBackSwipeRegionState();
+}
+
+class _AdminBackSwipeRegionState extends State<_AdminBackSwipeRegion> {
+  double? _dragStartX;
+  bool _handledDrag = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.enabled) return widget.child;
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragStart: (details) {
+        _dragStartX = details.globalPosition.dx;
+        _handledDrag = false;
+      },
+      onHorizontalDragUpdate: (details) {
+        final startX = _dragStartX;
+        if (_handledDrag || startX == null || startX > 32) return;
+        if (details.primaryDelta != null && details.primaryDelta! > 18) {
+          _handledDrag = true;
+          widget.onBack();
+        }
+      },
+      onHorizontalDragEnd: (details) {
+        final startX = _dragStartX;
+        if (_handledDrag || startX == null || startX > 32) return;
+        final velocity = details.primaryVelocity ?? 0;
+        if (velocity > 450) {
+          _handledDrag = true;
+          widget.onBack();
+        }
+      },
+      child: widget.child,
+    );
   }
 }
 

@@ -3,7 +3,8 @@ export function registerMemberDirectoryRoutes(app, {
   sqlAllAsync,
   ensureTeacherAlumniLinksTable,
   getCachedActiveMemberNameRows,
-  buildMemberTrustBadges
+  buildMemberTrustBadges,
+  logUserActivity = null
 }) {
   const testMultiAccountEmail = 'cagatay.donmez@gmail.com';
   const hideTestEmail = (row) => {
@@ -210,6 +211,18 @@ export function registerMemberDirectoryRoutes(app, {
         [req.session.userId, req.params.id]
       );
       if (!row) return res.status(404).send('Üye bulunamadı');
+      if (Number(req.session.userId || 0) !== Number(req.params.id || 0)) {
+        logUserActivity?.(req, {
+          userId: req.session.userId,
+          eventType: 'profile_view',
+          targetType: 'user',
+          targetId: row.id,
+          metadata: {
+            targetHandle: row.kadi || '',
+            targetName: [row.isim, row.soyisim].filter(Boolean).join(' ').trim()
+          }
+        });
+      }
       return res.json({
         row: {
           ...hideTestEmail(row),

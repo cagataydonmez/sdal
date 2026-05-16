@@ -1023,6 +1023,48 @@ function writeAuditLog(req, { actorUserId = null, action, targetType = null, tar
   );
 }
 
+function logUserActivity(req, {
+  userId = null,
+  eventType,
+  targetType = null,
+  targetId = null,
+  metadata = {}
+} = {}) {
+  if (!eventType) return;
+  try {
+    const actorUserId = Number(userId || req?.session?.userId || 0) || null;
+    const ipText = String(req?.ip || '').trim();
+    const ipHash = ipText
+      ? crypto.createHash('sha256').update(ipText, 'utf8').digest('hex')
+      : null;
+    const metadataValue = dbDriver === 'postgres'
+      ? metadata || {}
+      : JSON.stringify(metadata || {});
+    sqlRun(
+      `INSERT INTO user_activity_events
+       (actor_user_id, event_type, target_type, target_id, metadata, request_id, ip_hash, user_agent, occurred_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        actorUserId,
+        String(eventType || '').slice(0, 80),
+        targetType ? String(targetType).slice(0, 80) : null,
+        targetId === null || targetId === undefined ? null : String(targetId).slice(0, 120),
+        metadataValue,
+        String(req?.id || req?.requestId || '').slice(0, 120) || null,
+        ipHash,
+        String(req?.headers?.['user-agent'] || '').slice(0, 500) || null,
+        new Date().toISOString()
+      ]
+    );
+  } catch (err) {
+    writeAppLog?.('warn', 'user_activity_log_failed', {
+      userId: userId || req?.session?.userId || null,
+      eventType,
+      message: err?.message || String(err)
+    });
+  }
+}
+
 function parseAdminListPagination(query, { defaultLimit = 50, maxLimit = 200 } = {}) {
   const page = Math.max(parseInt(query?.page || '1', 10) || 1, 1);
   const limit = Math.min(Math.max(parseInt(query?.limit || String(defaultLimit), 10) || defaultLimit, 1), maxLimit);
@@ -3282,6 +3324,12 @@ function applyUserSession(req, user) {
   }
 
   req.session.userId = user.id;
+  logUserActivity(req, {
+    userId: user.id,
+    eventType: 'session_start',
+    targetType: 'session',
+    targetId: req.sessionID || null
+  });
 }
 
 async function findOrCreateOAuthUser({ provider, profile }) {
@@ -4069,7 +4117,15 @@ registerOAuthRoutes(app, {
 
 app.post('/api/auth/login', loginRateLimit, phase1Domain.controllers.auth.login);
 
-app.post('/api/auth/logout', phase1Domain.controllers.auth.logout);
+app.post('/api/auth/logout', (req, res, next) => {
+  logUserActivity(req, {
+    userId: req.session?.userId || null,
+    eventType: 'session_end',
+    targetType: 'session',
+    targetId: req.sessionID || null
+  });
+  return phase1Domain.controllers.auth.logout(req, res, next);
+});
 
 authSecurity.registerRoutes(app);
 
@@ -4334,6 +4390,7 @@ registerProfileSelfServiceRoutes(app, {
 });
 
 registerMemberCommunicationRoutes(app, {
+  dbDriver,
   requireAuth,
   sqlGet,
   sqlAll,
@@ -4344,6 +4401,7 @@ registerMemberCommunicationRoutes(app, {
   ensureTeacherAlumniLinksTable: (...args) => ensureTeacherAlumniLinksTable(...args),
   getCachedActiveMemberNameRows,
   buildMemberTrustBadges,
+  logUserActivity,
   toNumericUserIdOrNull,
   sameUserId,
   normalizeUserId,

@@ -4336,7 +4336,10 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
     AdminLogFileItem item,
   ) async {
     await Navigator.of(context, rootNavigator: true).push<void>(
-      MaterialPageRoute(builder: (_) => _AdminLogContentPage(item: item)),
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/admin/log-content'),
+        builder: (_) => _AdminLogContentPage(item: item),
+      ),
     );
   }
 
@@ -4455,6 +4458,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
     final nextDetail = await Navigator.of(context, rootNavigator: true)
         .push<AdminUserDetail>(
           MaterialPageRoute(
+            settings: const RouteSettings(name: '/admin/user-detail'),
             builder: (_) => _AdminUserDetailPage(userId: userId),
           ),
         );
@@ -4552,6 +4556,9 @@ class _AdminUserDetailOverviewPage extends ConsumerWidget {
                     rootNavigator: true,
                   ).push<AdminUserDetail>(
                     MaterialPageRoute(
+                      settings: const RouteSettings(
+                        name: '/admin/user-detail/edit',
+                      ),
                       fullscreenDialog: true,
                       builder: (_) =>
                           _AdminUserDetailEditFormPage(detail: detail),

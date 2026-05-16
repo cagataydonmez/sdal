@@ -641,67 +641,82 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   ),
                 ),
               ),
-              GoRoute(
-                path: '/admin',
-                pageBuilder: (context, state) =>
-                    _slidePage(const AdminWorkspacePage()),
-              ),
-              GoRoute(
-                path: '/moderation',
-                pageBuilder: (context, state) =>
-                    _slidePage(const ModeratorWorkspacePage()),
-              ),
-              GoRoute(
-                path: '/admin/modules',
-                pageBuilder: (context, state) =>
-                    _liftPage(const AdminModuleManagementPage()),
-              ),
-              GoRoute(
-                path: '/admin/teacher-network',
-                pageBuilder: (context, state) =>
-                    _liftPage(const AdminTeacherNetworkManagementPage()),
-              ),
-              GoRoute(
-                path: '/admin/teacher-accounts',
-                pageBuilder: (context, state) =>
-                    _liftPage(const AdminTeacherAccountsPage()),
-              ),
-              GoRoute(
-                path: '/admin/audit',
-                pageBuilder: (context, state) =>
-                    _liftPage(const AdminAuditLogPage()),
-              ),
-              GoRoute(
-                path: '/admin/factory-reset',
-                pageBuilder: (context, state) =>
-                    _liftPage(const FactoryResetPage()),
-              ),
-              GoRoute(
-                path: '/admin/test-data',
-                pageBuilder: (context, state) =>
-                    _liftPage(const TestDataSeedPage()),
-              ),
-              GoRoute(
-                path: '/admin/permission-groups',
-                pageBuilder: (context, state) =>
-                    _liftPage(const PermissionGroupsPage()),
-              ),
-              GoRoute(
-                path: '/admin/user-permissions',
-                pageBuilder: (context, state) =>
-                    _liftPage(const UserPermissionsPage()),
-              ),
-              GoRoute(
-                path: '/admin/:section',
-                pageBuilder: (context, state) => _liftPage(
-                  AdminSectionPage(
-                    sectionKey: state.pathParameters['section'] ?? '',
-                  ),
-                ),
-              ),
             ],
           ),
         ],
+      ),
+      GoRoute(
+        path: '/admin',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _slidePage(const AdminWorkspacePage()),
+      ),
+      GoRoute(
+        path: '/moderation',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slidePage(const ModeratorWorkspacePage()),
+      ),
+      GoRoute(
+        path: '/admin/modules',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _liftPage(const AdminModuleManagementPage()),
+      ),
+      GoRoute(
+        path: '/admin/teacher-network',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _liftPage(const AdminTeacherNetworkManagementPage()),
+      ),
+      GoRoute(
+        path: '/admin/teacher-accounts',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _liftPage(const AdminTeacherAccountsPage()),
+      ),
+      GoRoute(
+        path: '/admin/audit',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _liftPage(const AdminAuditLogPage()),
+      ),
+      GoRoute(
+        path: '/admin/root',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _liftPage(const RootAdminToolsPage()),
+      ),
+      GoRoute(
+        path: '/admin/root/member-activity',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _liftPage(const RootMemberActivityPage()),
+      ),
+      GoRoute(
+        path: '/admin/factory-reset',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _liftPage(const FactoryResetPage()),
+      ),
+      GoRoute(
+        path: '/admin/test-data',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _liftPage(const TestDataSeedPage()),
+      ),
+      GoRoute(
+        path: '/admin/permission-groups',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _liftPage(const PermissionGroupsPage()),
+      ),
+      GoRoute(
+        path: '/admin/user-permissions',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _liftPage(const UserPermissionsPage()),
+      ),
+      GoRoute(
+        path: '/admin/:section',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _liftPage(
+          AdminSectionPage(sectionKey: state.pathParameters['section'] ?? ''),
+        ),
       ),
       GoRoute(path: '/feed/live-chat', redirect: (context, state) => '/feed'),
       GoRoute(

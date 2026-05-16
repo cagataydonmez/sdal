@@ -17,6 +17,7 @@ export function registerAlbumRoutes(app, {
   addNotification,
   normalizeUserId,
   sameUserId,
+  logUserActivity = null,
 }) {
   const isPostgres = dbDriver === 'postgres';
   const boolValue = (value) => (isPostgres ? !!value : (value ? 1 : 0));
@@ -1597,6 +1598,18 @@ export function registerAlbumRoutes(app, {
       } else {
         await sqlRunAsync(`UPDATE ${photoTable} SET hit = COALESCE(hit, 0) + 1 WHERE id = ?`, [context.photo.id]);
       }
+      logUserActivity?.(req, {
+        userId: req.session.userId,
+        eventType: 'photo_view',
+        targetType: 'photo',
+        targetId: context.photo.id,
+        metadata: {
+          title: context.photo.title || '',
+          fileName: context.photo.file_name || '',
+          categoryId: Number(context.photo.category_id || 0),
+          ownerUserId: normalizeUserId(context.photo.uploaded_by_user_id)
+        }
+      });
 
       const likeCountRow = await sqlGetAsync(
         `SELECT COUNT(DISTINCT user_id) AS cnt FROM ${likeTable} WHERE photo_id IN (${placeholders})`,

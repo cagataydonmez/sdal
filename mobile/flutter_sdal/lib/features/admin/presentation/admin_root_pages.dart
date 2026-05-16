@@ -1,10 +1,525 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/session/session_controller.dart';
+import '../../../core/text/sdal_date_time.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../data/admin_repository.dart';
+import 'widgets/admin_mobile_widgets.dart';
+
+String _rootTimestamp(BuildContext context, String raw) =>
+    raw.isEmpty ? '' : formatSdalTimestamp(context, raw);
+
+class RootAdminToolsPage extends ConsumerWidget {
+  const RootAdminToolsPage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(sessionControllerProvider).value?.user;
+    if (user?.isRootAdmin != true) return const _RootDeniedPage();
+
+    return FeatureScaffold(
+      title: 'Root araçları',
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
+        children: [
+          SurfaceCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.shield_outlined,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Sadece root yetkisi',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Bu alandaki işlemler sistem geneli veri ve izin yönetimi içindir.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          AdminSectionCard(
+            title: 'Üye aktivite izleme',
+            subtitle:
+                'Kayıtlı bir üyenin post, yorum, like, mesaj, profil ve fotoğraf görüntüleme izlerini incele.',
+            icon: Icons.manage_search_outlined,
+            tone: AdminTone.accent,
+            onTap: () => context.go('/admin/root/member-activity'),
+          ),
+          const SizedBox(height: 10),
+          AdminSectionCard(
+            title: 'İzin grupları',
+            subtitle: 'Rol ve özel izin setlerini düzenle.',
+            icon: Icons.admin_panel_settings_outlined,
+            tone: AdminTone.info,
+            onTap: () => context.go('/admin/permission-groups'),
+          ),
+          const SizedBox(height: 10),
+          AdminSectionCard(
+            title: 'Kullanıcı izinleri',
+            subtitle: 'Üyelere root kontrollü izin grupları ata.',
+            icon: Icons.verified_user_outlined,
+            tone: AdminTone.info,
+            onTap: () => context.go('/admin/user-permissions'),
+          ),
+          const SizedBox(height: 10),
+          AdminSectionCard(
+            title: 'Factory reset',
+            subtitle: 'Yüksek riskli sıfırlama akışı, ayrı doğrulama ister.',
+            icon: Icons.delete_forever_outlined,
+            tone: AdminTone.danger,
+            onTap: () => context.go('/admin/factory-reset'),
+          ),
+          const SizedBox(height: 10),
+          AdminSectionCard(
+            title: 'Test verisi',
+            subtitle:
+                'Geliştirme ve doğrulama için kontrollü test datası üret.',
+            icon: Icons.science_outlined,
+            tone: AdminTone.warning,
+            onTap: () => context.go('/admin/test-data'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class RootMemberActivityPage extends ConsumerStatefulWidget {
+  const RootMemberActivityPage({super.key});
+
+  @override
+  ConsumerState<RootMemberActivityPage> createState() =>
+      _RootMemberActivityPageState();
+}
+
+class _RootMemberActivityPageState
+    extends ConsumerState<RootMemberActivityPage> {
+  final _queryController = TextEditingController();
+  String _query = '';
+  int _selectedUserId = 0;
+
+  @override
+  void dispose() {
+    _queryController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = ref.watch(sessionControllerProvider).value?.user;
+    if (user?.isRootAdmin != true) return const _RootDeniedPage();
+    final usersState = ref.watch(adminRootActivityUsersProvider(_query));
+
+    return FeatureScaffold(
+      title: 'Üye aktivite izleme',
+      actions: [
+        IconButton(
+          tooltip: 'Yenile',
+          onPressed: () {
+            ref.invalidate(adminRootActivityUsersProvider(_query));
+            if (_selectedUserId > 0) {
+              ref.invalidate(adminRootMemberActivityProvider(_selectedUserId));
+            }
+          },
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
+        children: [
+          SurfaceCard(
+            child: TextField(
+              controller: _queryController,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search),
+                labelText: 'Üye ara',
+                hintText: 'Ad, kullanıcı adı veya e-posta',
+                suffixIcon: _queryController.text.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Temizle',
+                        onPressed: () {
+                          _queryController.clear();
+                          setState(() => _query = '');
+                        },
+                        icon: const Icon(Icons.close),
+                      ),
+              ),
+              onSubmitted: (value) => setState(() => _query = value.trim()),
+            ),
+          ),
+          const SizedBox(height: 12),
+          usersState.when(
+            loading: () => const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: CircularProgressIndicator(),
+              ),
+            ),
+            error: (error, _) => AdminEmptyState(
+              icon: Icons.error_outline,
+              title: 'Üyeler alınamadı',
+              message: error.toString(),
+            ),
+            data: (users) {
+              if (users.isEmpty) {
+                return const AdminEmptyState(
+                  icon: Icons.person_search_outlined,
+                  title: 'Sonuç yok',
+                  message: 'Farklı bir arama deneyin.',
+                );
+              }
+              final selectedId = _selectedUserId == 0
+                  ? users.first.id
+                  : _selectedUserId;
+              if (_selectedUserId == 0) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && _selectedUserId == 0) {
+                    setState(() => _selectedUserId = selectedId);
+                  }
+                });
+              }
+              return Column(
+                children: [
+                  for (final item in users.take(12))
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _RootUserPickCard(
+                        user: item,
+                        selected: item.id == selectedId,
+                        onTap: () => setState(() => _selectedUserId = item.id),
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  _RootActivityDetail(userId: selectedId),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RootUserPickCard extends StatelessWidget {
+  const _RootUserPickCard({
+    required this.user,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AdminRootActivityUser user;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: selected
+          ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: .5)
+          : null,
+      child: ListTile(
+        onTap: onTap,
+        leading: CircleAvatar(
+          child: Text(
+            user.displayName.isEmpty
+                ? '#'
+                : user.displayName.substring(0, 1).toUpperCase(),
+          ),
+        ),
+        title: Text(
+          user.displayName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          [
+            if (user.handle.isNotEmpty) '@${user.handle}',
+            if (user.role.isNotEmpty) user.role,
+            if (user.lastActivityDate.isNotEmpty) user.lastActivityDate,
+          ].join(' · '),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: AdminStatusChip(
+          label: user.online ? 'Online' : 'Pasif',
+          tone: user.online ? AdminTone.success : AdminTone.info,
+        ),
+      ),
+    );
+  }
+}
+
+class _RootActivityDetail extends ConsumerWidget {
+  const _RootActivityDetail({required this.userId});
+
+  final int userId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (userId <= 0) return const SizedBox.shrink();
+    final state = ref.watch(adminRootMemberActivityProvider(userId));
+    return state.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.all(24),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, _) => AdminEmptyState(
+        icon: Icons.lock_clock_outlined,
+        title: 'Aktivite alınamadı',
+        message: error.toString(),
+      ),
+      data: (snapshot) => _RootActivityContent(snapshot: snapshot),
+    );
+  }
+}
+
+class _RootActivityContent extends StatelessWidget {
+  const _RootActivityContent({required this.snapshot});
+
+  final AdminRootMemberActivitySnapshot snapshot;
+
+  @override
+  Widget build(BuildContext context) {
+    final summary = snapshot.summary;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SurfaceCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                snapshot.user.displayName,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                [
+                  if (snapshot.user.handle.isNotEmpty)
+                    '@${snapshot.user.handle}',
+                  if (snapshot.user.email.isNotEmpty) snapshot.user.email,
+                  if (snapshot.user.lastSeenAt.isNotEmpty)
+                    'Son giriş: ${_rootTimestamp(context, snapshot.user.lastSeenAt)}',
+                ].join(' · '),
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _SummaryChip(label: 'Post', value: summary.posts),
+                  _SummaryChip(label: 'Yorum', value: summary.comments),
+                  _SummaryChip(
+                    label: 'Like',
+                    value: summary.postLikes + summary.photoLikes,
+                  ),
+                  _SummaryChip(label: 'Mesaj', value: summary.messages),
+                  _SummaryChip(
+                    label: 'Profil bakışı',
+                    value: summary.profileViews,
+                  ),
+                  _SummaryChip(label: 'Foto bakışı', value: summary.photoViews),
+                  _SummaryChip(label: 'Takip', value: summary.follows),
+                  _SummaryChip(label: 'Oturum', value: summary.sessions),
+                  _SummaryChip(
+                    label: 'Dakika',
+                    value: summary.estimatedTimeMinutes,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (snapshot.topInteractions.isNotEmpty)
+          _TopInteractionsCard(items: snapshot.topInteractions),
+        _ActivitySection(
+          title: 'Son olaylar',
+          icon: Icons.timeline_outlined,
+          entries: snapshot.entries('timeline'),
+        ),
+        _ActivitySection(
+          title: 'Mesajlaşmalar',
+          icon: Icons.forum_outlined,
+          entries: snapshot.entries('messages'),
+        ),
+        _ActivitySection(
+          title: 'Profil görüntülemeleri',
+          icon: Icons.person_search_outlined,
+          entries: snapshot.entries('profileViews'),
+        ),
+        _ActivitySection(
+          title: 'Fotoğraf görüntülemeleri',
+          icon: Icons.photo_library_outlined,
+          entries: snapshot.entries('photoViews'),
+        ),
+        _ActivitySection(
+          title: 'Postlar',
+          icon: Icons.article_outlined,
+          entries: snapshot.entries('posts'),
+        ),
+        _ActivitySection(
+          title: 'Yorumlar',
+          icon: Icons.mode_comment_outlined,
+          entries: snapshot.entries('comments'),
+        ),
+        _ActivitySection(
+          title: 'Post beğenileri',
+          icon: Icons.favorite_border,
+          entries: snapshot.entries('postLikes'),
+        ),
+        _ActivitySection(
+          title: 'Fotoğraflar',
+          icon: Icons.image_outlined,
+          entries: snapshot.entries('photos'),
+        ),
+        _ActivitySection(
+          title: 'Fotoğraf beğenileri',
+          icon: Icons.photo_camera_back_outlined,
+          entries: snapshot.entries('photoLikes'),
+        ),
+        _ActivitySection(
+          title: 'Takip ettikleri',
+          icon: Icons.group_add_outlined,
+          entries: snapshot.entries('follows'),
+        ),
+        _ActivitySection(
+          title: 'Giriş çıkış',
+          icon: Icons.login_outlined,
+          entries: snapshot.entries('sessions'),
+        ),
+      ],
+    );
+  }
+}
+
+class _SummaryChip extends StatelessWidget {
+  const _SummaryChip({required this.label, required this.value});
+
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return AdminStatusChip(label: '$label $value', tone: AdminTone.info);
+  }
+}
+
+class _TopInteractionsCard extends StatelessWidget {
+  const _TopInteractionsCard({required this.items});
+
+  final List<AdminRootTopInteraction> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'En yoğun etkileşim',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 10),
+          for (final item in items.take(8))
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.hub_outlined),
+              title: Text(
+                item.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: AdminStatusChip(label: item.score.toStringAsFixed(0)),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivitySection extends StatelessWidget {
+  const _ActivitySection({
+    required this.title,
+    required this.icon,
+    required this.entries,
+  });
+
+  final String title;
+  final IconData icon;
+  final List<AdminRootActivityEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    if (entries.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: SurfaceCard(
+        child: ExpansionTile(
+          initiallyExpanded: title == 'Son olaylar' || title == 'Mesajlaşmalar',
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: EdgeInsets.zero,
+          leading: Icon(icon),
+          title: Text(
+            '$title (${entries.length})',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          children: [
+            for (final entry in entries.take(30))
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  entry.title.isEmpty ? '#${entry.id}' : entry.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  [
+                    if (entry.text.isNotEmpty) entry.text,
+                    if (entry.meta.isNotEmpty) entry.meta,
+                    if (entry.createdAt.isNotEmpty)
+                      _rootTimestamp(context, entry.createdAt),
+                  ].join('\n'),
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class FactoryResetPage extends ConsumerStatefulWidget {
   const FactoryResetPage({super.key});

@@ -773,6 +773,185 @@ class AdminAuditLogSnapshot {
   }
 }
 
+class AdminRootActivityUser {
+  const AdminRootActivityUser({
+    required this.id,
+    required this.handle,
+    required this.name,
+    required this.email,
+    required this.avatar,
+    required this.role,
+    required this.graduationYear,
+    required this.online,
+    required this.lastSeenAt,
+    required this.lastActivityDate,
+    required this.lastActivityTime,
+    required this.profileViewCount,
+  });
+
+  final int id;
+  final String handle;
+  final String name;
+  final String email;
+  final String avatar;
+  final String role;
+  final String graduationYear;
+  final bool online;
+  final String lastSeenAt;
+  final String lastActivityDate;
+  final String lastActivityTime;
+  final int profileViewCount;
+
+  String get displayName {
+    if (name.trim().isNotEmpty) return name.trim();
+    if (handle.trim().isNotEmpty) return '@$handle';
+    return 'Üye #$id';
+  }
+
+  factory AdminRootActivityUser.fromMap(JsonMap map) {
+    return AdminRootActivityUser(
+      id: asInt(map['id']) ?? 0,
+      handle: coalesceText([map['handle'], map['kadi']], fallback: ''),
+      name: coalesceText([map['name']], fallback: ''),
+      email: coalesceText([map['email']], fallback: ''),
+      avatar: coalesceText([map['avatar']], fallback: ''),
+      role: coalesceText([map['role']], fallback: ''),
+      graduationYear: coalesceText([map['graduationYear']], fallback: ''),
+      online: asBool(map['online']) ?? false,
+      lastSeenAt: coalesceText([map['lastSeenAt']], fallback: ''),
+      lastActivityDate: coalesceText([map['lastActivityDate']], fallback: ''),
+      lastActivityTime: coalesceText([map['lastActivityTime']], fallback: ''),
+      profileViewCount: asInt(map['profileViewCount']) ?? 0,
+    );
+  }
+}
+
+class AdminRootActivitySummary {
+  const AdminRootActivitySummary({
+    required this.posts,
+    required this.comments,
+    required this.postLikes,
+    required this.photoLikes,
+    required this.profileViews,
+    required this.photoViews,
+    required this.follows,
+    required this.messages,
+    required this.sessions,
+    required this.estimatedTimeMinutes,
+    required this.topInteractionCount,
+  });
+
+  final int posts;
+  final int comments;
+  final int postLikes;
+  final int photoLikes;
+  final int profileViews;
+  final int photoViews;
+  final int follows;
+  final int messages;
+  final int sessions;
+  final int estimatedTimeMinutes;
+  final int topInteractionCount;
+
+  factory AdminRootActivitySummary.fromMap(JsonMap map) {
+    return AdminRootActivitySummary(
+      posts: asInt(map['posts']) ?? 0,
+      comments: asInt(map['comments']) ?? 0,
+      postLikes: asInt(map['postLikes']) ?? 0,
+      photoLikes: asInt(map['photoLikes']) ?? 0,
+      profileViews: asInt(map['profileViews']) ?? 0,
+      photoViews: asInt(map['photoViews']) ?? 0,
+      follows: asInt(map['follows']) ?? 0,
+      messages: asInt(map['messages']) ?? 0,
+      sessions: asInt(map['sessions']) ?? 0,
+      estimatedTimeMinutes: asInt(map['estimatedTimeMinutes']) ?? 0,
+      topInteractionCount: asInt(map['topInteractionCount']) ?? 0,
+    );
+  }
+}
+
+class AdminRootActivityEntry {
+  const AdminRootActivityEntry({
+    required this.id,
+    required this.title,
+    required this.text,
+    required this.createdAt,
+    required this.meta,
+  });
+
+  final int id;
+  final String title;
+  final String text;
+  final String createdAt;
+  final String meta;
+
+  factory AdminRootActivityEntry.fromMap(JsonMap map) {
+    return AdminRootActivityEntry(
+      id: asInt(map['id']) ?? 0,
+      title: coalesceText([map['title'], map['label']], fallback: ''),
+      text: coalesceText([map['text']], fallback: ''),
+      createdAt: coalesceText([map['createdAt']], fallback: ''),
+      meta: coalesceText([map['meta']], fallback: ''),
+    );
+  }
+}
+
+class AdminRootTopInteraction {
+  const AdminRootTopInteraction({
+    required this.userId,
+    required this.label,
+    required this.score,
+  });
+
+  final int userId;
+  final String label;
+  final double score;
+
+  factory AdminRootTopInteraction.fromMap(JsonMap map) {
+    return AdminRootTopInteraction(
+      userId: asInt(map['userId']) ?? 0,
+      label: coalesceText([map['label']], fallback: ''),
+      score: double.tryParse('${map['score'] ?? 0}') ?? 0,
+    );
+  }
+}
+
+class AdminRootMemberActivitySnapshot {
+  const AdminRootMemberActivitySnapshot({
+    required this.user,
+    required this.summary,
+    required this.sections,
+    required this.topInteractions,
+  });
+
+  final AdminRootActivityUser user;
+  final AdminRootActivitySummary summary;
+  final Map<String, List<AdminRootActivityEntry>> sections;
+  final List<AdminRootTopInteraction> topInteractions;
+
+  List<AdminRootActivityEntry> entries(String key) =>
+      sections[key] ?? const <AdminRootActivityEntry>[];
+
+  factory AdminRootMemberActivitySnapshot.fromMap(JsonMap map) {
+    final rawSections = asJsonMap(map['sections']);
+    final parsedSections = <String, List<AdminRootActivityEntry>>{};
+    for (final entry in rawSections.entries) {
+      if (entry.key == 'topInteractions') continue;
+      parsedSections[entry.key] = asJsonMapList(
+        entry.value,
+      ).map(AdminRootActivityEntry.fromMap).toList(growable: false);
+    }
+    return AdminRootMemberActivitySnapshot(
+      user: AdminRootActivityUser.fromMap(asJsonMap(map['user'])),
+      summary: AdminRootActivitySummary.fromMap(asJsonMap(map['summary'])),
+      sections: parsedSections,
+      topInteractions: asJsonMapList(
+        rawSections['topInteractions'],
+      ).map(AdminRootTopInteraction.fromMap).toList(growable: false),
+    );
+  }
+}
+
 List<String> _readStringList(dynamic value) {
   if (value is! List) return const <String>[];
   return value
@@ -3333,6 +3512,29 @@ class AdminRepository {
     ).map(AdminPermissionGroup.fromMap).toList(growable: false);
   }
 
+  Future<List<AdminRootActivityUser>> fetchRootActivityUsers({
+    String query = '',
+  }) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/root/member-activity/users',
+      query: {if (query.trim().isNotEmpty) 'q': query.trim(), 'limit': 40},
+      decoder: asJsonMap,
+    );
+    return asJsonMapList(
+      asJsonMap(result.rawData)['users'],
+    ).map(AdminRootActivityUser.fromMap).toList(growable: false);
+  }
+
+  Future<AdminRootMemberActivitySnapshot> fetchRootMemberActivity(
+    int userId,
+  ) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/root/member-activity/$userId',
+      decoder: asJsonMap,
+    );
+    return AdminRootMemberActivitySnapshot.fromMap(asJsonMap(result.rawData));
+  }
+
   Future<void> savePermissionGroup({
     int? id,
     required String name,
@@ -3894,6 +4096,19 @@ final adminPermissionsProvider =
 final adminPermissionGroupsProvider =
     FutureProvider<List<AdminPermissionGroup>>(
       (ref) => ref.watch(adminRepositoryProvider).fetchPermissionGroups(),
+    );
+
+final adminRootActivityUsersProvider =
+    FutureProvider.family<List<AdminRootActivityUser>, String>(
+      (ref, query) => ref
+          .watch(adminRepositoryProvider)
+          .fetchRootActivityUsers(query: query),
+    );
+
+final adminRootMemberActivityProvider =
+    FutureProvider.family<AdminRootMemberActivitySnapshot, int>(
+      (ref, userId) =>
+          ref.watch(adminRepositoryProvider).fetchRootMemberActivity(userId),
     );
 
 final adminPermissionUsersProvider =

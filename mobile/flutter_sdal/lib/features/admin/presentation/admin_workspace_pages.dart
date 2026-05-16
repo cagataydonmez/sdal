@@ -248,6 +248,15 @@ class _AdminCommandCenterBody extends StatelessWidget {
         if (isRootAdmin) ...[
           const _SectionLabel('Root araçları'),
           AdminSectionCard(
+            title: 'Root kontrol merkezi',
+            subtitle:
+                'Üye aktivite izleme ve yalnızca root yetkisine açık işlemler.',
+            icon: Icons.shield_outlined,
+            tone: AdminTone.accent,
+            onTap: () => context.go('/admin/root'),
+          ),
+          const SizedBox(height: 10),
+          AdminSectionCard(
             title: 'İzin grupları',
             subtitle: 'Rol ve özel izin setlerini düzenle.',
             icon: Icons.admin_panel_settings_outlined,

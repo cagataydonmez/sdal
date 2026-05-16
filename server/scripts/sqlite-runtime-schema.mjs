@@ -157,6 +157,24 @@ export function ensureSqliteRuntimeSchema(db) {
       user_id INTEGER,
       created_at TEXT
     );
+    CREATE TABLE IF NOT EXISTS user_activity_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      actor_user_id INTEGER,
+      event_type TEXT NOT NULL,
+      target_type TEXT,
+      target_id TEXT,
+      metadata TEXT,
+      request_id TEXT,
+      ip_hash TEXT,
+      user_agent TEXT,
+      occurred_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_activity_events_actor_time
+      ON user_activity_events(actor_user_id, occurred_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_user_activity_events_target_time
+      ON user_activity_events(target_type, target_id, occurred_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_user_activity_events_type_time
+      ON user_activity_events(event_type, occurred_at DESC);
     CREATE TABLE IF NOT EXISTS image_records (
       id TEXT PRIMARY KEY,
       user_id INTEGER,
