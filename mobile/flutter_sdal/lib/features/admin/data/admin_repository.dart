@@ -877,6 +877,8 @@ class AdminRootActivityEntry {
     required this.text,
     required this.createdAt,
     required this.meta,
+    required this.imageUrl,
+    required this.lightboxUrl,
   });
 
   final int id;
@@ -884,6 +886,8 @@ class AdminRootActivityEntry {
   final String text;
   final String createdAt;
   final String meta;
+  final String imageUrl;
+  final String lightboxUrl;
 
   factory AdminRootActivityEntry.fromMap(JsonMap map) {
     return AdminRootActivityEntry(
@@ -892,6 +896,13 @@ class AdminRootActivityEntry {
       text: coalesceText([map['text']], fallback: ''),
       createdAt: coalesceText([map['createdAt']], fallback: ''),
       meta: coalesceText([map['meta']], fallback: ''),
+      imageUrl: coalesceText([map['imageUrl'], map['image_url']], fallback: ''),
+      lightboxUrl: coalesceText([
+        map['lightboxUrl'],
+        map['lightbox_url'],
+        map['imageUrl'],
+        map['image_url'],
+      ], fallback: ''),
     );
   }
 }

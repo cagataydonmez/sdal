@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/providers.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/text/sdal_date_time.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/remote_avatar.dart';
+import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../data/admin_repository.dart';
 import 'widgets/admin_mobile_widgets.dart';
@@ -223,7 +226,7 @@ class _RootMemberActivityPageState
   }
 }
 
-class _RootUserPickCard extends StatelessWidget {
+class _RootUserPickCard extends ConsumerWidget {
   const _RootUserPickCard({
     required this.user,
     required this.selected,
@@ -235,19 +238,18 @@ class _RootUserPickCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final config = ref.watch(appConfigProvider);
     return Card(
       color: selected
           ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: .5)
           : null,
       child: ListTile(
         onTap: onTap,
-        leading: CircleAvatar(
-          child: Text(
-            user.displayName.isEmpty
-                ? '#'
-                : user.displayName.substring(0, 1).toUpperCase(),
-          ),
+        leading: RemoteAvatar(
+          label: user.displayName,
+          imageUrl: config.resolveUrl(user.avatar).toString(),
+          radius: 24,
         ),
         title: Text(
           user.displayName,
@@ -296,14 +298,15 @@ class _RootActivityDetail extends ConsumerWidget {
   }
 }
 
-class _RootActivityContent extends StatelessWidget {
+class _RootActivityContent extends ConsumerWidget {
   const _RootActivityContent({required this.snapshot});
 
   final AdminRootMemberActivitySnapshot snapshot;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final summary = snapshot.summary;
+    final config = ref.watch(appConfigProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -311,21 +314,41 @@ class _RootActivityContent extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                snapshot.user.displayName,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                [
-                  if (snapshot.user.handle.isNotEmpty)
-                    '@${snapshot.user.handle}',
-                  if (snapshot.user.email.isNotEmpty) snapshot.user.email,
-                  if (snapshot.user.lastSeenAt.isNotEmpty)
-                    'Son giriş: ${_rootTimestamp(context, snapshot.user.lastSeenAt)}',
-                ].join(' · '),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  RemoteAvatar(
+                    label: snapshot.user.displayName,
+                    imageUrl: config
+                        .resolveUrl(snapshot.user.avatar)
+                        .toString(),
+                    radius: 34,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          snapshot.user.displayName,
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          [
+                            if (snapshot.user.handle.isNotEmpty)
+                              '@${snapshot.user.handle}',
+                            if (snapshot.user.email.isNotEmpty)
+                              snapshot.user.email,
+                            if (snapshot.user.lastSeenAt.isNotEmpty)
+                              'Son giriş: ${_rootTimestamp(context, snapshot.user.lastSeenAt)}',
+                          ].join(' · '),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 14),
               Wrap(
@@ -495,9 +518,12 @@ class _ActivitySection extends StatelessWidget {
             ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
           ),
           children: [
+            if (entries.any((entry) => entry.imageUrl.trim().isNotEmpty))
+              _SectionMediaStrip(entries: entries),
             for (final entry in entries.take(30))
               ListTile(
                 contentPadding: EdgeInsets.zero,
+                leading: _EntryMedia(entry: entry, fallbackIcon: icon),
                 title: Text(
                   entry.title.isEmpty ? '#${entry.id}' : entry.title,
                   maxLines: 1,
@@ -510,12 +536,96 @@ class _ActivitySection extends StatelessWidget {
                     if (entry.createdAt.isNotEmpty)
                       _rootTimestamp(context, entry.createdAt),
                   ].join('\n'),
-                  maxLines: 4,
+                  maxLines: title == 'Mesajlaşmalar' ? 24 : 7,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SectionMediaStrip extends StatelessWidget {
+  const _SectionMediaStrip({required this.entries});
+
+  final List<AdminRootActivityEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaEntries = entries
+        .where((entry) => entry.imageUrl.trim().isNotEmpty)
+        .take(12)
+        .toList(growable: false);
+    if (mediaEntries.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: SizedBox(
+        height: 118,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: mediaEntries.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 10),
+          itemBuilder: (context, index) {
+            final entry = mediaEntries[index];
+            return SizedBox(
+              width: 104,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: SdalNetworkImage(
+                      imageUrl: entry.imageUrl,
+                      lightboxImageUrl: entry.lightboxUrl,
+                      width: 104,
+                      height: 84,
+                      fit: BoxFit.cover,
+                      semanticLabel: entry.title,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    entry.title.isEmpty ? '#${entry.id}' : entry.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _EntryMedia extends StatelessWidget {
+  const _EntryMedia({required this.entry, required this.fallbackIcon});
+
+  final AdminRootActivityEntry entry;
+  final IconData fallbackIcon;
+
+  @override
+  Widget build(BuildContext context) {
+    if (entry.imageUrl.trim().isEmpty) {
+      return SizedBox(
+        width: 56,
+        height: 56,
+        child: Icon(fallbackIcon, color: Theme.of(context).colorScheme.outline),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SdalNetworkImage(
+        imageUrl: entry.imageUrl,
+        lightboxImageUrl: entry.lightboxUrl,
+        width: 56,
+        height: 56,
+        fit: BoxFit.cover,
+        semanticLabel: entry.title,
       ),
     );
   }

@@ -48,6 +48,23 @@ export function registerAdminRootRoutes(app, {
   const dateText = (expr) => isPostgres ? `COALESCE(${expr}::text, '')` : `COALESCE(${expr}, '')`;
   const limitInt = (value, fallback = 30, max = 100) => Math.min(Math.max(parseInt(value || fallback, 10) || fallback, 1), max);
   const preview = (value, max = 220) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
+  const plainText = (value) => String(value || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .trim();
+  const albumMediaUrl = (fileName, width = 900) => {
+    const clean = String(fileName || '').trim();
+    if (!clean) return '';
+    const params = new URLSearchParams();
+    params.set('width', String(width));
+    params.set('file', clean);
+    return `/api/media/kucukresim?${params.toString()}`;
+  };
 
   function parseMetadata(value) {
     if (!value) return {};
@@ -168,27 +185,28 @@ export function registerAdminRootRoutes(app, {
         { sql: `SELECT id, ${dateText('tarih')} AS created_at, COALESCE(baslik, '') AS title, COALESCE(dosyaadi, '') AS file_name, COALESCE(hit, 0) AS view_count FROM album_foto WHERE ekleyenid = ? ORDER BY id DESC LIMIT 30`, params: [userId] }
       ]),
       firstRows('root_activity_photo_comments', [
-        { sql: `SELECT c.id, c.photo_id, p.uploaded_by_user_id AS owner_user_id, ${dateText('c.created_at')} AS created_at, COALESCE(c.comment_body, '') AS text, COALESCE(p.title, '') AS target_text FROM album_photo_comments c LEFT JOIN album_photos p ON p.id = c.photo_id WHERE c.author_user_id = ? ORDER BY c.created_at DESC LIMIT 40`, params: [userId] },
-        { sql: `SELECT c.id, c.fotoid AS photo_id, p.ekleyenid AS owner_user_id, ${dateText('c.tarih')} AS created_at, COALESCE(c.yorum, '') AS text, COALESCE(p.baslik, '') AS target_text FROM album_fotoyorum c LEFT JOIN album_foto p ON p.id = c.fotoid WHERE c.uyeid = ? ORDER BY c.id DESC LIMIT 40`, params: [userId] }
+        { sql: `SELECT c.id, c.photo_id, p.uploaded_by_user_id AS owner_user_id, ${dateText('c.created_at')} AS created_at, COALESCE(c.comment_body, '') AS text, COALESCE(p.title, '') AS target_text, COALESCE(p.file_name, '') AS file_name FROM album_photo_comments c LEFT JOIN album_photos p ON p.id = c.photo_id WHERE c.author_user_id = ? ORDER BY c.created_at DESC LIMIT 40`, params: [userId] },
+        { sql: `SELECT c.id, c.fotoid AS photo_id, p.ekleyenid AS owner_user_id, ${dateText('c.tarih')} AS created_at, COALESCE(c.yorum, '') AS text, COALESCE(p.baslik, '') AS target_text, COALESCE(p.dosyaadi, '') AS file_name FROM album_fotoyorum c LEFT JOIN album_foto p ON p.id = c.fotoid WHERE c.uyeid = ? ORDER BY c.id DESC LIMIT 40`, params: [userId] }
       ]),
       firstRows('root_activity_photo_likes', [
-        { sql: `SELECT l.id, l.photo_id, p.uploaded_by_user_id AS owner_user_id, ${dateText('l.created_at')} AS created_at, COALESCE(p.title, '') AS target_text FROM album_photo_likes l LEFT JOIN album_photos p ON p.id = l.photo_id WHERE l.user_id = ? ORDER BY l.created_at DESC LIMIT 40`, params: [userId] }
+        { sql: `SELECT l.id, l.photo_id, p.uploaded_by_user_id AS owner_user_id, ${dateText('l.created_at')} AS created_at, COALESCE(p.title, '') AS target_text, COALESCE(p.file_name, '') AS file_name FROM album_photo_likes l LEFT JOIN album_photos p ON p.id = l.photo_id WHERE l.user_id = ? ORDER BY l.created_at DESC LIMIT 40`, params: [userId] }
       ]),
       firstRows('root_activity_follows', [
-        { sql: `SELECT f.id, f.following_id AS target_user_id, ${dateText('f.created_at')} AS created_at, COALESCE(u.kadi, '') AS target_handle, COALESCE(u.isim, '') AS target_first_name, COALESCE(u.soyisim, '') AS target_last_name FROM user_follows f LEFT JOIN uyeler u ON u.id = f.following_id WHERE f.follower_id = ? ORDER BY f.created_at DESC LIMIT 80`, params: [userId] },
-        { sql: `SELECT f.id, f.following_id AS target_user_id, ${dateText('f.created_at')} AS created_at, COALESCE(u.kadi, '') AS target_handle, COALESCE(u.isim, '') AS target_first_name, COALESCE(u.soyisim, '') AS target_last_name FROM follows f LEFT JOIN uyeler u ON u.id = f.following_id WHERE f.follower_id = ? ORDER BY f.created_at DESC LIMIT 80`, params: [userId] }
+        { sql: `SELECT f.id, f.following_id AS target_user_id, ${dateText('f.created_at')} AS created_at, COALESCE(u.kadi, '') AS target_handle, COALESCE(u.isim, '') AS target_first_name, COALESCE(u.soyisim, '') AS target_last_name, COALESCE(u.resim, '') AS target_avatar FROM user_follows f LEFT JOIN uyeler u ON u.id = f.following_id WHERE f.follower_id = ? ORDER BY f.created_at DESC LIMIT 80`, params: [userId] },
+        { sql: `SELECT f.id, f.following_id AS target_user_id, ${dateText('f.created_at')} AS created_at, COALESCE(u.kadi, '') AS target_handle, COALESCE(u.isim, '') AS target_first_name, COALESCE(u.soyisim, '') AS target_last_name, COALESCE(u.resim, '') AS target_avatar FROM follows f LEFT JOIN uyeler u ON u.id = f.following_id WHERE f.follower_id = ? ORDER BY f.created_at DESC LIMIT 80`, params: [userId] }
       ]),
       firstRows('root_activity_messages', [
-        { sql: `SELECT m.id, 'thread' AS source, m.conversation_id, m.sender_id, m.recipient_id, CASE WHEN m.sender_id = ? THEN m.recipient_id ELSE m.sender_id END AS peer_user_id, COALESCE(u.kadi, '') AS peer_handle, COALESCE(u.isim, '') AS peer_first_name, COALESCE(u.soyisim, '') AS peer_last_name, ${dateText('m.created_at')} AS created_at, SUBSTR(COALESCE(m.body, ''), 1, 240) AS body_preview FROM conversation_messages m LEFT JOIN uyeler u ON u.id = CASE WHEN m.sender_id = ? THEN m.recipient_id ELSE m.sender_id END WHERE m.sender_id = ? OR m.recipient_id = ? ORDER BY m.created_at DESC LIMIT 80`, params: [userId, userId, userId, userId] },
-        { sql: `SELECT m.id, 'direct' AS source, 0 AS conversation_id, m.sender_id, m.recipient_id, CASE WHEN m.sender_id = ? THEN m.recipient_id ELSE m.sender_id END AS peer_user_id, COALESCE(u.kadi, '') AS peer_handle, COALESCE(u.isim, '') AS peer_first_name, COALESCE(u.soyisim, '') AS peer_last_name, ${dateText('m.created_at')} AS created_at, SUBSTR(COALESCE(m.body_html, ''), 1, 240) AS body_preview FROM direct_messages m LEFT JOIN uyeler u ON u.id = CASE WHEN m.sender_id = ? THEN m.recipient_id ELSE m.sender_id END WHERE m.sender_id = ? OR m.recipient_id = ? ORDER BY m.created_at DESC LIMIT 80`, params: [userId, userId, userId, userId] }
+        { sql: `SELECT m.id, 'thread' AS source, m.conversation_id, m.sender_id, m.recipient_id, CASE WHEN m.sender_id = ? THEN m.recipient_id ELSE m.sender_id END AS peer_user_id, COALESCE(u.kadi, '') AS peer_handle, COALESCE(u.isim, '') AS peer_first_name, COALESCE(u.soyisim, '') AS peer_last_name, COALESCE(u.resim, '') AS peer_avatar, ${dateText('m.created_at')} AS created_at, COALESCE(m.body, '') AS body_text FROM conversation_messages m LEFT JOIN uyeler u ON u.id = CASE WHEN m.sender_id = ? THEN m.recipient_id ELSE m.sender_id END WHERE m.sender_id = ? OR m.recipient_id = ? ORDER BY m.created_at DESC LIMIT 80`, params: [userId, userId, userId, userId] },
+        { sql: `SELECT m.id, 'direct' AS source, 0 AS conversation_id, m.sender_id, m.recipient_id, CASE WHEN m.sender_id = ? THEN m.recipient_id ELSE m.sender_id END AS peer_user_id, COALESCE(u.kadi, '') AS peer_handle, COALESCE(u.isim, '') AS peer_first_name, COALESCE(u.soyisim, '') AS peer_last_name, COALESCE(u.resim, '') AS peer_avatar, ${dateText('m.created_at')} AS created_at, COALESCE(m.body_html, '') AS body_text FROM direct_messages m LEFT JOIN uyeler u ON u.id = CASE WHEN m.sender_id = ? THEN m.recipient_id ELSE m.sender_id END WHERE m.sender_id = ? OR m.recipient_id = ? ORDER BY m.created_at DESC LIMIT 80`, params: [userId, userId, userId, userId] }
       ]),
       safeAll('root_activity_profile_views',
         `SELECT e.target_id, COUNT(*) AS count, MIN(e.occurred_at) AS first_seen_at, MAX(e.occurred_at) AS last_seen_at,
-                COALESCE(u.kadi, '') AS target_handle, COALESCE(u.isim, '') AS target_first_name, COALESCE(u.soyisim, '') AS target_last_name
+                COALESCE(u.kadi, '') AS target_handle, COALESCE(u.isim, '') AS target_first_name,
+                COALESCE(u.soyisim, '') AS target_last_name, COALESCE(u.resim, '') AS target_avatar
          FROM user_activity_events e
          LEFT JOIN uyeler u ON CAST(u.id AS TEXT) = e.target_id
          WHERE e.actor_user_id = ? AND e.event_type = 'profile_view' AND e.target_type = 'user'
-         GROUP BY e.target_id, u.kadi, u.isim, u.soyisim
+         GROUP BY e.target_id, u.kadi, u.isim, u.soyisim, u.resim
          ORDER BY MAX(e.occurred_at) DESC LIMIT 60`, [userId]),
       safeAll('root_activity_photo_views',
         `SELECT e.target_id, COUNT(*) AS count, MIN(e.occurred_at) AS first_seen_at, MAX(e.occurred_at) AS last_seen_at,
@@ -250,15 +268,15 @@ export function registerAdminRootRoutes(app, {
         topInteractionCount: topInteractions.length
       },
       sections: {
-        posts: posts.map((row) => ({ id: Number(row.id || 0), title: 'Post', text: preview(row.text), createdAt: String(row.created_at || ''), meta: String(row.media_url || '') })),
-        comments: [...comments, ...photoComments].map((row) => ({ id: Number(row.id || 0), title: row.photo_id ? `Fotoğraf #${row.photo_id}` : `Post #${row.post_id}`, text: preview(row.text), createdAt: String(row.created_at || ''), meta: preview(row.target_text, 120) })),
+        posts: posts.map((row) => ({ id: Number(row.id || 0), title: 'Post', text: String(row.text || ''), createdAt: String(row.created_at || ''), meta: String(row.media_url || ''), imageUrl: String(row.media_url || ''), lightboxUrl: String(row.media_url || '') })),
+        comments: [...comments, ...photoComments].map((row) => ({ id: Number(row.id || 0), title: row.photo_id ? `Fotoğraf #${row.photo_id}` : `Post #${row.post_id}`, text: String(row.text || ''), createdAt: String(row.created_at || ''), meta: preview(row.target_text, 120), imageUrl: albumMediaUrl(row.file_name, 700), lightboxUrl: albumMediaUrl(row.file_name, 2200) })),
         postLikes: postLikes.map((row) => ({ id: Number(row.id || 0), title: `Post #${row.post_id}`, text: preview(row.target_text, 160), createdAt: String(row.created_at || ''), meta: String(row.reaction_type || 'like') })),
-        photos: photos.map((row) => ({ id: Number(row.id || 0), title: row.title || 'Fotoğraf', text: String(row.file_name || ''), createdAt: String(row.created_at || ''), meta: `${Number(row.view_count || 0)} görüntüleme` })),
-        photoLikes: photoLikes.map((row) => ({ id: Number(row.id || 0), title: `Fotoğraf #${row.photo_id}`, text: preview(row.target_text, 160), createdAt: String(row.created_at || ''), meta: 'like' })),
-        messages: messages.map((row) => ({ id: Number(row.id || 0), title: labels.get(Number(row.peer_user_id || 0)) || `Üye #${row.peer_user_id || 0}`, text: preview(row.body_preview), createdAt: String(row.created_at || ''), meta: row.sender_id === userId ? 'gönderdi' : 'aldı' })),
-        follows: follows.map((row) => ({ id: Number(row.id || 0), title: labels.get(Number(row.target_user_id || 0)) || `Üye #${row.target_user_id || 0}`, text: 'Takip ediyor', createdAt: String(row.created_at || ''), meta: row.target_handle ? `@${row.target_handle}` : '' })),
-        profileViews: profileViews.map((row) => ({ id: Number(row.target_id || 0), title: labels.get(Number(row.target_id || 0)) || `Üye #${row.target_id || 0}`, text: `${Number(row.count || 0)} profil görüntüleme`, createdAt: String(row.last_seen_at || ''), meta: String(row.first_seen_at || '') })),
-        photoViews: photoViews.map((row) => ({ id: Number(row.target_id || 0), title: row.title || `Fotoğraf #${row.target_id || 0}`, text: `${Number(row.count || 0)} fotoğraf görüntüleme`, createdAt: String(row.last_seen_at || ''), meta: row.file_name || String(row.first_seen_at || '') })),
+        photos: photos.map((row) => ({ id: Number(row.id || 0), title: row.title || 'Fotoğraf', text: String(row.file_name || ''), createdAt: String(row.created_at || ''), meta: `${Number(row.view_count || 0)} görüntüleme`, imageUrl: albumMediaUrl(row.file_name, 700), lightboxUrl: albumMediaUrl(row.file_name, 2200) })),
+        photoLikes: photoLikes.map((row) => ({ id: Number(row.id || 0), title: `Fotoğraf #${row.photo_id}`, text: preview(row.target_text, 160), createdAt: String(row.created_at || ''), meta: 'like', imageUrl: albumMediaUrl(row.file_name, 700), lightboxUrl: albumMediaUrl(row.file_name, 2200) })),
+        messages: messages.map((row) => ({ id: Number(row.id || 0), title: labels.get(Number(row.peer_user_id || 0)) || `Üye #${row.peer_user_id || 0}`, text: plainText(row.body_text), createdAt: String(row.created_at || ''), meta: row.sender_id === userId ? 'gönderdi' : 'aldı', imageUrl: String(row.peer_avatar || '') })),
+        follows: follows.map((row) => ({ id: Number(row.id || 0), title: labels.get(Number(row.target_user_id || 0)) || `Üye #${row.target_user_id || 0}`, text: 'Takip ediyor', createdAt: String(row.created_at || ''), meta: row.target_handle ? `@${row.target_handle}` : '', imageUrl: String(row.target_avatar || '') })),
+        profileViews: profileViews.map((row) => ({ id: Number(row.target_id || 0), title: labels.get(Number(row.target_id || 0)) || `Üye #${row.target_id || 0}`, text: `${Number(row.count || 0)} profil görüntüleme`, createdAt: String(row.last_seen_at || ''), meta: String(row.first_seen_at || ''), imageUrl: String(row.target_avatar || '') })),
+        photoViews: photoViews.map((row) => ({ id: Number(row.target_id || 0), title: row.title || `Fotoğraf #${row.target_id || 0}`, text: `${Number(row.count || 0)} fotoğraf görüntüleme`, createdAt: String(row.last_seen_at || ''), meta: row.file_name || String(row.first_seen_at || ''), imageUrl: albumMediaUrl(row.file_name, 700), lightboxUrl: albumMediaUrl(row.file_name, 2200) })),
         sessions: sessions.map((row) => ({ id: Number(row.id || 0), title: row.event_type === 'session_end' ? 'Çıkış' : 'Giriş', text: row.event_type, createdAt: String(row.occurred_at || ''), meta: String(row.target_id || '') })),
         timeline: timeline.map((row) => ({ id: Number(row.id || 0), title: String(row.event_type || ''), text: `${row.target_type || ''} ${row.target_id || ''}`.trim(), createdAt: String(row.occurred_at || ''), meta: JSON.stringify(parseMetadata(row.metadata)).slice(0, 180) })),
         topInteractions
