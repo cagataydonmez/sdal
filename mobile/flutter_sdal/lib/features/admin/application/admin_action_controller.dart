@@ -14,7 +14,11 @@ class AdminActionController extends Notifier<AsyncActionState> {
     return true;
   }
 
-  Future<bool> deleteContent({required String type, required int id, String reason = ''}) async {
+  Future<bool> deleteContent({
+    required String type,
+    required int id,
+    String reason = '',
+  }) async {
     final scope = 'admin:$type:delete:$id';
     if (!_begin(scope)) return false;
     try {
@@ -192,6 +196,49 @@ class AdminActionController extends Notifier<AsyncActionState> {
         graduationYear: graduationYear,
       );
       _invalidateManagementPreviews();
+      state = AsyncActionState.success(scope: scope);
+      return true;
+    } catch (error) {
+      state = AsyncActionState.error(scope: scope, message: error.toString());
+      return false;
+    }
+  }
+
+  Future<bool> updateUserRole({
+    required int id,
+    required String role,
+    required String reason,
+  }) async {
+    final scope = 'admin:member:role:$id';
+    if (!_begin(scope)) return false;
+    try {
+      await _repository.updateUserRole(id: id, role: role, reason: reason);
+      _invalidateManagementPreviews();
+      ref.invalidate(adminEffectiveAccessProvider);
+      ref.invalidate(adminMobileSummaryProvider);
+      state = AsyncActionState.success(scope: scope);
+      return true;
+    } catch (error) {
+      state = AsyncActionState.error(scope: scope, message: error.toString());
+      return false;
+    }
+  }
+
+  Future<bool> updateUserStatus({
+    required int id,
+    required String status,
+    required String reason,
+  }) async {
+    final scope = 'admin:member:status:$id';
+    if (!_begin(scope)) return false;
+    try {
+      await _repository.updateUserStatus(
+        id: id,
+        status: status,
+        reason: reason,
+      );
+      _invalidateManagementPreviews();
+      ref.invalidate(adminMobileSummaryProvider);
       state = AsyncActionState.success(scope: scope);
       return true;
     } catch (error) {

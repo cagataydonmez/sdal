@@ -4531,6 +4531,14 @@ class _AdminUserDetailOverviewPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final actionState = ref.watch(adminActionControllerProvider);
+    final effectiveAccess = ref
+        .watch(adminEffectiveAccessProvider)
+        .asData
+        ?.value;
+    final canManageStatus =
+        effectiveAccess?.permissions.contains('users.manage_status') ?? false;
+    final canManageRole =
+        effectiveAccess?.permissions.contains('users.manage_role') ?? false;
     return FeatureScaffold(
       title: '@${detail.handle}',
       actions: [
@@ -4571,10 +4579,53 @@ class _AdminUserDetailOverviewPage extends ConsumerWidget {
                     Chip(label: Text('@${detail.handle}')),
                     Chip(label: Text(detail.isActive ? 'Aktif' : 'Pasif')),
                     Chip(label: Text(detail.isBanned ? 'Yasaklı' : 'Açık')),
+                    Chip(label: Text(_adminRoleLabel(detail.role))),
                     if (detail.isVerified)
                       const Chip(label: Text('Doğrulanmış')),
                   ],
                 ),
+                if (canManageStatus || canManageRole) ...[
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      if (canManageStatus)
+                        FilledButton.tonalIcon(
+                          onPressed: actionState.isLoading
+                              ? null
+                              : () => _showUserStatusSheet(
+                                  context,
+                                  ref,
+                                  detail: detail,
+                                ),
+                          icon: Icon(
+                            detail.isBanned
+                                ? Icons.lock_open_outlined
+                                : Icons.block_outlined,
+                          ),
+                          label: Text(
+                            detail.isBanned ? 'Askıdan çıkar' : 'Askıya al',
+                          ),
+                        ),
+                      if (canManageRole)
+                        OutlinedButton.icon(
+                          onPressed: actionState.isLoading
+                              ? null
+                              : () => _showUserRoleSheet(
+                                  context,
+                                  ref,
+                                  detail: detail,
+                                  roles:
+                                      effectiveAccess?.assignableRoles ??
+                                      const <String>[],
+                                ),
+                          icon: const Icon(Icons.manage_accounts_outlined),
+                          label: const Text('Rol değiştir'),
+                        ),
+                    ],
+                  ),
+                ],
                 if (!detail.isVerified) ...[
                   const SizedBox(height: 12),
                   FilledButton.icon(
@@ -4790,6 +4841,7 @@ class _AdminUserDetailEditFormPageState
       isEmailHidden: _isEmailHidden,
       profileViewCount: int.tryParse(_hitController.text.trim()) ?? 0,
       isVerified: _isVerified,
+      role: _detail.role,
       graduationYear: _graduationController.text.trim(),
       university: _universityController.text.trim(),
       birthDay: _birthDayController.text.trim(),
@@ -6531,6 +6583,184 @@ Future<void> _handleManualVerify(
     ),
   );
   if (ok) Navigator.of(context, rootNavigator: true).pop();
+}
+
+Future<void> _showUserStatusSheet(
+  BuildContext context,
+  WidgetRef ref, {
+  required AdminUserDetail detail,
+}) async {
+  final nextStatus = detail.isBanned ? 'active' : 'suspended';
+  final title = detail.isBanned ? 'Askıdan çıkar' : 'Askıya al';
+  final reason = await _showAdminReasonSheet(
+    context,
+    title: title,
+    message:
+        '@${detail.handle} için bu işlemin denetim kaydına yazılacak gerekçesini gir.',
+    actionLabel: title,
+    destructive: !detail.isBanned,
+  );
+  if (reason == null || !context.mounted) return;
+  final ok = await ref
+      .read(adminActionControllerProvider.notifier)
+      .updateUserStatus(id: detail.id, status: nextStatus, reason: reason);
+  ref.invalidate(adminUserDetailProvider(detail.id));
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        ok
+            ? 'Üye durumu güncellendi.'
+            : (ref.read(adminActionControllerProvider).message ??
+                  'İşlem tamamlanamadı.'),
+      ),
+    ),
+  );
+}
+
+Future<void> _showUserRoleSheet(
+  BuildContext context,
+  WidgetRef ref, {
+  required AdminUserDetail detail,
+  required List<String> roles,
+}) async {
+  if (roles.isEmpty) return;
+  final selectedRole = await showModalBottomSheet<String>(
+    context: context,
+    showDragHandle: true,
+    builder: (context) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Rol seç', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            for (final role in roles)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  role == detail.role
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                ),
+                title: Text(_adminRoleLabel(role)),
+                onTap: () => Navigator.of(context).pop(role),
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
+  if (selectedRole == null || selectedRole == detail.role || !context.mounted) {
+    return;
+  }
+  final reason = await _showAdminReasonSheet(
+    context,
+    title: 'Rol değiştir',
+    message:
+        '@${detail.handle} rolü ${_adminRoleLabel(selectedRole)} olacak. Gerekçe denetim kaydına yazılır.',
+    actionLabel: 'Rolü değiştir',
+  );
+  if (reason == null || !context.mounted) return;
+  final ok = await ref
+      .read(adminActionControllerProvider.notifier)
+      .updateUserRole(id: detail.id, role: selectedRole, reason: reason);
+  ref.invalidate(adminUserDetailProvider(detail.id));
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        ok
+            ? 'Üye rolü güncellendi.'
+            : (ref.read(adminActionControllerProvider).message ??
+                  'İşlem tamamlanamadı.'),
+      ),
+    ),
+  );
+}
+
+Future<String?> _showAdminReasonSheet(
+  BuildContext context, {
+  required String title,
+  required String message,
+  required String actionLabel,
+  bool destructive = false,
+}) {
+  final controller = TextEditingController();
+  return showModalBottomSheet<String>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (context) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          0,
+          20,
+          MediaQuery.viewInsetsOf(context).bottom + 20,
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              Text(message, style: Theme.of(context).textTheme.bodyMedium),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                minLines: 3,
+                maxLines: 5,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Gerekçe',
+                  hintText: 'Kısa ve net bir gerekçe yaz',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  style: destructive
+                      ? FilledButton.styleFrom(
+                          backgroundColor: Theme.of(context).sdal.danger,
+                          foregroundColor: Theme.of(
+                            context,
+                          ).sdal.foregroundOnAccent,
+                        )
+                      : null,
+                  onPressed: () {
+                    final reason = controller.text.trim();
+                    if (reason.length < 8) return;
+                    Navigator.of(context).pop(reason);
+                  },
+                  icon: Icon(
+                    destructive
+                        ? Icons.warning_amber_outlined
+                        : Icons.check_outlined,
+                  ),
+                  label: Text(actionLabel),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  ).whenComplete(controller.dispose);
+}
+
+String _adminRoleLabel(String role) {
+  return switch (role.trim().toLowerCase()) {
+    'root' => 'Süper admin',
+    'admin' => 'Admin',
+    'mod' => 'Moderatör',
+    _ => 'Üye',
+  };
 }
 
 Future<void> _handleAdminLogout(BuildContext context, WidgetRef ref) async {

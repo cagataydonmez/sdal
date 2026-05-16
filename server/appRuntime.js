@@ -31,6 +31,7 @@ import { registerAdminRequestModerationRoutes } from './routes/adminRequestModer
 import { registerAdminLanguageRoutes } from './routes/adminLanguageRoutes.js';
 import { registerAdminSecurityRoutes } from './routes/adminSecurityRoutes.js';
 import { registerAdminRootRoutes } from './routes/adminRootRoutes.js';
+import { registerAdminMobileRoutes } from './routes/adminMobileRoutes.js';
 import { registerAccountRoutes } from './routes/accountRoutes.js';
 import { createAuthSecurityRuntime } from './routes/authSecurityRoutes.js';
 import { registerEventJobRoutes } from './routes/eventJobRoutes.js';
@@ -4102,6 +4103,19 @@ registerAdminModerationRoutes(app, {
   MODERATION_PERMISSION_DEFINITIONS,
   MODERATION_PERMISSION_KEY_SET,
   toDbBooleanParam
+});
+
+registerAdminMobileRoutes(app, {
+  requireAuth,
+  sqlGetAsync,
+  sqlAllAsync,
+  sqlRunAsync,
+  getCurrentUser,
+  getUserRole,
+  normalizeRole,
+  getModeratorPermissionSummary,
+  writeAuditLog,
+  scheduleEngagementRecalculation
 });
 
 registerAdminRootRoutes(app, {

@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/json_utils.dart';
-import '../../../core/theme/sdal_app_theme.dart';
 
 class AdminSummarySnapshot {
   const AdminSummarySnapshot({
@@ -594,6 +593,192 @@ class AdminAccessSnapshot {
       (user!.hasAdminAccess ||
           adminOk ||
           user!.role.trim().toLowerCase() == 'mod');
+}
+
+class AdminMobileModule {
+  const AdminMobileModule({
+    required this.key,
+    required this.label,
+    required this.path,
+  });
+
+  final String key;
+  final String label;
+  final String path;
+
+  factory AdminMobileModule.fromMap(JsonMap map) {
+    return AdminMobileModule(
+      key: coalesceText([map['key']], fallback: ''),
+      label: coalesceText([map['label']], fallback: ''),
+      path: coalesceText([map['path']], fallback: '/admin'),
+    );
+  }
+}
+
+class AdminEffectiveAccessSnapshot {
+  const AdminEffectiveAccessSnapshot({
+    required this.user,
+    required this.permissions,
+    required this.modules,
+    required this.moderationPermissionKeys,
+    required this.assignableRoles,
+  });
+
+  final AdminShellUser user;
+  final List<String> permissions;
+  final List<AdminMobileModule> modules;
+  final List<String> moderationPermissionKeys;
+  final List<String> assignableRoles;
+
+  bool can(String permission) => permissions.contains(permission);
+
+  factory AdminEffectiveAccessSnapshot.fromMap(JsonMap map) {
+    return AdminEffectiveAccessSnapshot(
+      user: AdminShellUser.fromMap(asJsonMap(map['user'])),
+      permissions: _readStringList(map['permissions']),
+      modules: asJsonMapList(
+        map['modules'],
+      ).map(AdminMobileModule.fromMap).toList(growable: false),
+      moderationPermissionKeys: _readStringList(
+        map['moderationPermissionKeys'],
+      ),
+      assignableRoles: _readStringList(map['assignableRoles']),
+    );
+  }
+}
+
+class AdminAttentionItem {
+  const AdminAttentionItem({
+    required this.key,
+    required this.label,
+    required this.count,
+    required this.path,
+    required this.tone,
+  });
+
+  final String key;
+  final String label;
+  final int count;
+  final String path;
+  final String tone;
+
+  factory AdminAttentionItem.fromMap(JsonMap map) {
+    return AdminAttentionItem(
+      key: coalesceText([map['key']], fallback: ''),
+      label: coalesceText([map['label']], fallback: ''),
+      count: asInt(map['count']) ?? 0,
+      path: coalesceText([map['path']], fallback: '/admin'),
+      tone: coalesceText([map['tone']], fallback: 'info'),
+    );
+  }
+}
+
+class AdminAuditLogItem {
+  const AdminAuditLogItem({
+    required this.id,
+    required this.actorUserId,
+    required this.actorHandle,
+    required this.actorName,
+    required this.action,
+    required this.targetType,
+    required this.targetId,
+    required this.metadata,
+    required this.createdAt,
+  });
+
+  final int id;
+  final int actorUserId;
+  final String actorHandle;
+  final String actorName;
+  final String action;
+  final String targetType;
+  final String targetId;
+  final JsonMap metadata;
+  final String createdAt;
+
+  String get actorLabel {
+    if (actorName.trim().isNotEmpty) return actorName;
+    if (actorHandle.trim().isNotEmpty) return '@$actorHandle';
+    return actorUserId > 0 ? 'Üye #$actorUserId' : 'Sistem';
+  }
+
+  factory AdminAuditLogItem.fromMap(JsonMap map) {
+    return AdminAuditLogItem(
+      id: asInt(map['id']) ?? 0,
+      actorUserId: asInt(map['actorUserId']) ?? 0,
+      actorHandle: coalesceText([map['actorHandle']], fallback: ''),
+      actorName: coalesceText([map['actorName']], fallback: ''),
+      action: coalesceText([map['action']], fallback: ''),
+      targetType: coalesceText([map['targetType']], fallback: ''),
+      targetId: coalesceText([map['targetId']], fallback: ''),
+      metadata: asJsonMap(map['metadata']),
+      createdAt: coalesceText([map['createdAt']], fallback: ''),
+    );
+  }
+}
+
+class AdminMobileSummarySnapshot {
+  const AdminMobileSummarySnapshot({
+    required this.counts,
+    required this.attention,
+    required this.modules,
+    required this.recentAudit,
+  });
+
+  final Map<String, int> counts;
+  final List<AdminAttentionItem> attention;
+  final List<AdminMobileModule> modules;
+  final List<AdminAuditLogItem> recentAudit;
+
+  factory AdminMobileSummarySnapshot.fromMap(JsonMap map) {
+    final rawCounts = asJsonMap(map['counts']);
+    return AdminMobileSummarySnapshot(
+      counts: rawCounts.map((key, value) => MapEntry(key, asInt(value) ?? 0)),
+      attention: asJsonMapList(
+        map['attention'],
+      ).map(AdminAttentionItem.fromMap).toList(growable: false),
+      modules: asJsonMapList(
+        map['modules'],
+      ).map(AdminMobileModule.fromMap).toList(growable: false),
+      recentAudit: asJsonMapList(
+        map['recentAudit'],
+      ).map(AdminAuditLogItem.fromMap).toList(growable: false),
+    );
+  }
+}
+
+class AdminAuditLogSnapshot {
+  const AdminAuditLogSnapshot({
+    required this.items,
+    required this.page,
+    required this.pages,
+    required this.total,
+  });
+
+  final List<AdminAuditLogItem> items;
+  final int page;
+  final int pages;
+  final int total;
+
+  factory AdminAuditLogSnapshot.fromMap(JsonMap map) {
+    final meta = asJsonMap(map['meta']);
+    return AdminAuditLogSnapshot(
+      items: asJsonMapList(
+        map['items'],
+      ).map(AdminAuditLogItem.fromMap).toList(growable: false),
+      page: asInt(meta['page']) ?? 1,
+      pages: asInt(meta['pages']) ?? 1,
+      total: asInt(meta['total']) ?? 0,
+    );
+  }
+}
+
+List<String> _readStringList(dynamic value) {
+  if (value is! List) return const <String>[];
+  return value
+      .map((item) => item.toString().trim())
+      .where((item) => item.isNotEmpty)
+      .toList(growable: false);
 }
 
 class AdminUserListQuery {
@@ -2105,6 +2290,7 @@ class AdminUserDetail {
     required this.isEmailHidden,
     required this.profileViewCount,
     required this.isVerified,
+    required this.role,
     required this.graduationYear,
     required this.university,
     required this.birthDay,
@@ -2129,6 +2315,7 @@ class AdminUserDetail {
   final bool isEmailHidden;
   final int profileViewCount;
   final bool isVerified;
+  final String role;
   final String graduationYear;
   final String university;
   final String birthDay;
@@ -2155,6 +2342,7 @@ class AdminUserDetail {
       isEmailHidden: (asInt(user['mailkapali']) ?? 0) == 1,
       profileViewCount: asInt(user['hit']) ?? 0,
       isVerified: (asInt(user['verified']) ?? 0) == 1,
+      role: coalesceText([user['role']], fallback: 'user'),
       graduationYear: coalesceText([user['mezuniyetyili']], fallback: ''),
       university: coalesceText([user['universite']], fallback: ''),
       birthDay: coalesceText([user['dogumgun']], fallback: ''),
@@ -2384,6 +2572,31 @@ class AdminRepository {
 
   Future<void> logoutFromAdmin() async {
     await _apiClient.post<dynamic>('/api/admin/logout');
+  }
+
+  Future<AdminEffectiveAccessSnapshot> fetchEffectiveAccess() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/permissions/me',
+      decoder: asJsonMap,
+    );
+    return AdminEffectiveAccessSnapshot.fromMap(asJsonMap(result.rawData));
+  }
+
+  Future<AdminMobileSummarySnapshot> fetchMobileSummary() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/mobile/summary',
+      decoder: asJsonMap,
+    );
+    return AdminMobileSummarySnapshot.fromMap(asJsonMap(result.rawData));
+  }
+
+  Future<AdminAuditLogSnapshot> fetchAuditLog({int page = 1}) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/audit-log',
+      query: {'page': page, 'limit': 50},
+      decoder: asJsonMap,
+    );
+    return AdminAuditLogSnapshot.fromMap(asJsonMap(result.rawData));
   }
 
   Future<AdminSummarySnapshot> fetchSummary() async {
@@ -3253,15 +3466,24 @@ class AdminRepository {
   }
 
   Future<void> deletePost(int id, {String reason = ''}) async {
-    await _apiClient.delete<dynamic>('/api/new/admin/posts/$id', body: reason.isNotEmpty ? {'reason': reason} : null);
+    await _apiClient.delete<dynamic>(
+      '/api/new/admin/posts/$id',
+      body: reason.isNotEmpty ? {'reason': reason} : null,
+    );
   }
 
   Future<void> deleteComment(int id, {String reason = ''}) async {
-    await _apiClient.delete<dynamic>('/api/new/admin/comments/$id', body: reason.isNotEmpty ? {'reason': reason} : null);
+    await _apiClient.delete<dynamic>(
+      '/api/new/admin/comments/$id',
+      body: reason.isNotEmpty ? {'reason': reason} : null,
+    );
   }
 
   Future<void> deleteStory(int id, {String reason = ''}) async {
-    await _apiClient.delete<dynamic>('/api/new/admin/stories/$id', body: reason.isNotEmpty ? {'reason': reason} : null);
+    await _apiClient.delete<dynamic>(
+      '/api/new/admin/stories/$id',
+      body: reason.isNotEmpty ? {'reason': reason} : null,
+    );
   }
 
   Future<void> reviewMemberRequest({
@@ -3418,10 +3640,45 @@ class AdminRepository {
       body: {'mezuniyetyili': graduationYear},
     );
   }
+
+  Future<void> updateUserRole({
+    required int id,
+    required String role,
+    required String reason,
+  }) async {
+    await _apiClient.patch<dynamic>(
+      '/api/admin/users/$id/role',
+      body: {'role': role, 'reason': reason},
+    );
+  }
+
+  Future<void> updateUserStatus({
+    required int id,
+    required String status,
+    required String reason,
+  }) async {
+    await _apiClient.patch<dynamic>(
+      '/api/admin/users/$id/status',
+      body: {'status': status, 'reason': reason},
+    );
+  }
 }
 
 final adminRepositoryProvider = Provider<AdminRepository>(
   (ref) => AdminRepository(ref.watch(apiClientProvider)),
+);
+
+final adminEffectiveAccessProvider =
+    FutureProvider<AdminEffectiveAccessSnapshot>(
+      (ref) => ref.watch(adminRepositoryProvider).fetchEffectiveAccess(),
+    );
+
+final adminMobileSummaryProvider = FutureProvider<AdminMobileSummarySnapshot>(
+  (ref) => ref.watch(adminRepositoryProvider).fetchMobileSummary(),
+);
+
+final adminAuditLogProvider = FutureProvider<AdminAuditLogSnapshot>(
+  (ref) => ref.watch(adminRepositoryProvider).fetchAuditLog(),
 );
 
 final adminAccessProvider = FutureProvider<AdminAccessSnapshot>(

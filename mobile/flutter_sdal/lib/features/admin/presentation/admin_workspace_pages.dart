@@ -10,6 +10,7 @@ import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../admin/application/admin_action_controller.dart';
 import '../../admin/data/admin_repository.dart';
+import 'widgets/admin_mobile_widgets.dart';
 
 String _workspaceTimestamp(BuildContext context, String raw) =>
     raw.isEmpty ? '' : formatSdalTimestamp(context, raw);
@@ -21,12 +22,8 @@ class AdminWorkspacePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionControllerProvider).value;
     final user = session?.user;
-    final accessState = ref.watch(adminAccessProvider);
-    final summaryState = ref.watch(adminSummaryProvider);
-    final requestNotificationsState = ref.watch(
-      adminRequestNotificationsProvider,
-    );
-    final siteControlsState = ref.watch(adminSiteControlsProvider);
+    final accessState = ref.watch(adminEffectiveAccessProvider);
+    final summaryState = ref.watch(adminMobileSummaryProvider);
 
     if (user == null || !user.hasAdminAccess) {
       return _WorkspaceDeniedPage(
@@ -42,29 +39,26 @@ class AdminWorkspacePage extends ConsumerWidget {
       ),
       error: (error, _) => FeatureScaffold(
         title: 'Yönetim',
-        child: Center(child: Text(error.toString())),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: AdminEmptyState(
+              icon: Icons.lock_outline,
+              title: 'Yönetim izni doğrulanamadı',
+              message: error.toString(),
+            ),
+          ),
+        ),
       ),
       data: (access) {
-        final requestItems =
-            requestNotificationsState.asData?.value ??
-            const <AdminRequestNotificationItem>[];
-        final pendingRequestCount = requestItems.fold<int>(
-          0,
-          (sum, item) => sum + item.pendingCount,
-        );
-        final summary = summaryState.asData?.value;
-        final siteControls = siteControlsState.asData?.value;
-
         return FeatureScaffold(
           title: 'Yönetim',
           actions: [
             IconButton(
               tooltip: 'Yenile',
               onPressed: () {
-                ref.invalidate(adminAccessProvider);
-                ref.invalidate(adminSummaryProvider);
-                ref.invalidate(adminRequestNotificationsProvider);
-                ref.invalidate(adminSiteControlsProvider);
+                ref.invalidate(adminEffectiveAccessProvider);
+                ref.invalidate(adminMobileSummaryProvider);
               },
               icon: const Icon(Icons.refresh),
             ),
@@ -76,318 +70,482 @@ class AdminWorkspacePage extends ConsumerWidget {
           ],
           background: FeatureScaffoldBackground.utility,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
             children: [
-              _QuickStatsStrip(
-                stats: [
-                  (
-                    icon: Icons.pending_actions_outlined,
-                    label: 'Bekleyen talep',
-                    value: '$pendingRequestCount',
-                    tone: pendingRequestCount > 0
-                        ? _WorkspaceTone.warning
-                        : _WorkspaceTone.success,
-                  ),
-                  (
-                    icon: Icons.groups_outlined,
-                    label: 'Üye · Onay bkl.',
-                    value:
-                        '${summary?.counts['users'] ?? 0}·${summary?.counts['pendingUsers'] ?? 0}',
-                    tone: _WorkspaceTone.info,
-                  ),
-                  (
-                    icon: Icons.dashboard_customize_outlined,
-                    label: 'Modül durumu',
-                    value: siteControls == null
-                        ? '—'
-                        : '${siteControls.openModuleCount}/${siteControls.totalModuleCount}',
-                    tone: _WorkspaceTone.accent,
-                  ),
-                ],
-              ),
-              if (pendingRequestCount > 0) ...[
-                const SizedBox(height: 10),
-                _AttentionBanner(
-                  message: '$pendingRequestCount bekleyen talep var',
-                  actionLabel: 'İncele',
-                  onTap: () => context.go('/admin/requests'),
-                ),
-              ],
-              if (user.isRootAdmin) ...[
-                const _SectionLabel('Root admin araçları'),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: () => context.go('/admin/factory-reset'),
-                      icon: const Icon(Icons.delete_forever_outlined, size: 18),
-                      label: const Text('Factory reset'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () => context.go('/admin/test-data'),
-                      icon: const Icon(Icons.science_outlined, size: 18),
-                      label: const Text('Test verisi'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () => context.go('/admin/permission-groups'),
-                      icon: const Icon(
-                        Icons.admin_panel_settings_outlined,
-                        size: 18,
-                      ),
-                      label: const Text('İzin grupları'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () => context.go('/admin/user-permissions'),
-                      icon: const Icon(Icons.manage_accounts_outlined, size: 18),
-                      label: const Text('Kullanıcı izinleri'),
-                    ),
-                  ],
-                ),
-              ] else if (user.kadi.trim().toLowerCase() == 'cagatay') ...[
-                const SizedBox(height: 12),
-                SurfaceCard(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.lock_outline),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          '@cagatay ile giriş yapılmış, ancak oturum root rolü taşımıyor. Backend tarafında ROOT_BOOTSTRAP_PASSWORD ayarlı şekilde başlatıldığında @cagatay root admin olarak yükseltilir ve Factory reset burada görünür.',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-              const _SectionLabel('Kuyruk yönetimi'),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  _WorkspaceNavCard(
-                    title: 'Talepler',
-                    summary:
-                        'Üyelik, mezuniyet yılı değişikliği ve öğretmen ağı incelemeleri.',
-                    countLabel: '$pendingRequestCount bekleyen iş',
-                    icon: Icons.assignment_turned_in_outlined,
-                    tone: _WorkspaceTone.success,
-                    badgeCount: pendingRequestCount,
-                    onTap: () => context.go('/admin/requests'),
-                  ),
-                  _WorkspaceNavCard(
-                    title: 'Öğretmen ağı',
-                    summary:
-                        'Öğretmen bağlantılarını filtrele, onayla ve riskli kayıtları ayır.',
-                    countLabel: 'Ayrı yönetim ekranı',
-                    icon: Icons.school_outlined,
-                    tone: _WorkspaceTone.info,
-                    onTap: () => context.go('/admin/teacher-network'),
-                  ),
-                  _WorkspaceNavCard(
-                    title: 'Öğretmen hesapları',
-                    summary:
-                        'Öğretmen olarak kayıtlı hesapları görüntüleyin ve doğrulama durumlarını yönetin.',
-                    countLabel: 'Hesap listesi',
-                    icon: Icons.manage_accounts_outlined,
-                    tone: _WorkspaceTone.accent,
-                    onTap: () => context.go('/admin/teacher-accounts'),
-                  ),
-                ],
-              ),
-              const _SectionLabel('İçerik ve topluluk'),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  _WorkspaceNavCard(
-                    title: 'İçerik güvenliği',
-                    summary:
-                        'Post, yorum, hikâye, grup ve mesaj denetimini tek yerden aç.',
-                    countLabel:
-                        '${summary?.counts['posts'] ?? 0} gönderi · ${summary?.counts['messages'] ?? 0} mesaj',
-                    icon: Icons.shield_outlined,
-                    tone: _WorkspaceTone.warning,
-                    onTap: () => context.go('/admin/content'),
-                  ),
-                  _WorkspaceNavCard(
-                    title: 'Üyeler ve roller',
-                    summary:
-                        'Admin atama, mod kurma ve cohort bazlı yetki dağıtımı.',
-                    countLabel: access.rootStatus?.hasRoot == true
-                        ? 'Root hazır'
-                        : 'Root kontrol et',
-                    icon: Icons.manage_accounts_outlined,
-                    tone: _WorkspaceTone.info,
-                    onTap: () => context.go('/admin/management'),
-                  ),
-                  if (user.isRootAdmin) ...[
-                    _WorkspaceNavCard(
-                      title: 'İzin grupları',
-                      summary:
-                          'Admin, mod, user ve özel grupların read/write yetkileri.',
-                      countLabel: 'Root admin',
-                      icon: Icons.admin_panel_settings_outlined,
-                      tone: _WorkspaceTone.info,
-                      onTap: () => context.go('/admin/permission-groups'),
-                    ),
-                    _WorkspaceNavCard(
-                      title: 'Kullanıcı izinleri',
-                      summary:
-                          'Üyeleri admin, mod, user veya özel izin gruplarına ata.',
-                      countLabel: '@cagatay korunur',
-                      icon: Icons.manage_accounts_outlined,
-                      tone: _WorkspaceTone.accent,
-                      onTap: () => context.go('/admin/user-permissions'),
-                    ),
-                  ],
-                ],
-              ),
-              const _SectionLabel('Sistem ve teknik'),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  _WorkspaceNavCard(
-                    title: 'Modül yönetimi',
-                    summary:
-                        'Site açıklığı, bakım mesajı, modül erişimi ve menü görünürlüğü.',
-                    countLabel: siteControls?.siteOpen == true
-                        ? 'Site açık'
-                        : 'Bakım modu açık',
-                    icon: Icons.tune_outlined,
-                    tone: _WorkspaceTone.accent,
-                    onTap: () => context.go('/admin/modules'),
-                  ),
-                  if (user.isRootAdmin)
-                    _WorkspaceNavCard(
-                      title: 'API monitörü',
-                      summary:
-                          'Seçili üye üzerinden canlı endpoint akışlarını izle.',
-                      countLabel: 'Root admin — geliştirici aracı',
-                      icon: Icons.radar_outlined,
-                      tone: _WorkspaceTone.info,
-                      onTap: () => context.go('/admin/api-monitor'),
-                    ),
-                  _WorkspaceNavCard(
-                    title: 'Bildirimler ve push',
-                    summary:
-                        'Toplu bildirim gönder, push durumunu ve teslimat hatalarını izle.',
-                    countLabel: 'FCM ve bildirim operasyonları',
-                    icon: Icons.notifications_active_outlined,
-                    tone: _WorkspaceTone.info,
-                    onTap: () => context.go('/admin/notifications'),
-                  ),
-                  _WorkspaceNavCard(
-                    title: 'Auth güvenliği',
-                    summary:
-                        'Telefon doğrulama, güvenilir cihazlar ve auth audit kayıtlarını izle.',
-                    countLabel: 'SMS ve cihaz doğrulama',
-                    icon: Icons.phonelink_lock_outlined,
-                    tone: _WorkspaceTone.danger,
-                    onTap: () => context.go('/admin/auth-security'),
-                  ),
-                  _WorkspaceNavCard(
-                    title: 'Gelişmiş araçlar',
-                    summary:
-                        'Operasyonlar, loglar, deneyler, diller ve veritabanı işleri.',
-                    countLabel: 'Yüksek etki / yüksek risk',
-                    icon: Icons.build_outlined,
-                    tone: _WorkspaceTone.danger,
-                    onTap: () => context.go('/admin/operations'),
-                  ),
-                  if (user.isRootAdmin) ...[
-                    _WorkspaceNavCard(
-                      title: 'Test verisi',
-                      summary:
-                          'API alanları için kontrollü test kullanıcıları ve içerikler oluştur.',
-                      countLabel: 'Root-only',
-                      icon: Icons.science_outlined,
-                      tone: _WorkspaceTone.warning,
-                      onTap: () => context.go('/admin/test-data'),
-                    ),
-                    _WorkspaceNavCard(
-                      title: 'Factory reset',
-                      summary:
-                          'Veritabanı ve upload klasörlerini sıfırlayıp tek root admin oluştur.',
-                      countLabel: 'Yüksek risk',
-                      icon: Icons.delete_forever_outlined,
-                      tone: _WorkspaceTone.danger,
-                      onTap: () => context.go('/admin/factory-reset'),
-                    ),
-                  ],
-                ],
-              ),
+              _AdminCommandHeader(access: access),
               const SizedBox(height: 16),
-              _AsyncSurfaceCard<List<AdminRequestNotificationItem>>(
-                title: 'Bugünün kuyruk özeti',
-                asyncValue: requestNotificationsState,
-                builder: (items) {
-                  if (items.isEmpty) {
-                    return const Text(
-                      'Açık bekleyen talep yok. Kuyruk temiz görünüyor.',
-                    );
-                  }
-                  return Column(
-                    children: [
-                      for (final item in items.take(6))
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _MetricRow(
-                            label: item.label,
-                            value: '${item.pendingCount}',
-                            hint: item.categoryKey,
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 16),
-              _AsyncSurfaceCard<AdminSiteControlsSnapshot>(
-                title: 'Yayın durumu',
-                asyncValue: siteControlsState,
-                builder: (controls) {
-                  final visibleModules = controls.menuVisibility.entries
-                      .where((entry) => entry.value)
-                      .length;
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _MetricRow(
-                        label: 'Site durumu',
-                        value: controls.siteOpen ? 'Açık' : 'Kapalı',
-                        hint: controls.maintenanceMessage.isEmpty
-                            ? 'Bakım mesajı yok'
-                            : 'Bakım mesajı hazır',
-                      ),
-                      const SizedBox(height: 10),
-                      _MetricRow(
-                        label: 'Varsayılan giriş',
-                        value: controls.defaultLandingPage.isEmpty
-                            ? '/new/feed'
-                            : controls.defaultLandingPage,
-                        hint: '$visibleModules modül menüde görünür',
-                      ),
-                      const SizedBox(height: 16),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: OutlinedButton.icon(
-                          onPressed: () => context.go('/admin/modules'),
-                          icon: const Icon(Icons.tune_outlined),
-                          label: const Text('Modül ayarlarını aç'),
-                        ),
-                      ),
-                    ],
-                  );
-                },
+              summaryState.when(
+                loading: () => const _CommandCenterSkeleton(),
+                error: (error, _) => AdminEmptyState(
+                  icon: Icons.error_outline,
+                  title: 'Özet alınamadı',
+                  message: error.toString(),
+                ),
+                data: (summary) => _AdminCommandCenterBody(
+                  access: access,
+                  summary: summary,
+                  isRootAdmin: user.isRootAdmin,
+                ),
               ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _AdminCommandHeader extends StatelessWidget {
+  const _AdminCommandHeader({required this.access});
+
+  final AdminEffectiveAccessSnapshot access;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: tokens.accentMuted,
+                  borderRadius: BorderRadius.circular(tokens.cardRadius),
+                ),
+                child: Icon(
+                  Icons.admin_panel_settings_outlined,
+                  color: tokens.accent,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Komuta Merkezi',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${access.user.name} · ${_roleLabel(access.user.role)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: tokens.foregroundMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              AdminStatusChip(
+                label: '${access.modules.length} modül',
+                tone: AdminTone.accent,
+              ),
+              if (access.permissions.contains('audit.view'))
+                const AdminStatusChip(label: 'Denetim açık'),
+              if (access.assignableRoles.isNotEmpty)
+                AdminStatusChip(
+                  label: 'Rol: ${access.assignableRoles.join(', ')}',
+                  tone: AdminTone.success,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminCommandCenterBody extends StatelessWidget {
+  const _AdminCommandCenterBody({
+    required this.access,
+    required this.summary,
+    required this.isRootAdmin,
+  });
+
+  final AdminEffectiveAccessSnapshot access;
+  final AdminMobileSummarySnapshot summary;
+  final bool isRootAdmin;
+
+  @override
+  Widget build(BuildContext context) {
+    final counts = summary.counts;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _QuickStatsStrip(
+          stats: [
+            (
+              icon: Icons.pending_actions_outlined,
+              label: 'Dikkat',
+              value:
+                  '${summary.attention.fold<int>(0, (sum, item) => sum + item.count)}',
+              tone: summary.attention.isEmpty
+                  ? _WorkspaceTone.success
+                  : _WorkspaceTone.warning,
+            ),
+            (
+              icon: Icons.groups_outlined,
+              label: 'Üye',
+              value: '${counts['users'] ?? 0}',
+              tone: _WorkspaceTone.info,
+            ),
+            (
+              icon: Icons.block_outlined,
+              label: 'Askıda',
+              value: '${counts['suspendedUsers'] ?? 0}',
+              tone: (counts['suspendedUsers'] ?? 0) > 0
+                  ? _WorkspaceTone.danger
+                  : _WorkspaceTone.success,
+            ),
+          ],
+        ),
+        const _SectionLabel('İlgilenilmesi gerekenler'),
+        if (summary.attention.isEmpty)
+          const AdminEmptyState(
+            icon: Icons.task_alt_outlined,
+            title: 'Kuyruk sakin',
+            message: 'Şu anda acil işlem gerektiren bir yönetim işi yok.',
+          )
+        else
+          for (final item in summary.attention)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: AdminAttentionCard(
+                label: item.label,
+                count: item.count,
+                tone: adminToneFromString(item.tone),
+                onTap: () => context.go(item.path),
+              ),
+            ),
+        const _SectionLabel('Görev alanları'),
+        for (final module in access.modules.where((item) => item.key != 'home'))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: AdminSectionCard(
+              title: module.label,
+              subtitle: _moduleSubtitle(module.key),
+              icon: _moduleIcon(module.key),
+              badge: _moduleBadge(module.key, counts),
+              tone: _moduleTone(module.key),
+              onTap: () => context.go(module.path),
+            ),
+          ),
+        if (isRootAdmin) ...[
+          const _SectionLabel('Root araçları'),
+          AdminSectionCard(
+            title: 'İzin grupları',
+            subtitle: 'Rol ve özel izin setlerini düzenle.',
+            icon: Icons.admin_panel_settings_outlined,
+            tone: AdminTone.accent,
+            onTap: () => context.go('/admin/permission-groups'),
+          ),
+          const SizedBox(height: 10),
+          AdminSectionCard(
+            title: 'Factory reset',
+            subtitle:
+                'Yüksek riskli sıfırlama akışı, ayrı doğrulama gerektirir.',
+            icon: Icons.delete_forever_outlined,
+            tone: AdminTone.danger,
+            onTap: () => context.go('/admin/factory-reset'),
+          ),
+        ],
+        if (summary.recentAudit.isNotEmpty) ...[
+          const _SectionLabel('Son denetim kayıtları'),
+          SurfaceCard(
+            child: Column(
+              children: [
+                for (final item in summary.recentAudit.take(5))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _AuditPreviewRow(item: item),
+                  ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: () => context.go('/admin/audit'),
+                    icon: const Icon(Icons.receipt_long_outlined),
+                    label: const Text('Denetim kaydını aç'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _AuditPreviewRow extends StatelessWidget {
+  const _AuditPreviewRow({required this.item});
+
+  final AdminAuditLogItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.history, color: tokens.foregroundMuted, size: 20),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _auditActionLabel(item.action),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${item.actorLabel} · ${_workspaceTimestamp(context, item.createdAt)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CommandCenterSkeleton extends StatelessWidget {
+  const _CommandCenterSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: const [
+        SizedBox(height: 12),
+        LinearProgressIndicator(),
+        SizedBox(height: 18),
+      ],
+    );
+  }
+}
+
+String _roleLabel(String role) {
+  return switch (role.trim().toLowerCase()) {
+    'root' => 'Süper admin',
+    'admin' => 'Admin',
+    'mod' => 'Moderatör',
+    _ => 'Üye',
+  };
+}
+
+String _moduleSubtitle(String key) {
+  return switch (key) {
+    'users' =>
+      'Üye ara, durumları incele, rol ve askıya alma işlemlerini güvenle yönet.',
+    'moderation' =>
+      'Talepler, doğrulamalar ve topluluk içerikleri için odaklı kuyruk.',
+    'notifications' => 'Push durumu, toplu bildirimler ve teslimat sorunları.',
+    'audit' => 'Hassas yönetim aksiyonlarını kim, ne zaman, neden yaptı.',
+    'settings' =>
+      'Site açıklığı, modül görünürlüğü ve pratik yönetim ayarları.',
+    _ => 'Yetkine göre açılan hızlı yönetim alanı.',
+  };
+}
+
+IconData _moduleIcon(String key) {
+  return switch (key) {
+    'users' => Icons.manage_accounts_outlined,
+    'moderation' => Icons.shield_outlined,
+    'notifications' => Icons.notifications_active_outlined,
+    'audit' => Icons.receipt_long_outlined,
+    'settings' => Icons.tune_outlined,
+    _ => Icons.dashboard_customize_outlined,
+  };
+}
+
+AdminTone _moduleTone(String key) {
+  return switch (key) {
+    'moderation' => AdminTone.warning,
+    'notifications' => AdminTone.info,
+    'audit' => AdminTone.accent,
+    'settings' => AdminTone.success,
+    _ => AdminTone.info,
+  };
+}
+
+String? _moduleBadge(String key, Map<String, int> counts) {
+  return switch (key) {
+    'users' => '${counts['users'] ?? 0}',
+    'moderation' =>
+      '${(counts['requests'] ?? 0) + (counts['verificationRequests'] ?? 0)}',
+    'audit' => 'log',
+    _ => null,
+  };
+}
+
+String _auditActionLabel(String action) {
+  return switch (action) {
+    'user_role_changed' => 'Rol değiştirildi',
+    'user_suspended' => 'Üye askıya alındı',
+    'user_unsuspended' => 'Üye askıdan çıkarıldı',
+    'content_review' => 'İçerik incelendi',
+    'moderator_permissions_updated' => 'Moderatör yetkisi güncellendi',
+    _ => action.replaceAll('_', ' '),
+  };
+}
+
+class AdminAuditLogPage extends ConsumerWidget {
+  const AdminAuditLogPage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final auditState = ref.watch(adminAuditLogProvider);
+    return FeatureScaffold(
+      title: 'Denetim kaydı',
+      actions: [
+        IconButton(
+          tooltip: 'Yenile',
+          onPressed: () => ref.invalidate(adminAuditLogProvider),
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+      background: FeatureScaffoldBackground.utility,
+      child: auditState.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: AdminEmptyState(
+              icon: Icons.lock_outline,
+              title: 'Denetim kaydı açılamadı',
+              message: error.toString(),
+            ),
+          ),
+        ),
+        data: (snapshot) {
+          if (snapshot.items.isEmpty) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: AdminEmptyState(
+                  icon: Icons.receipt_long_outlined,
+                  title: 'Kayıt yok',
+                  message: 'Filtreye uygun yönetim kaydı bulunamadı.',
+                ),
+              ),
+            );
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+            itemCount: snapshot.items.length + 1,
+            separatorBuilder: (context, index) => const SizedBox(height: 10),
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return SurfaceCard(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.receipt_long_outlined),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          '${snapshot.total} kayıt · sayfa ${snapshot.page}/${snapshot.pages}',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              final item = snapshot.items[index - 1];
+              return _AuditLogCard(item: item);
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AuditLogCard extends StatelessWidget {
+  const _AuditLogCard({required this.item});
+
+  final AdminAuditLogItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    final reason = item.metadata['reason']?.toString().trim() ?? '';
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  _auditActionLabel(item.action),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              AdminStatusChip(
+                label: item.targetType.isEmpty ? 'sistem' : item.targetType,
+                tone: AdminTone.accent,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${item.actorLabel} · ${_workspaceTimestamp(context, item.createdAt)}',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
+          ),
+          if (item.targetId.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Hedef: ${item.targetId}',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
+            ),
+          ],
+          if (reason.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: tokens.panelMuted,
+                borderRadius: BorderRadius.circular(tokens.cardRadius * .7),
+              ),
+              child: Text(
+                reason,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -824,7 +982,8 @@ class _AdminTeacherAccountsPageState
                     vertical: 8,
                   ),
                   itemCount: list.items.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 8),
                   itemBuilder: (context, i) {
                     final item = list.items[i];
                     return SurfaceCard(
@@ -927,9 +1086,9 @@ class _VerificationStatusChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.4)),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Text(
         label,
@@ -1539,7 +1698,6 @@ class _WorkspaceNavCard extends StatelessWidget {
     required this.icon,
     required this.tone,
     required this.onTap,
-    this.badgeCount,
   });
 
   final String title;
@@ -1548,7 +1706,6 @@ class _WorkspaceNavCard extends StatelessWidget {
   final IconData icon;
   final _WorkspaceTone tone;
   final VoidCallback onTap;
-  final int? badgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -1593,29 +1750,6 @@ class _WorkspaceNavCard extends StatelessWidget {
                       ),
                       child: Icon(icon, color: color),
                     ),
-                    if (badgeCount != null && badgeCount! > 0)
-                      Positioned(
-                        top: -5,
-                        right: -5,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 5,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: color,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            '$badgeCount',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      ),
                   ],
                 ),
                 const SizedBox(height: 14),
@@ -1684,9 +1818,7 @@ class _AsyncSurfaceCard<T> extends StatelessWidget {
 class _QuickStatsStrip extends StatelessWidget {
   const _QuickStatsStrip({required this.stats});
 
-  final List<
-    ({IconData icon, String label, String value, _WorkspaceTone tone})
-  >
+  final List<({IconData icon, String label, String value, _WorkspaceTone tone})>
   stats;
 
   @override
@@ -1697,8 +1829,7 @@ class _QuickStatsStrip extends StatelessWidget {
         child: Row(
           children: [
             for (int i = 0; i < stats.length; i++) ...[
-              if (i > 0)
-                VerticalDivider(width: 1, color: tokens.panelBorder),
+              if (i > 0) VerticalDivider(width: 1, color: tokens.panelBorder),
               Expanded(child: _StatCell(stat: stats[i])),
             ],
           ],
@@ -1739,70 +1870,11 @@ class _StatCell extends StatelessWidget {
           ),
           Text(
             stat.label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: tokens.foregroundMuted,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: tokens.foregroundMuted),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _AttentionBanner extends StatelessWidget {
-  const _AttentionBanner({
-    required this.message,
-    required this.actionLabel,
-    required this.onTap,
-  });
-
-  final String message;
-  final String actionLabel;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = Theme.of(context).sdal;
-    return Card(
-      color: tokens.warningMuted,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              Icon(
-                Icons.warning_amber_rounded,
-                color: tokens.warning,
-                size: 20,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  message,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: tokens.warning,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Text(
-                actionLabel,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: tokens.warning,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Icon(
-                Icons.arrow_forward_rounded,
-                color: tokens.warning,
-                size: 16,
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -1866,9 +1938,9 @@ class _ModeratorStatusCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   'Moderasyon kapsamı',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const Spacer(),
                 if (totalPending > 0)
@@ -1896,9 +1968,9 @@ class _ModeratorStatusCard extends StatelessWidget {
             if (scopedYears.isEmpty)
               Text(
                 'Cohort ataması yok — admin kapsamını tanımlamalı',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: tokens.foregroundMuted,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
               )
             else
               Wrap(
@@ -2012,44 +2084,6 @@ class _StatusPill extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _MetricRow extends StatelessWidget {
-  const _MetricRow({
-    required this.label,
-    required this.value,
-    required this.hint,
-  });
-
-  final String label;
-  final String value;
-  final String hint;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: Theme.of(context).textTheme.titleSmall),
-              const SizedBox(height: 2),
-              Text(
-                hint,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).sdal.foregroundMuted,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 12),
-        Text(value, style: Theme.of(context).textTheme.titleMedium),
-      ],
     );
   }
 }
@@ -2388,7 +2422,6 @@ bool _hasAnyPermission(
   return keys.any(assigned.contains);
 }
 
-
 String _humanizeModuleKey(String key) {
   return key
       .split('_')
@@ -2635,9 +2668,9 @@ class _DeleteReasonSheetState extends State<_DeleteReasonSheet> {
           const SizedBox(height: 8),
           Text(
             'Bu işlem geri alınamaz. Devam etmek için bir gerekçe girin.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: tokens.foregroundMuted,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: tokens.foregroundMuted),
           ),
           const SizedBox(height: 16),
           TextField(
@@ -2829,7 +2862,8 @@ class _AppThemePickerCardState extends ConsumerState<_AppThemePickerCard> {
   @override
   void didUpdateWidget(_AppThemePickerCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!_saving && oldWidget.controls.activeTheme != widget.controls.activeTheme) {
+    if (!_saving &&
+        oldWidget.controls.activeTheme != widget.controls.activeTheme) {
       _selected = widget.controls.activeTheme;
     }
   }
@@ -2940,10 +2974,7 @@ class _ThemeOptionRow extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: e.value,
                           shape: BoxShape.circle,
-                          border: Border.all(
-                            color: tokens.panel,
-                            width: 1.5,
-                          ),
+                          border: Border.all(color: tokens.panel, width: 1.5),
                         ),
                       ),
                     ),

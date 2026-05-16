@@ -239,8 +239,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     path: 'events/:eventId',
                     pageBuilder: (context, state) => _slidePage(
                       GroupEventDetailPage(
-                        groupId: int.tryParse(state.pathParameters['groupId'] ?? '') ?? 0,
-                        eventId: int.tryParse(state.pathParameters['eventId'] ?? '') ?? 0,
+                        groupId:
+                            int.tryParse(
+                              state.pathParameters['groupId'] ?? '',
+                            ) ??
+                            0,
+                        eventId:
+                            int.tryParse(
+                              state.pathParameters['eventId'] ?? '',
+                            ) ??
+                            0,
                       ),
                     ),
                   ),
@@ -248,8 +256,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     path: 'announcements/:announcementId',
                     pageBuilder: (context, state) => _slidePage(
                       GroupAnnouncementDetailPage(
-                        groupId: int.tryParse(state.pathParameters['groupId'] ?? '') ?? 0,
-                        announcementId: int.tryParse(state.pathParameters['announcementId'] ?? '') ?? 0,
+                        groupId:
+                            int.tryParse(
+                              state.pathParameters['groupId'] ?? '',
+                            ) ??
+                            0,
+                        announcementId:
+                            int.tryParse(
+                              state.pathParameters['announcementId'] ?? '',
+                            ) ??
+                            0,
                       ),
                     ),
                   ),
@@ -261,13 +277,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 routes: [
                   GoRoute(
                     path: 'create',
-                    pageBuilder: (context, state) => _slidePage(const EventsCreatePage()),
+                    pageBuilder: (context, state) =>
+                        _slidePage(const EventsCreatePage()),
                   ),
                   GoRoute(
                     path: ':eventId',
                     pageBuilder: (context, state) => _slidePage(
                       EventDetailPage(
-                        eventId: int.tryParse(state.pathParameters['eventId'] ?? '') ?? 0,
+                        eventId:
+                            int.tryParse(
+                              state.pathParameters['eventId'] ?? '',
+                            ) ??
+                            0,
                       ),
                     ),
                   ),
@@ -280,13 +301,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 routes: [
                   GoRoute(
                     path: 'create',
-                    pageBuilder: (context, state) => _slidePage(const AnnouncementsCreatePage()),
+                    pageBuilder: (context, state) =>
+                        _slidePage(const AnnouncementsCreatePage()),
                   ),
                   GoRoute(
                     path: ':announcementId',
                     pageBuilder: (context, state) => _slidePage(
                       AnnouncementDetailPage(
-                        announcementId: int.tryParse(state.pathParameters['announcementId'] ?? '') ?? 0,
+                        announcementId:
+                            int.tryParse(
+                              state.pathParameters['announcementId'] ?? '',
+                            ) ??
+                            0,
                       ),
                     ),
                   ),
@@ -417,9 +443,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 pageBuilder: (context, state) => _liftPage(
                   TeacherNetworkMapPage(
                     teacherId:
-                        int.tryParse(
-                          state.pathParameters['teacherId'] ?? '',
-                        ) ??
+                        int.tryParse(state.pathParameters['teacherId'] ?? '') ??
                         0,
                   ),
                 ),
@@ -430,7 +454,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 routes: [
                   GoRoute(
                     path: 'create',
-                    pageBuilder: (context, state) => _slidePage(const JobsCreatePage()),
+                    pageBuilder: (context, state) =>
+                        _slidePage(const JobsCreatePage()),
                   ),
                   GoRoute(
                     path: ':jobId',
@@ -438,7 +463,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       JobDetailPage(
                         jobId:
                             int.tryParse(state.pathParameters['jobId'] ?? '') ??
-                                0,
+                            0,
                       ),
                     ),
                     routes: [
@@ -450,8 +475,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                               : const {};
                           return _slidePage(
                             JobApplyPage(
-                              jobId: int.tryParse(
-                                      state.pathParameters['jobId'] ?? '') ??
+                              jobId:
+                                  int.tryParse(
+                                    state.pathParameters['jobId'] ?? '',
+                                  ) ??
                                   0,
                               jobTitle: (extra['jobTitle'] ?? '').toString(),
                             ),
@@ -466,8 +493,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                               : const {};
                           return _slidePage(
                             JobApplicationsPage(
-                              jobId: int.tryParse(
-                                      state.pathParameters['jobId'] ?? '') ??
+                              jobId:
+                                  int.tryParse(
+                                    state.pathParameters['jobId'] ?? '',
+                                  ) ??
                                   0,
                               jobTitle: (extra['jobTitle'] ?? '').toString(),
                             ),
@@ -482,16 +511,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                                   : const {};
                               return _liftPage(
                                 JobApplicationDetailPage(
-                                  jobId: int.tryParse(
-                                          state.pathParameters['jobId'] ??
-                                              '') ??
+                                  jobId:
+                                      int.tryParse(
+                                        state.pathParameters['jobId'] ?? '',
+                                      ) ??
                                       0,
-                                  applicationId: int.tryParse(
-                                          state.pathParameters['appId'] ??
-                                              '') ??
+                                  applicationId:
+                                      int.tryParse(
+                                        state.pathParameters['appId'] ?? '',
+                                      ) ??
                                       0,
-                                  jobTitle:
-                                      (extra['jobTitle'] ?? '').toString(),
+                                  jobTitle: (extra['jobTitle'] ?? '')
+                                      .toString(),
                                 ),
                               );
                             },
@@ -634,6 +665,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: '/admin/teacher-accounts',
                 pageBuilder: (context, state) =>
                     _liftPage(const AdminTeacherAccountsPage()),
+              ),
+              GoRoute(
+                path: '/admin/audit',
+                pageBuilder: (context, state) =>
+                    _liftPage(const AdminAuditLogPage()),
               ),
               GoRoute(
                 path: '/admin/factory-reset',
