@@ -507,7 +507,7 @@ class _ActivitySection extends StatelessWidget {
       padding: const EdgeInsets.only(top: 12),
       child: SurfaceCard(
         child: ExpansionTile(
-          initiallyExpanded: title == 'Son olaylar' || title == 'Mesajlaşmalar',
+          initiallyExpanded: true,
           tilePadding: EdgeInsets.zero,
           childrenPadding: EdgeInsets.zero,
           leading: Icon(icon),
