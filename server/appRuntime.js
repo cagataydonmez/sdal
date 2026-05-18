@@ -32,6 +32,7 @@ import { registerAdminLanguageRoutes } from './routes/adminLanguageRoutes.js';
 import { registerAdminSecurityRoutes } from './routes/adminSecurityRoutes.js';
 import { registerAdminRootRoutes } from './routes/adminRootRoutes.js';
 import { registerAdminMobileRoutes } from './routes/adminMobileRoutes.js';
+import { registerAdminNetworkingRoutes } from './routes/adminNetworkingRoutes.js';
 import { registerAccountRoutes } from './routes/accountRoutes.js';
 import { createAuthSecurityRuntime } from './routes/authSecurityRoutes.js';
 import { registerEventJobRoutes } from './routes/eventJobRoutes.js';
@@ -4212,7 +4213,8 @@ registerAdminMobileRoutes(app, {
   normalizeRole,
   getModeratorPermissionSummary,
   writeAuditLog,
-  scheduleEngagementRecalculation
+  scheduleEngagementRecalculation,
+  readAdminStorageSnapshot
 });
 
 registerAdminRootRoutes(app, {
@@ -5415,6 +5417,18 @@ registerAdminContentModerationRoutes(app, {
   normalizeBannedWord,
   invalidateBannedWordsCache,
   queueEmailDelivery
+});
+
+registerAdminNetworkingRoutes(app, {
+  dbDriver,
+  requireAdmin,
+  sqlAllAsync,
+  sqlRunAsync,
+  sqlGetAsync,
+  parseAdminListPagination,
+  normalizeCohortValue,
+  logAdminAction,
+  ensureConnectionRequestsTable,
 });
 
 app.get('/api/new/chat/messages', requireAuth, phase1Domain.controllers.chat.listMessages);

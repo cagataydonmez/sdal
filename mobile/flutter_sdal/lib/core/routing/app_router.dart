@@ -14,6 +14,7 @@ import '../../features/community/presentation/entity_detail_page.dart';
 import '../../features/community/presentation/events_page.dart';
 import '../../features/community/presentation/events_create_page.dart';
 import '../../features/admin/presentation/admin_pages.dart';
+import '../../features/admin/presentation/admin_app_module_pages.dart';
 import '../../features/admin/presentation/admin_root_pages.dart';
 import '../../features/admin/presentation/admin_workspace_pages.dart';
 import '../../features/bulletin/presentation/bulletin_page.dart';
@@ -649,73 +650,88 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/admin',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) => _slidePage(const AdminWorkspacePage()),
+        pageBuilder: (context, state) =>
+            _adminPanelPage(const AdminWorkspacePage(), root: true),
       ),
       GoRoute(
         path: '/moderation',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
-            _slidePage(const ModeratorWorkspacePage()),
+            _adminPanelPage(const ModeratorWorkspacePage(), root: true),
       ),
       GoRoute(
         path: '/admin/modules',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
-            _liftPage(const AdminModuleManagementPage()),
+            _adminPanelPage(const AdminModuleManagementPage()),
+      ),
+      GoRoute(
+        path: '/admin/app/:moduleKey',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _adminPanelPage(
+          AdminAppModulePage(
+            moduleKey: state.pathParameters['moduleKey'] ?? '',
+          ),
+        ),
       ),
       GoRoute(
         path: '/admin/teacher-network',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
-            _liftPage(const AdminTeacherNetworkManagementPage()),
+            _adminPanelPage(const AdminTeacherNetworkManagementPage()),
       ),
       GoRoute(
         path: '/admin/teacher-accounts',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
-            _liftPage(const AdminTeacherAccountsPage()),
+            _adminPanelPage(const AdminTeacherAccountsPage()),
       ),
       GoRoute(
         path: '/admin/audit',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) => _liftPage(const AdminAuditLogPage()),
+        pageBuilder: (context, state) =>
+            _adminPanelPage(const AdminAuditLogPage()),
       ),
       GoRoute(
         path: '/admin/root',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) => _liftPage(const RootAdminToolsPage()),
+        pageBuilder: (context, state) =>
+            _adminPanelPage(const RootAdminToolsPage()),
       ),
       GoRoute(
         path: '/admin/root/member-activity',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
-            _liftPage(const RootMemberActivityPage()),
+            _adminPanelPage(const RootMemberActivityPage()),
       ),
       GoRoute(
         path: '/admin/factory-reset',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) => _liftPage(const FactoryResetPage()),
+        pageBuilder: (context, state) =>
+            _adminPanelPage(const FactoryResetPage()),
       ),
       GoRoute(
         path: '/admin/test-data',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) => _liftPage(const TestDataSeedPage()),
+        pageBuilder: (context, state) =>
+            _adminPanelPage(const TestDataSeedPage()),
       ),
       GoRoute(
         path: '/admin/permission-groups',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
-            _liftPage(const PermissionGroupsPage()),
+            _adminPanelPage(const PermissionGroupsPage()),
       ),
       GoRoute(
         path: '/admin/user-permissions',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) => _liftPage(const UserPermissionsPage()),
+        pageBuilder: (context, state) =>
+            _adminPanelPage(const UserPermissionsPage()),
       ),
       GoRoute(
         path: '/admin/:section',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) => _liftPage(
+        pageBuilder: (context, state) => _adminPanelPage(
           AdminSectionPage(sectionKey: state.pathParameters['section'] ?? ''),
         ),
       ),
@@ -917,6 +933,33 @@ Page<void> _liftPage(Widget child) => _isCupertinoNavigationPlatform
         },
       );
 
+Page<void> _adminPanelPage(Widget child, {bool root = false}) =>
+    CustomTransitionPage<void>(
+      opaque: false,
+      barrierColor: const Color(0x8A000000),
+      child: _AdminPanelRouteFrame(child: RouteSilentRefresh(child: child)),
+      transitionDuration: _kDuration,
+      reverseTransitionDuration: _kDuration,
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: _kCurve,
+          reverseCurve: _kCurve,
+        );
+        final isPopping = animation.status == AnimationStatus.reverse;
+        final offset = root
+            ? Tween<Offset>(
+                begin: isPopping ? Offset.zero : const Offset(0, 1),
+                end: isPopping ? const Offset(0, 1) : Offset.zero,
+              ).animate(curved)
+            : Tween<Offset>(
+                begin: isPopping ? Offset.zero : const Offset(0.08, 0),
+                end: isPopping ? const Offset(1, 0) : Offset.zero,
+              ).animate(curved);
+        return SlideTransition(position: offset, child: child);
+      },
+    );
+
 /// Cross-fade. Use for full-screen takeovers (auth, status screens).
 Page<void> _fadePage(Widget child) => CustomTransitionPage<void>(
   child: RouteSilentRefresh(child: child),
@@ -950,6 +993,26 @@ Widget _buildPushPopTransition({
   }
 
   return FadeTransition(opacity: curved, child: transitioningChild);
+}
+
+class _AdminPanelRouteFrame extends StatelessWidget {
+  const _AdminPanelRouteFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: FractionallySizedBox(
+        heightFactor: 0.96,
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          child: child,
+        ),
+      ),
+    );
+  }
 }
 
 bool get _isCupertinoNavigationPlatform =>

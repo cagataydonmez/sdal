@@ -59,12 +59,12 @@ export function registerAdminContentModerationRoutes(app, {
   queueEmailDelivery
 }) {
   const contentTypeMap = {
-    event: { table: 'events', ownerColumn: 'created_by', titleColumn: 'title', bodyColumn: 'description' },
-    announcement: { table: 'announcements', ownerColumn: 'created_by', titleColumn: 'title', bodyColumn: 'body' },
-    job: { table: 'jobs', ownerColumn: 'poster_id', titleColumn: 'title', bodyColumn: 'description' },
-    group_event: { table: 'group_events', ownerColumn: 'created_by', titleColumn: 'title', bodyColumn: 'description' },
-    group_announcement: { table: 'group_announcements', ownerColumn: 'created_by', titleColumn: 'title', bodyColumn: 'body' },
-    group_post: { table: 'posts', ownerColumn: 'user_id', titleColumn: 'content', bodyColumn: 'content' }
+    event: { table: 'events', ownerColumn: 'created_by', titleColumn: 'title', bodyColumn: 'description', imageColumn: 'image' },
+    announcement: { table: 'announcements', ownerColumn: 'created_by', titleColumn: 'title', bodyColumn: 'body', imageColumn: 'image' },
+    job: { table: 'jobs', ownerColumn: 'poster_id', titleColumn: 'title', bodyColumn: 'description', imageColumn: 'image' },
+    group_event: { table: 'group_events', ownerColumn: 'created_by', titleColumn: 'title', bodyColumn: 'description', imageColumn: 'image' },
+    group_announcement: { table: 'group_announcements', ownerColumn: 'created_by', titleColumn: 'title', bodyColumn: 'body', imageColumn: 'image' },
+    group_post: { table: 'posts', ownerColumn: 'user_id', titleColumn: 'content', bodyColumn: 'content', imageColumn: 'image' }
   };
 
   function ensureContentApprovalSettingsTable() {
@@ -172,6 +172,8 @@ export function registerAdminContentModerationRoutes(app, {
       const { page, limit } = parseAdminListPagination(req.query, { defaultLimit: 40, maxLimit: 200 });
       const status = String(req.query.status || '').trim().toLowerCase();
       const q = String(req.query.q || '').trim();
+      const userId = Number(req.query.userId || req.query.user_id || 0);
+      const cohort = String(req.query.cohort || req.query.graduationYear || '').trim();
       const params = [];
       const whereParts = [
         "(u.role IS NULL OR LOWER(COALESCE(u.role, 'user')) != 'root')"
@@ -179,6 +181,14 @@ export function registerAdminContentModerationRoutes(app, {
       if (status) {
         whereParts.push("LOWER(COALESCE(r.status, '')) = ?");
         params.push(status);
+      }
+      if (userId) {
+        whereParts.push('r.user_id = ?');
+        params.push(userId);
+      }
+      if (cohort) {
+        whereParts.push("CAST(COALESCE(u.mezuniyetyili, '') AS TEXT) = ?");
+        params.push(cohort);
       }
       if (q) {
         whereParts.push('(LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.isim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.soyisim AS TEXT)) LIKE LOWER(?))');
@@ -427,16 +437,42 @@ export function registerAdminContentModerationRoutes(app, {
     try {
       const type = String(req.query.type || '').trim().toLowerCase();
       const wantedTypes = type && contentTypeMap[type] ? [type] : ['event', 'announcement', 'job', 'group_event', 'group_announcement', 'group_post'];
+      const status = String(req.query.status || 'pending').trim().toLowerCase();
+      const q = String(req.query.q || '').trim();
+      const userId = Number(req.query.userId || req.query.user_id || 0);
+      const cohort = String(req.query.cohort || req.query.graduationYear || '').trim();
       const items = [];
       for (const entityType of wantedTypes) {
         const config = contentTypeMap[entityType];
+        const params = [];
+        const whereParts = [];
+        if (status && status !== 'all') {
+          whereParts.push("LOWER(COALESCE(t.approval_status, 'not_required')) = ?");
+          params.push(status);
+        }
+        if (userId) {
+          whereParts.push(`t.${config.ownerColumn} = ?`);
+          params.push(userId);
+        }
+        if (cohort) {
+          whereParts.push("CAST(COALESCE(u.mezuniyetyili, '') AS TEXT) = ?");
+          params.push(cohort);
+        }
+        if (q) {
+          whereParts.push(`(LOWER(CAST(t.${config.titleColumn} AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(t.${config.bodyColumn} AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?))`);
+          params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+        }
+        const whereSql = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
         const rows = await sqlAllAsync(
-          `SELECT id, ${config.ownerColumn} AS owner_id, ${config.titleColumn} AS title, ${config.bodyColumn} AS body,
-                  created_at, publication_status, approval_status, review_note
-           FROM ${config.table}
-           WHERE COALESCE(approval_status, 'not_required') = 'pending'
-           ORDER BY id DESC
-           LIMIT 50`
+          `SELECT t.id, t.${config.ownerColumn} AS owner_id, t.${config.titleColumn} AS title, t.${config.bodyColumn} AS body,
+                  t.${config.imageColumn} AS image, t.created_at, t.publication_status, t.approval_status, t.review_note,
+                  u.kadi, u.isim, u.soyisim, u.resim, u.mezuniyetyili
+           FROM ${config.table} t
+           LEFT JOIN uyeler u ON u.id = t.${config.ownerColumn}
+           ${whereSql}
+           ORDER BY t.id DESC
+           LIMIT 50`,
+          params
         );
         items.push(...rows.map((row) => ({ ...row, entity_type: entityType })));
       }
@@ -522,8 +558,18 @@ export function registerAdminContentModerationRoutes(app, {
       const scope = getModerationScopeContext(actor);
       const { page, limit } = parseAdminListPagination(req.query, { defaultLimit: 50, maxLimit: 250 });
       const q = String(req.query.q || '').trim();
+      const userId = Number(req.query.userId || req.query.user_id || 0);
+      const cohort = String(req.query.cohort || req.query.graduationYear || '').trim();
       const params = [];
       const whereParts = ["(owner.role IS NULL OR LOWER(COALESCE(owner.role, 'user')) != 'root')"];
+      if (userId) {
+        whereParts.push('g.owner_id = ?');
+        params.push(userId);
+      }
+      if (cohort) {
+        whereParts.push("CAST(COALESCE(owner.mezuniyetyili, '') AS TEXT) = ?");
+        params.push(cohort);
+      }
       if (q) {
         whereParts.push('(LOWER(CAST(g.name AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(g.description AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(owner.kadi AS TEXT)) LIKE LOWER(?))');
         params.push(`%${q}%`, `%${q}%`, `%${q}%`);
@@ -544,7 +590,8 @@ export function registerAdminContentModerationRoutes(app, {
 
       const items = await sqlAllAsync(
         `SELECT g.id, g.name, g.description, g.cover_image, g.owner_id, g.created_at,
-                owner.kadi AS owner_kadi, owner.mezuniyetyili AS owner_mezuniyetyili
+                owner.kadi AS owner_kadi, owner.isim AS owner_isim, owner.soyisim AS owner_soyisim,
+                owner.resim AS owner_resim, owner.mezuniyetyili AS owner_mezuniyetyili
          FROM groups g
          LEFT JOIN uyeler owner ON owner.id = g.owner_id
          ${whereSql}
@@ -604,8 +651,18 @@ export function registerAdminContentModerationRoutes(app, {
       const scope = getModerationScopeContext(actor);
       const { page, limit } = parseAdminListPagination(req.query, { defaultLimit: 60, maxLimit: 250 });
       const q = String(req.query.q || '').trim();
+      const userId = Number(req.query.userId || req.query.user_id || 0);
+      const cohort = String(req.query.cohort || req.query.graduationYear || '').trim();
       const params = [];
       const whereParts = ["(u.role IS NULL OR LOWER(COALESCE(u.role, 'user')) != 'root')"];
+      if (userId) {
+        whereParts.push('s.user_id = ?');
+        params.push(userId);
+      }
+      if (cohort) {
+        whereParts.push("CAST(COALESCE(u.mezuniyetyili, '') AS TEXT) = ?");
+        params.push(cohort);
+      }
       if (q) {
         whereParts.push('(LOWER(CAST(s.caption AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?))');
         params.push(`%${q}%`, `%${q}%`);
@@ -656,8 +713,18 @@ export function registerAdminContentModerationRoutes(app, {
       const scope = getModerationScopeContext(actor);
       const { page, limit } = parseAdminListPagination(req.query, { defaultLimit: 80, maxLimit: 300 });
       const q = String(req.query.q || '').trim();
+      const userId = Number(req.query.userId || req.query.user_id || 0);
+      const cohort = String(req.query.cohort || req.query.graduationYear || '').trim();
       const params = [];
       const whereParts = ["(u.role IS NULL OR LOWER(COALESCE(u.role, 'user')) != 'root')"];
+      if (userId) {
+        whereParts.push('p.user_id = ?');
+        params.push(userId);
+      }
+      if (cohort) {
+        whereParts.push("CAST(COALESCE(u.mezuniyetyili, '') AS TEXT) = ?");
+        params.push(cohort);
+      }
       if (q) {
         whereParts.push('(LOWER(CAST(p.content AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?))');
         params.push(`%${q}%`, `%${q}%`);
@@ -708,8 +775,18 @@ export function registerAdminContentModerationRoutes(app, {
       const scope = getModerationScopeContext(actor);
       const { page, limit } = parseAdminListPagination(req.query, { defaultLimit: 80, maxLimit: 300 });
       const q = String(req.query.q || '').trim();
+      const userId = Number(req.query.userId || req.query.user_id || 0);
+      const cohort = String(req.query.cohort || req.query.graduationYear || '').trim();
       const params = [];
       const whereParts = ["(u.role IS NULL OR LOWER(COALESCE(u.role, 'user')) != 'root')"];
+      if (userId) {
+        whereParts.push('COALESCE(c.author_id, c.user_id) = ?');
+        params.push(userId);
+      }
+      if (cohort) {
+        whereParts.push("CAST(COALESCE(u.mezuniyetyili, '') AS TEXT) = ?");
+        params.push(cohort);
+      }
       if (q) {
         whereParts.push('(LOWER(CAST(COALESCE(c.body, c.comment) AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?))');
         params.push(`%${q}%`, `%${q}%`);
@@ -811,8 +888,18 @@ export function registerAdminContentModerationRoutes(app, {
       const scope = getModerationScopeContext(actor);
       const { page, limit } = parseAdminListPagination(req.query, { defaultLimit: 80, maxLimit: 300 });
       const q = String(req.query.q || '').trim();
+      const userId = Number(req.query.userId || req.query.user_id || 0);
+      const cohort = String(req.query.cohort || req.query.graduationYear || '').trim();
       const params = [];
       const whereParts = ["(u.role IS NULL OR LOWER(COALESCE(u.role, 'user')) != 'root')"];
+      if (userId) {
+        whereParts.push('c.user_id = ?');
+        params.push(userId);
+      }
+      if (cohort) {
+        whereParts.push("CAST(COALESCE(u.mezuniyetyili, '') AS TEXT) = ?");
+        params.push(cohort);
+      }
       if (q) {
         whereParts.push('(LOWER(CAST(c.message AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?))');
         params.push(`%${q}%`, `%${q}%`);
@@ -831,7 +918,8 @@ export function registerAdminContentModerationRoutes(app, {
       const safePage = Math.min(page, pages);
       const safeOffset = (safePage - 1) * limit;
       let items = await sqlAllAsync(
-        `SELECT c.id, c.user_id, c.message, c.created_at, u.kadi, u.mezuniyetyili
+        `SELECT c.id, c.user_id, c.message, c.created_at,
+                u.kadi, u.isim, u.soyisim, u.resim, u.mezuniyetyili
          FROM chat_messages c
          LEFT JOIN uyeler u ON u.id = c.user_id
          ${whereSql}
@@ -912,11 +1000,21 @@ export function registerAdminContentModerationRoutes(app, {
       const scope = getModerationScopeContext(actor);
       const { page, limit } = parseAdminListPagination(req.query, { defaultLimit: 80, maxLimit: 300 });
       const q = String(req.query.q || '').trim();
+      const userId = Number(req.query.userId || req.query.user_id || 0);
+      const cohort = String(req.query.cohort || req.query.graduationYear || '').trim();
       const params = [];
       const whereParts = [
         "(u1.role IS NULL OR LOWER(COALESCE(u1.role, 'user')) != 'root')",
         "(u2.role IS NULL OR LOWER(COALESCE(u2.role, 'user')) != 'root')"
       ];
+      if (userId) {
+        whereParts.push('(CAST(g.kimden AS INTEGER) = CAST(? AS INTEGER) OR CAST(g.kime AS INTEGER) = CAST(? AS INTEGER))');
+        params.push(userId, userId);
+      }
+      if (cohort) {
+        whereParts.push("(CAST(COALESCE(u1.mezuniyetyili, '') AS TEXT) = ? OR CAST(COALESCE(u2.mezuniyetyili, '') AS TEXT) = ?)");
+        params.push(cohort, cohort);
+      }
       if (q) {
         whereParts.push('(LOWER(CAST(g.konu AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(g.mesaj AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u1.kadi AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u2.kadi AS TEXT)) LIKE LOWER(?))');
         params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
@@ -945,6 +1043,8 @@ export function registerAdminContentModerationRoutes(app, {
       const items = await sqlAllAsync(
         `SELECT g.id, g.konu, g.mesaj, g.tarih, g.kimden, g.kime,
                 u1.kadi AS kimden_kadi, u2.kadi AS kime_kadi,
+                u1.isim AS kimden_isim, u1.soyisim AS kimden_soyisim, u1.resim AS kimden_resim,
+                u2.isim AS kime_isim, u2.soyisim AS kime_soyisim, u2.resim AS kime_resim,
                 u1.mezuniyetyili AS kimden_mezuniyetyili, u2.mezuniyetyili AS kime_mezuniyetyili
          FROM gelenkutusu g
          LEFT JOIN uyeler u1 ON u1.id = g.kimden

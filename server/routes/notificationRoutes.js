@@ -769,6 +769,14 @@ export function registerNotificationRoutes(app, {
       await ensureBroadcastPushDeliveryAuditTable();
       await pruneNotificationBroadcastHistory({ keep: 10 });
       const limit = Math.min(Math.max(parseInt(req.query.limit || '10', 10), 1), 10);
+      const q = String(req.query.q || '').trim();
+      const params = [];
+      const whereParts = [];
+      if (q) {
+        whereParts.push('(LOWER(CAST(b.title AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(b.body AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(b.sender_label AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?))');
+        params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+      }
+      const whereSql = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
       const rows = await sqlAllAsync(
         `SELECT b.id, b.sender_user_id, b.sender_label, b.target, b.title, b.body,
                 b.image_url, b.image_shape, b.requested_count, b.inserted_count,
@@ -776,9 +784,10 @@ export function registerNotificationRoutes(app, {
                 b.created_at, u.kadi AS sender_username
          FROM notification_broadcasts b
          LEFT JOIN uyeler u ON u.id = b.sender_user_id
+         ${whereSql}
          ORDER BY b.id DESC
          LIMIT ?`,
-        [limit]
+        [...params, limit]
       );
       const broadcastIds = (rows || []).map((row) => Number(row?.id || 0)).filter((id) => id > 0);
       let recipients = [];

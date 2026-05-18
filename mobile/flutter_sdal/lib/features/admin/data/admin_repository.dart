@@ -722,12 +722,14 @@ class AdminMobileSummarySnapshot {
     required this.counts,
     required this.attention,
     required this.modules,
+    required this.system,
     required this.recentAudit,
   });
 
   final Map<String, int> counts;
   final List<AdminAttentionItem> attention;
   final List<AdminMobileModule> modules;
+  final AdminServerUsageSnapshot? system;
   final List<AdminAuditLogItem> recentAudit;
 
   factory AdminMobileSummarySnapshot.fromMap(JsonMap map) {
@@ -740,10 +742,71 @@ class AdminMobileSummarySnapshot {
       modules: asJsonMapList(
         map['modules'],
       ).map(AdminMobileModule.fromMap).toList(growable: false),
+      system: AdminServerUsageSnapshot.maybeFromMap(
+        map['system'] ?? map['serverUsage'] ?? map['storage'],
+      ),
       recentAudit: asJsonMapList(
         map['recentAudit'],
       ).map(AdminAuditLogItem.fromMap).toList(growable: false),
     );
+  }
+}
+
+class AdminServerUsageSnapshot {
+  const AdminServerUsageSnapshot({
+    required this.uploadedPhotoCount,
+    required this.uploadedPhotoSizeMb,
+    required this.databaseSizeMb,
+    required this.diskTotalMb,
+    required this.diskUsedMb,
+    required this.diskFreeMb,
+    required this.diskUsedPct,
+    required this.diskFreePct,
+    required this.diskSupported,
+    required this.diskSource,
+    required this.cpuUsagePct,
+    required this.cpuSupported,
+  });
+
+  final int uploadedPhotoCount;
+  final double uploadedPhotoSizeMb;
+  final double databaseSizeMb;
+  final double diskTotalMb;
+  final double diskUsedMb;
+  final double diskFreeMb;
+  final double diskUsedPct;
+  final double diskFreePct;
+  final bool diskSupported;
+  final String diskSource;
+  final double cpuUsagePct;
+  final bool cpuSupported;
+
+  bool get hasStorageData =>
+      uploadedPhotoCount > 0 ||
+      uploadedPhotoSizeMb > 0 ||
+      databaseSizeMb > 0 ||
+      diskSupported;
+
+  bool get hasUsageData => cpuSupported || diskSupported || hasStorageData;
+
+  static AdminServerUsageSnapshot? maybeFromMap(Object? value) {
+    final map = asJsonMap(value);
+    if (map.isEmpty) return null;
+    final snapshot = AdminServerUsageSnapshot(
+      uploadedPhotoCount: asInt(map['uploadedPhotoCount']) ?? 0,
+      uploadedPhotoSizeMb: _asDouble(map['uploadedPhotoSizeMb']) ?? 0,
+      databaseSizeMb: _asDouble(map['databaseSizeMb']) ?? 0,
+      diskTotalMb: _asDouble(map['diskTotalMb']) ?? 0,
+      diskUsedMb: _asDouble(map['diskUsedMb']) ?? 0,
+      diskFreeMb: _asDouble(map['diskFreeMb']) ?? 0,
+      diskUsedPct: _asDouble(map['diskUsedPct']) ?? 0,
+      diskFreePct: _asDouble(map['diskFreePct']) ?? 0,
+      diskSupported: asBool(map['diskSupported']) ?? false,
+      diskSource: coalesceText([map['diskSource']], fallback: ''),
+      cpuUsagePct: _asDouble(map['cpuUsagePct']) ?? 0,
+      cpuSupported: asBool(map['cpuSupported']) ?? false,
+    );
+    return snapshot.hasUsageData ? snapshot : null;
   }
 }
 
@@ -978,6 +1041,8 @@ class AdminUserListQuery {
     this.verifiedOnly = false,
     this.adminOnly = false,
     this.withPhotoOnly = false,
+    this.userId = '',
+    this.cohort = '',
     this.page = 1,
     this.limit = 20,
   });
@@ -987,6 +1052,8 @@ class AdminUserListQuery {
   final bool verifiedOnly;
   final bool adminOnly;
   final bool withPhotoOnly;
+  final String userId;
+  final String cohort;
   final int page;
   final int limit;
 
@@ -998,6 +1065,8 @@ class AdminUserListQuery {
         other.verifiedOnly == verifiedOnly &&
         other.adminOnly == adminOnly &&
         other.withPhotoOnly == withPhotoOnly &&
+        other.userId == userId &&
+        other.cohort == cohort &&
         other.page == page &&
         other.limit == limit;
   }
@@ -1009,6 +1078,8 @@ class AdminUserListQuery {
     verifiedOnly,
     adminOnly,
     withPhotoOnly,
+    userId,
+    cohort,
     page,
     limit,
   );
@@ -1465,6 +1536,41 @@ class AdminPreviewList<T> {
   final List<T> items;
 }
 
+class AdminModuleContentQuery {
+  const AdminModuleContentQuery({
+    required this.moduleKey,
+    this.query = '',
+    this.userId = '',
+    this.cohort = '',
+    this.limit = 20,
+  });
+
+  final String moduleKey;
+  final String query;
+  final String userId;
+  final String cohort;
+  final int limit;
+
+  Map<String, dynamic> toQuery() => {
+    if (query.trim().isNotEmpty) 'q': query.trim(),
+    if (userId.trim().isNotEmpty) 'userId': userId.trim(),
+    if (cohort.trim().isNotEmpty) 'cohort': cohort.trim(),
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AdminModuleContentQuery &&
+          moduleKey == other.moduleKey &&
+          query == other.query &&
+          userId == other.userId &&
+          cohort == other.cohort &&
+          limit == other.limit;
+
+  @override
+  int get hashCode => Object.hash(moduleKey, query, userId, cohort, limit);
+}
+
 class AdminModerationItem {
   const AdminModerationItem({
     required this.id,
@@ -1473,6 +1579,8 @@ class AdminModerationItem {
     required this.createdAt,
     required this.authorName,
     required this.authorHandle,
+    required this.authorAvatar,
+    required this.imageUrl,
   });
 
   final int id;
@@ -1481,27 +1589,77 @@ class AdminModerationItem {
   final String createdAt;
   final String authorName;
   final String authorHandle;
+  final String authorAvatar;
+  final String imageUrl;
 
   factory AdminModerationItem.fromMap(
     JsonMap map, {
     required String typeLabel,
   }) {
-    final firstName = coalesceText([map['isim']], fallback: '');
-    final lastName = coalesceText([map['soyisim']], fallback: '');
+    final firstName = coalesceText([
+      map['isim'],
+      map['owner_isim'],
+      map['uploader_isim'],
+      map['kimden_isim'],
+    ], fallback: '');
+    final lastName = coalesceText([
+      map['soyisim'],
+      map['owner_soyisim'],
+      map['uploader_soyisim'],
+      map['kimden_soyisim'],
+    ], fallback: '');
     final fullName = '$firstName $lastName'.trim();
     return AdminModerationItem(
       id: asInt(map['id']) ?? 0,
       typeLabel: typeLabel,
       content: coalesceText([
+        map['title'],
+        map['name'],
+        map['baslik'],
+        map['konu'],
+        map['message'],
+        map['mesaj'],
+        map['metin'],
         map['content'],
         map['body'],
         map['caption'],
+        map['description'],
+        map['aciklama'],
       ], fallback: 'Icerik yok'),
       createdAt: coalesceText([map['created_at']], fallback: ''),
       authorName: fullName.isNotEmpty
           ? fullName
-          : coalesceText([map['kadi']], fallback: 'SDAL Uyesi'),
-      authorHandle: coalesceText([map['kadi']], fallback: ''),
+          : coalesceText([
+              map['kadi'],
+              map['owner_kadi'],
+              map['uploader_kadi'],
+              map['kimden_kadi'],
+            ], fallback: 'SDAL Uyesi'),
+      authorHandle: coalesceText([
+        map['kadi'],
+        map['owner_kadi'],
+        map['uploader_kadi'],
+        map['kimden_kadi'],
+      ], fallback: ''),
+      authorAvatar: coalesceText([
+        map['resim'],
+        map['owner_resim'],
+        map['uploader_resim'],
+        map['kimden_resim'],
+        map['avatar'],
+      ], fallback: ''),
+      imageUrl: coalesceText([
+        map['image'],
+        map['imageUrl'],
+        map['image_url'],
+        map['cover_image'],
+        map['coverImage'],
+        map['photo'],
+        map['photo_url'],
+        map['media_url'],
+        map['thumbnail_url'],
+        map['dosyaadi'],
+      ], fallback: ''),
     );
   }
 }
@@ -1615,6 +1773,7 @@ class AdminRequestQueueItem {
     required this.createdAt,
     required this.requesterName,
     required this.requesterHandle,
+    required this.requesterAvatar,
     required this.reviewerHandle,
     required this.requestedGraduationYear,
   });
@@ -1626,6 +1785,7 @@ class AdminRequestQueueItem {
   final String createdAt;
   final String requesterName;
   final String requesterHandle;
+  final String requesterAvatar;
   final String reviewerHandle;
   final String requestedGraduationYear;
 
@@ -1647,6 +1807,10 @@ class AdminRequestQueueItem {
           ? fullName
           : coalesceText([map['kadi']], fallback: 'SDAL Uyesi'),
       requesterHandle: coalesceText([map['kadi']], fallback: ''),
+      requesterAvatar: coalesceText([
+        map['resim'],
+        map['avatar'],
+      ], fallback: ''),
       reviewerHandle: coalesceText([map['reviewer_kadi']], fallback: ''),
       requestedGraduationYear: coalesceText([
         payload['requestedGraduationYear'],
@@ -1678,6 +1842,7 @@ class AdminVerificationQueueItem {
     required this.createdAt,
     required this.requesterName,
     required this.requesterHandle,
+    required this.requesterAvatar,
     required this.graduationYear,
     required this.requestType,
     required this.proofPath,
@@ -1689,6 +1854,7 @@ class AdminVerificationQueueItem {
   final String createdAt;
   final String requesterName;
   final String requesterHandle;
+  final String requesterAvatar;
   final String graduationYear;
   final String requestType;
   final String proofPath;
@@ -1713,6 +1879,10 @@ class AdminVerificationQueueItem {
           ? fullName
           : coalesceText([map['kadi']], fallback: 'SDAL Uyesi'),
       requesterHandle: coalesceText([map['kadi']], fallback: ''),
+      requesterAvatar: coalesceText([
+        map['resim'],
+        map['avatar'],
+      ], fallback: ''),
       graduationYear: coalesceText([map['mezuniyetyili']], fallback: ''),
       requestType: coalesceText([map['request_type']], fallback: ''),
       proofPath: coalesceText([map['proof_path']], fallback: ''),
@@ -1816,9 +1986,11 @@ class AdminTeacherNetworkLinkItem {
     required this.confidenceScore,
     required this.teacherName,
     required this.teacherHandle,
+    required this.teacherAvatar,
     required this.teacherCohort,
     required this.alumniName,
     required this.alumniHandle,
+    required this.alumniAvatar,
     required this.alumniGraduationYear,
     required this.activePairLinkCount,
     required this.teacherActiveLinkCount,
@@ -1835,9 +2007,11 @@ class AdminTeacherNetworkLinkItem {
   final double confidenceScore;
   final String teacherName;
   final String teacherHandle;
+  final String teacherAvatar;
   final String teacherCohort;
   final String alumniName;
   final String alumniHandle;
+  final String alumniAvatar;
   final String alumniGraduationYear;
   final int activePairLinkCount;
   final int teacherActiveLinkCount;
@@ -1862,11 +2036,13 @@ class AdminTeacherNetworkLinkItem {
           ? '$teacherFirst $teacherLast'.trim()
           : coalesceText([map['teacher_kadi']], fallback: 'Öğretmen'),
       teacherHandle: coalesceText([map['teacher_kadi']], fallback: ''),
+      teacherAvatar: coalesceText([map['teacher_resim']], fallback: ''),
       teacherCohort: coalesceText([map['teacher_cohort']], fallback: ''),
       alumniName: '$alumniFirst $alumniLast'.trim().isNotEmpty
           ? '$alumniFirst $alumniLast'.trim()
           : coalesceText([map['alumni_kadi']], fallback: 'Mezun'),
       alumniHandle: coalesceText([map['alumni_kadi']], fallback: ''),
+      alumniAvatar: coalesceText([map['alumni_resim']], fallback: ''),
       alumniGraduationYear: coalesceText([
         map['alumni_mezuniyetyili'],
       ], fallback: ''),
@@ -1920,6 +2096,7 @@ class AdminUserPreviewItem {
     required this.id,
     required this.name,
     required this.handle,
+    required this.avatar,
     required this.email,
     required this.role,
     required this.graduationYear,
@@ -1929,6 +2106,7 @@ class AdminUserPreviewItem {
   final int id;
   final String name;
   final String handle;
+  final String avatar;
   final String email;
   final String role;
   final String graduationYear;
@@ -1944,6 +2122,7 @@ class AdminUserPreviewItem {
           ? fullName
           : coalesceText([map['kadi']], fallback: 'SDAL Uyesi'),
       handle: coalesceText([map['kadi']], fallback: ''),
+      avatar: coalesceText([map['resim'], map['avatar']], fallback: ''),
       email: coalesceText([map['email']], fallback: ''),
       role: coalesceText([map['role']], fallback: 'user'),
       graduationYear: coalesceText([map['mezuniyetyili']], fallback: ''),
@@ -2851,10 +3030,11 @@ class AdminRepository {
 
   Future<List<AdminBroadcastHistoryItem>> fetchBroadcastHistory({
     int limit = 10,
+    String query = '',
   }) async {
     final result = await _apiClient.get<JsonMap>(
       '/api/new/admin/notifications/broadcasts',
-      query: {'limit': limit},
+      query: {'limit': limit, if (query.trim().isNotEmpty) 'q': query.trim()},
       decoder: asJsonMap,
     );
     return asJsonMapList(
@@ -2864,9 +3044,11 @@ class AdminRepository {
 
   Future<AdminPreviewList<AdminModerationItem>> fetchPostPreview({
     int limit = 5,
+    Map<String, dynamic>? query,
   }) async {
     return _fetchPreviewList(
       path: '/api/new/admin/posts',
+      query: query,
       limit: limit,
       decoder: (map) => AdminModerationItem.fromMap(map, typeLabel: 'Gonderi'),
     );
@@ -2874,9 +3056,11 @@ class AdminRepository {
 
   Future<AdminPreviewList<AdminModerationItem>> fetchCommentPreview({
     int limit = 5,
+    Map<String, dynamic>? query,
   }) async {
     return _fetchPreviewList(
       path: '/api/new/admin/comments',
+      query: query,
       limit: limit,
       decoder: (map) => AdminModerationItem.fromMap(map, typeLabel: 'Yorum'),
     );
@@ -2884,12 +3068,344 @@ class AdminRepository {
 
   Future<AdminPreviewList<AdminModerationItem>> fetchStoryPreview({
     int limit = 5,
+    Map<String, dynamic>? query,
   }) async {
     return _fetchPreviewList(
       path: '/api/new/admin/stories',
+      query: query,
       limit: limit,
       decoder: (map) => AdminModerationItem.fromMap(map, typeLabel: 'Hikaye'),
     );
+  }
+
+  Future<AdminPreviewList<AdminModerationItem>> fetchGroupPreview({
+    int limit = 20,
+    Map<String, dynamic>? query,
+  }) async {
+    return _fetchPreviewList(
+      path: '/api/new/admin/groups',
+      query: query,
+      limit: limit,
+      decoder: (map) => AdminModerationItem.fromMap(map, typeLabel: 'Grup'),
+    );
+  }
+
+  Future<AdminPreviewList<AdminModerationItem>> fetchAlbumPhotoPreview({
+    int limit = 20,
+    Map<String, dynamic>? query,
+  }) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/album/photos',
+      query: {'diz': 'tarihazalan', ...?query},
+      decoder: asJsonMap,
+    );
+    final raw = asJsonMap(result.rawData);
+    final photos = asJsonMapList(raw['photos'])
+        .take(limit)
+        .map((map) {
+          final fileName = coalesceText([map['dosyaadi']], fallback: '');
+          return AdminModerationItem.fromMap({
+            ...map,
+            'created_at': coalesceText([map['tarih']], fallback: ''),
+            'image_url': fileName.isEmpty
+                ? ''
+                : '/uploads/album/${Uri.encodeComponent(fileName)}',
+          }, typeLabel: 'Albüm fotoğrafı');
+        })
+        .toList(growable: false);
+    return AdminPreviewList<AdminModerationItem>(
+      total: asJsonMapList(raw['photos']).length,
+      items: photos,
+    );
+  }
+
+  Future<AdminPreviewList<AdminModerationItem>> fetchContentApprovalPreview({
+    required String type,
+    required String typeLabel,
+    int limit = 20,
+    Map<String, dynamic>? query,
+  }) async {
+    return _fetchPreviewList(
+      path: '/api/new/admin/content-approvals',
+      query: {'type': type, 'status': 'all', ...?query},
+      limit: limit,
+      decoder: (map) => AdminModerationItem.fromMap(map, typeLabel: typeLabel),
+    );
+  }
+
+  Future<AdminPreviewList<AdminModerationItem>> fetchUserModulePreview({
+    required AdminModuleContentQuery query,
+    required String typeLabel,
+  }) async {
+    final users = await fetchUserPreview(
+      query: AdminUserListQuery(
+        query: query.query,
+        userId: query.userId,
+        cohort: query.cohort,
+        limit: query.limit,
+      ),
+    );
+    return AdminPreviewList<AdminModerationItem>(
+      total: users.total,
+      items: users.items
+          .map(
+            (user) => AdminModerationItem.fromMap({
+              'id': user.id,
+              'title': user.name,
+              'body': [
+                if (user.handle.isNotEmpty) '@${user.handle}',
+                if (user.email.isNotEmpty) user.email,
+                if (user.role.isNotEmpty) user.role,
+                if (user.graduationYear.isNotEmpty) user.graduationYear,
+              ].join(' · '),
+              'kadi': user.handle,
+              'resim': user.avatar,
+              'created_at': '',
+            }, typeLabel: typeLabel),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  Future<AdminPreviewList<AdminModerationItem>> fetchMemberRequestModulePreview(
+    AdminModuleContentQuery query,
+  ) async {
+    final preview = await _fetchPreviewList(
+      path: '/api/new/admin/requests',
+      query: {'status': 'pending', ...query.toQuery()},
+      limit: query.limit,
+      decoder: AdminRequestQueueItem.fromMap,
+    );
+    return AdminPreviewList<AdminModerationItem>(
+      total: preview.total,
+      items: preview.items
+          .map(
+            (item) => AdminModerationItem.fromMap({
+              'id': item.id,
+              'title': item.categoryLabel,
+              'body': [
+                item.requesterName,
+                if (item.requesterHandle.isNotEmpty) '@${item.requesterHandle}',
+                if (item.requestedGraduationYear.isNotEmpty)
+                  item.requestedGraduationYear,
+              ].join(' · '),
+              'kadi': item.requesterHandle,
+              'resim': item.requesterAvatar,
+              'created_at': item.createdAt,
+            }, typeLabel: 'Üye talebi'),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  Future<AdminPreviewList<AdminModerationItem>> fetchVerificationModulePreview(
+    AdminModuleContentQuery query,
+  ) async {
+    final preview = await _fetchPreviewList(
+      path: '/api/new/admin/verification-requests',
+      query: {'status': 'pending', ...query.toQuery()},
+      limit: query.limit,
+      decoder: AdminVerificationQueueItem.fromMap,
+    );
+    return AdminPreviewList<AdminModerationItem>(
+      total: preview.total,
+      items: preview.items
+          .map(
+            (item) => AdminModerationItem.fromMap({
+              'id': item.id,
+              'title': item.isTeacherVerification
+                  ? 'Öğretmen doğrulaması'
+                  : 'Üye doğrulaması',
+              'body': [
+                item.requesterName,
+                if (item.requesterHandle.isNotEmpty) '@${item.requesterHandle}',
+                if (item.graduationYear.isNotEmpty) item.graduationYear,
+                item.hasProof ? 'Kanıt var' : 'Kanıt yok',
+              ].join(' · '),
+              'kadi': item.requesterHandle,
+              'resim': item.requesterAvatar,
+              'image_url': item.proofPath,
+              'created_at': item.createdAt,
+            }, typeLabel: 'Doğrulama'),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  Future<AdminPreviewList<AdminModerationItem>>
+  fetchTeacherNetworkModulePreview(AdminModuleContentQuery query) async {
+    final preview = await _fetchPreviewList(
+      path: '/api/new/admin/teacher-network/links',
+      query: {'review_status': 'pending', ...query.toQuery()},
+      limit: query.limit,
+      decoder: AdminTeacherNetworkLinkItem.fromMap,
+    );
+    return AdminPreviewList<AdminModerationItem>(
+      total: preview.total,
+      items: preview.items
+          .map(
+            (item) => AdminModerationItem.fromMap({
+              'id': item.id,
+              'title': '${item.alumniName} -> ${item.teacherName}',
+              'body': [
+                item.relationshipType,
+                if (item.alumniGraduationYear.isNotEmpty)
+                  item.alumniGraduationYear,
+                'Güven ${(item.confidenceScore * 100).round()}%',
+              ].join(' · '),
+              'kadi': item.alumniHandle,
+              'resim': item.alumniAvatar,
+              'created_at': item.createdAt,
+            }, typeLabel: 'Öğretmen ağı'),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  Future<AdminPreviewList<AdminModerationItem>> fetchBroadcastModulePreview(
+    AdminModuleContentQuery query,
+  ) async {
+    final broadcasts = await fetchBroadcastHistory(
+      limit: query.limit,
+      query: query.query,
+    );
+    final filtered = query.query.trim().isEmpty
+        ? broadcasts
+        : broadcasts
+              .where((item) {
+                final needle = query.query.trim().toLowerCase();
+                return '${item.title} ${item.body} ${item.senderLabel} ${item.senderUsername}'
+                    .toLowerCase()
+                    .contains(needle);
+              })
+              .toList(growable: false);
+    return AdminPreviewList<AdminModerationItem>(
+      total: filtered.length,
+      items: filtered
+          .map(
+            (item) => AdminModerationItem.fromMap({
+              'id': item.id,
+              'title': item.title.isEmpty ? item.body : item.title,
+              'body': item.summaryLabel,
+              'kadi': item.senderUsername,
+              'image_url': item.imageUrl,
+              'created_at': item.createdAt,
+            }, typeLabel: 'Toplu bildirim'),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  Future<AdminPreviewList<AdminModerationItem>> fetchChatModulePreview(
+    AdminModuleContentQuery query,
+  ) {
+    return _fetchPreviewList(
+      path: '/api/new/admin/chat/messages',
+      query: query.toQuery(),
+      limit: query.limit,
+      decoder: (map) =>
+          AdminModerationItem.fromMap(map, typeLabel: 'Canlı sohbet'),
+    );
+  }
+
+  Future<AdminPreviewList<AdminModerationItem>> fetchDirectMessageModulePreview(
+    AdminModuleContentQuery query,
+  ) {
+    return _fetchPreviewList(
+      path: '/api/new/admin/messages',
+      query: query.toQuery(),
+      limit: query.limit,
+      decoder: (map) =>
+          AdminModerationItem.fromMap(map, typeLabel: 'Özel mesaj'),
+    );
+  }
+
+  Future<AdminPreviewList<AdminModerationItem>> fetchAppModuleContent(
+    AdminModuleContentQuery query,
+  ) async {
+    final requestQuery = query.toQuery();
+    switch (query.moduleKey) {
+      case 'feed_posts':
+        return fetchPostPreview(limit: query.limit, query: requestQuery);
+      case 'feed_stories':
+        return fetchStoryPreview(limit: query.limit, query: requestQuery);
+      case 'feed_comments':
+        return fetchCommentPreview(limit: query.limit, query: requestQuery);
+      case 'groups':
+        return fetchGroupPreview(limit: query.limit, query: requestQuery);
+      case 'album_photos':
+        return fetchAlbumPhotoPreview(limit: query.limit, query: requestQuery);
+      case 'events':
+        return fetchContentApprovalPreview(
+          type: 'event',
+          typeLabel: 'Etkinlik',
+          limit: query.limit,
+          query: requestQuery,
+        );
+      case 'announcements':
+        return fetchContentApprovalPreview(
+          type: 'announcement',
+          typeLabel: 'Duyuru',
+          limit: query.limit,
+          query: requestQuery,
+        );
+      case 'jobs':
+        return fetchContentApprovalPreview(
+          type: 'job',
+          typeLabel: 'İş ilanı',
+          limit: query.limit,
+          query: requestQuery,
+        );
+      case 'members':
+        return fetchUserModulePreview(query: query, typeLabel: 'Üye');
+      case 'member_requests':
+        return fetchMemberRequestModulePreview(query);
+      case 'verification_requests':
+        return fetchVerificationModulePreview(query);
+      case 'teacher_network_links':
+        return fetchTeacherNetworkModulePreview(query);
+      case 'broadcasts':
+        return fetchBroadcastModulePreview(query);
+      case 'chat_messages':
+        return fetchChatModulePreview(query);
+      case 'direct_messages':
+        return fetchDirectMessageModulePreview(query);
+      case 'follows':
+        return fetchFollowsModulePreview(query);
+      case 'connection_requests':
+        return fetchConnectionRequestsModulePreview(query);
+      default:
+        return const AdminPreviewList<AdminModerationItem>(
+          total: 0,
+          items: <AdminModerationItem>[],
+        );
+    }
+  }
+
+  Future<AdminPreviewList<AdminModerationItem>> fetchFollowsModulePreview(
+    AdminModuleContentQuery query,
+  ) {
+    return _fetchPreviewList(
+      path: '/api/new/admin/follows',
+      query: query.toQuery(),
+      limit: query.limit,
+      decoder: (map) => AdminModerationItem.fromMap(map, typeLabel: 'Takip'),
+    );
+  }
+
+  Future<AdminPreviewList<AdminModerationItem>>
+  fetchConnectionRequestsModulePreview(AdminModuleContentQuery query) {
+    return _fetchPreviewList(
+      path: '/api/new/admin/connections',
+      query: query.toQuery(),
+      limit: query.limit,
+      decoder: (map) =>
+          AdminModerationItem.fromMap(map, typeLabel: 'Bağlantı isteği'),
+    );
+  }
+
+  Future<void> deleteFollow(int id) async {
+    await _apiClient.delete<dynamic>('/api/new/admin/follows/$id');
   }
 
   Future<List<AdminContentApprovalSetting>>
@@ -3021,6 +3537,8 @@ class AdminRepository {
         if (query.verifiedOnly) 'verified': '1',
         if (query.adminOnly) 'admin': '1',
         if (query.withPhotoOnly) 'photo': '1',
+        if (query.userId.trim().isNotEmpty) 'userId': query.userId.trim(),
+        if (query.cohort.trim().isNotEmpty) 'cohort': query.cohort.trim(),
       },
       decoder: asJsonMap,
     );
@@ -3699,6 +4217,25 @@ class AdminRepository {
     );
   }
 
+  Future<void> deleteGroup(int id, {String reason = ''}) async {
+    await _apiClient.delete<dynamic>(
+      '/api/new/admin/groups/$id',
+      body: reason.isNotEmpty ? {'reason': reason} : null,
+    );
+  }
+
+  Future<void> deleteAlbumPhoto(int id) async {
+    await _apiClient.delete<dynamic>('/api/admin/album/photos/$id');
+  }
+
+  Future<void> deleteChatMessage(int id) async {
+    await _apiClient.delete<dynamic>('/api/new/admin/chat/messages/$id');
+  }
+
+  Future<void> deleteDirectMessage(int id) async {
+    await _apiClient.delete<dynamic>('/api/new/admin/messages/$id');
+  }
+
   Future<void> reviewMemberRequest({
     required int id,
     required String status,
@@ -3950,6 +4487,15 @@ final adminCommentPreviewProvider =
 final adminStoryPreviewProvider =
     FutureProvider<AdminPreviewList<AdminModerationItem>>(
       (ref) => ref.watch(adminRepositoryProvider).fetchStoryPreview(),
+    );
+
+final adminAppModuleContentProvider =
+    FutureProvider.family<
+      AdminPreviewList<AdminModerationItem>,
+      AdminModuleContentQuery
+    >(
+      (ref, query) =>
+          ref.watch(adminRepositoryProvider).fetchAppModuleContent(query),
     );
 
 final adminContentApprovalSettingsProvider =

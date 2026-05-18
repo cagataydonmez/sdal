@@ -60,7 +60,7 @@ class FeatureScaffold extends ConsumerWidget {
     ];
 
     return PopScope<Object?>(
-      canPop: !showAdminBack || (!isAdminRoot && canPop),
+      canPop: !showAdminBack || canPop,
       onPopInvokedWithResult: (didPop, result) {
         if (!showAdminBack) return;
         if (didPop) {
@@ -89,7 +89,11 @@ class FeatureScaffold extends ConsumerWidget {
                     currentLocation: location,
                     fallbackLocation: fallbackBackLocation,
                   ),
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                  icon: Icon(
+                    isAdminRoot
+                        ? Icons.keyboard_arrow_down_rounded
+                        : Icons.arrow_back_ios_new_rounded,
+                  ),
                 )
               : session?.user != null
               ? _ProfileLeading(session: session!, canPop: canPop)
@@ -139,6 +143,13 @@ class FeatureScaffold extends ConsumerWidget {
             currentLocation: location,
             fallbackLocation: fallbackBackLocation,
           ),
+          onDismissDown: showAdminBack
+              ? () => _dismissAdminPanel(
+                  context,
+                  currentLocation: location,
+                  fallbackLocation: session?.defaultHomePath ?? '/feed',
+                )
+              : null,
           child: Container(
             decoration: switch (background) {
               FeatureScaffoldBackground.editorial => BoxDecoration(
@@ -193,6 +204,16 @@ class FeatureScaffold extends ConsumerWidget {
   }) {
     if (currentLocation == '/admin' || currentLocation == '/moderation') {
       _FeatureRouteHistory.remove(currentLocation);
+      final navigator = Navigator.of(context);
+      if (navigator.canPop()) {
+        navigator.maybePop();
+        return;
+      }
+      context.go(fallbackLocation);
+      return;
+    }
+    if (_isAdminSurface(currentLocation)) {
+      _FeatureRouteHistory.remove(currentLocation);
       context.go(fallbackLocation);
       return;
     }
@@ -207,6 +228,20 @@ class FeatureScaffold extends ConsumerWidget {
       fallback: fallbackLocation,
     );
     context.go(target);
+  }
+
+  void _dismissAdminPanel(
+    BuildContext context, {
+    required String currentLocation,
+    required String fallbackLocation,
+  }) {
+    _FeatureRouteHistory.remove(currentLocation);
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.popUntil((route) => route.isFirst);
+      return;
+    }
+    context.go(fallbackLocation);
   }
 }
 
@@ -245,11 +280,13 @@ class _BackSwipeRegion extends StatefulWidget {
   const _BackSwipeRegion({
     required this.enabled,
     required this.onBack,
+    required this.onDismissDown,
     required this.child,
   });
 
   final bool enabled;
   final VoidCallback onBack;
+  final VoidCallback? onDismissDown;
   final Widget child;
 
   @override
@@ -260,9 +297,12 @@ class _BackSwipeRegionState extends State<_BackSwipeRegion> {
   static const _edgeWidth = 44.0;
   static const _distanceThreshold = 72.0;
   static const _velocityThreshold = 520.0;
+  static const _dismissDistanceThreshold = 96.0;
+  static const _dismissVelocityThreshold = 620.0;
 
   double? _dragStartX;
   double _dragDistance = 0;
+  double _verticalDragDistance = 0;
   bool _handledDrag = false;
 
   @override
@@ -294,6 +334,33 @@ class _BackSwipeRegionState extends State<_BackSwipeRegion> {
           widget.onBack();
         }
       },
+      onVerticalDragStart: widget.onDismissDown == null
+          ? null
+          : (_) {
+              _verticalDragDistance = 0;
+              _handledDrag = false;
+            },
+      onVerticalDragUpdate: widget.onDismissDown == null
+          ? null
+          : (details) {
+              if (_handledDrag) return;
+              _verticalDragDistance += details.primaryDelta ?? 0;
+              if (_verticalDragDistance > _dismissDistanceThreshold) {
+                _handledDrag = true;
+                widget.onDismissDown?.call();
+              }
+            },
+      onVerticalDragEnd: widget.onDismissDown == null
+          ? null
+          : (details) {
+              if (_handledDrag) return;
+              final velocity = details.primaryVelocity ?? 0;
+              if (velocity > _dismissVelocityThreshold ||
+                  _verticalDragDistance > _dismissDistanceThreshold) {
+                _handledDrag = true;
+                widget.onDismissDown?.call();
+              }
+            },
       child: widget.child,
     );
   }

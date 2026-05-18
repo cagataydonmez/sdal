@@ -77,6 +77,8 @@ export function registerAdminRequestModerationRoutes(app, {
       const categoryKey = String(req.query.category || '').trim();
       const status = String(req.query.status || 'pending').trim();
       const q = String(req.query.q || '').trim();
+      const userId = Number(req.query.userId || req.query.user_id || 0);
+      const cohort = String(req.query.cohort || req.query.graduationYear || '').trim();
       const where = [];
       if (actorRole !== 'root') {
         where.push("(u.role IS NULL OR LOWER(COALESCE(u.role, 'user')) != 'root')");
@@ -89,6 +91,14 @@ export function registerAdminRequestModerationRoutes(app, {
       if (status) {
         where.push('r.status = ?');
         params.push(status);
+      }
+      if (userId) {
+        where.push('r.user_id = ?');
+        params.push(userId);
+      }
+      if (cohort) {
+        where.push("CAST(COALESCE(u.mezuniyetyili, '') AS TEXT) = ?");
+        params.push(cohort);
       }
       if (q) {
         where.push('(LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.isim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.soyisim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(r.category_key AS TEXT)) LIKE LOWER(?))');
@@ -113,7 +123,7 @@ export function registerAdminRequestModerationRoutes(app, {
       const items = await sqlAllAsync(
         `SELECT r.id, r.user_id, r.category_key, r.payload_json, r.status, r.created_at, r.reviewed_at, r.resolution_note,
                 c.label AS category_label,
-                u.kadi, u.isim, u.soyisim,
+                u.kadi, u.isim, u.soyisim, u.resim,
                 reviewer.kadi AS reviewer_kadi
          FROM member_requests r
          LEFT JOIN request_categories c ON c.category_key = r.category_key
@@ -233,9 +243,19 @@ export function registerAdminRequestModerationRoutes(app, {
       const relationshipType = normalizeTeacherAlumniRelationshipType(req.query.relationship_type);
       const reviewStatus = normalizeTeacherLinkReviewStatus(req.query.review_status);
       const q = String(req.query.q || '').trim();
+      const userId = Number(req.query.userId || req.query.user_id || 0);
+      const cohort = String(req.query.cohort || req.query.graduationYear || '').trim();
 
       const where = [];
       const params = [];
+      if (userId) {
+        where.push('(l.teacher_user_id = ? OR l.alumni_user_id = ?)');
+        params.push(userId, userId);
+      }
+      if (cohort) {
+        where.push("CAST(COALESCE(alumni.mezuniyetyili, '') AS TEXT) = ?");
+        params.push(cohort);
+      }
       if (relationshipType) {
         where.push('l.relationship_type = ?');
         params.push(relationshipType);
@@ -269,8 +289,8 @@ export function registerAdminRequestModerationRoutes(app, {
                 COALESCE(l.source_surface, 'teachers_network_page') AS source_surface,
                 COALESCE(l.review_status, 'pending') AS review_status,
                 l.last_reviewed_by, l.review_note, l.reviewed_at, l.merged_into_link_id,
-                teacher.id AS teacher_user_id, teacher.kadi AS teacher_kadi, teacher.isim AS teacher_isim, teacher.soyisim AS teacher_soyisim, teacher.verified AS teacher_verified, teacher.role AS teacher_role, teacher.mezuniyetyili AS teacher_cohort,
-                alumni.id AS alumni_user_id, alumni.kadi AS alumni_kadi, alumni.isim AS alumni_isim, alumni.soyisim AS alumni_soyisim, alumni.mezuniyetyili AS alumni_mezuniyetyili, alumni.verified AS alumni_verified,
+                teacher.id AS teacher_user_id, teacher.kadi AS teacher_kadi, teacher.isim AS teacher_isim, teacher.soyisim AS teacher_soyisim, teacher.resim AS teacher_resim, teacher.verified AS teacher_verified, teacher.role AS teacher_role, teacher.mezuniyetyili AS teacher_cohort,
+                alumni.id AS alumni_user_id, alumni.kadi AS alumni_kadi, alumni.isim AS alumni_isim, alumni.soyisim AS alumni_soyisim, alumni.resim AS alumni_resim, alumni.mezuniyetyili AS alumni_mezuniyetyili, alumni.verified AS alumni_verified,
                 reviewer.kadi AS reviewer_kadi, reviewer.isim AS reviewer_isim, reviewer.soyisim AS reviewer_soyisim,
                 (SELECT COUNT(*) FROM teacher_alumni_links pair_link WHERE pair_link.teacher_user_id = l.teacher_user_id AND pair_link.alumni_user_id = l.alumni_user_id AND COALESCE(pair_link.review_status, 'pending') NOT IN ('rejected', 'merged')) AS active_pair_link_count,
                 (SELECT COUNT(*) FROM teacher_alumni_links teacher_link WHERE teacher_link.teacher_user_id = l.teacher_user_id AND COALESCE(teacher_link.review_status, 'pending') NOT IN ('rejected', 'merged')) AS teacher_active_link_count,

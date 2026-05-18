@@ -139,6 +139,8 @@ export function registerAdminManagementRoutes(app, {
     const verifiedOnly = String(rawQuery.verified || '').trim() === '1';
     const onlineOnly = String(rawQuery.online || '').trim() === '1';
     const adminOnly = String(rawQuery.admin || '').trim() === '1';
+    const userId = Number(rawQuery.userId || rawQuery.user_id || 0);
+    const cohort = String(rawQuery.cohort || rawQuery.graduationYear || '').trim();
     const minScoreRaw = String(rawQuery.minScore ?? rawQuery.min_score ?? '').trim();
     const maxScoreRaw = String(rawQuery.maxScore ?? rawQuery.max_score ?? '').trim();
     const minScore = minScoreRaw === '' ? NaN : Number(minScoreRaw);
@@ -163,6 +165,14 @@ export function registerAdminManagementRoutes(app, {
     if (q) {
       whereParts.push('(LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.isim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.soyisim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.email AS TEXT)) LIKE LOWER(?))');
       params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+    }
+    if (userId) {
+      whereParts.push('u.id = ?');
+      params.push(userId);
+    }
+    if (cohort) {
+      whereParts.push("CAST(COALESCE(u.mezuniyetyili, '') AS TEXT) = ?");
+      params.push(cohort);
     }
     if (withPhoto) {
       whereParts.push("u.resim IS NOT NULL AND TRIM(CAST(u.resim AS TEXT)) != '' AND LOWER(TRIM(CAST(u.resim AS TEXT))) != 'yok'");

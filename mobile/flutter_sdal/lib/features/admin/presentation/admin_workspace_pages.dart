@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/providers.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/text/sdal_date_time.dart';
-import '../../../core/theme/sdal_app_theme.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/remote_avatar.dart';
+import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../admin/application/admin_action_controller.dart';
 import '../../admin/data/admin_repository.dart';
@@ -14,6 +16,19 @@ import 'widgets/admin_mobile_widgets.dart';
 
 String _workspaceTimestamp(BuildContext context, String raw) =>
     raw.isEmpty ? '' : formatSdalTimestamp(context, raw);
+
+String _formatMegabytes(double value) {
+  if (value >= 1024) {
+    final gb = value / 1024;
+    return '${gb.toStringAsFixed(gb >= 10 ? 0 : 1)} GB';
+  }
+  return '${value.toStringAsFixed(value >= 10 ? 0 : 1)} MB';
+}
+
+String _formatPercent(double value) {
+  final normalized = value.clamp(0, 100).toDouble();
+  return '${normalized.toStringAsFixed(normalized >= 10 ? 0 : 1)}%';
+}
 
 void _openWorkspaceRoute(BuildContext context, String path) {
   if (path.startsWith('/admin') || path.startsWith('/moderation')) {
@@ -222,6 +237,10 @@ class _AdminCommandCenterBody extends StatelessWidget {
             ),
           ],
         ),
+        if (summary.system != null) ...[
+          const SizedBox(height: 12),
+          _ServerUsageCard(stats: summary.system!),
+        ],
         const _SectionLabel('İlgilenilmesi gerekenler'),
         if (summary.attention.isEmpty)
           const AdminEmptyState(
@@ -306,6 +325,164 @@ class _AdminCommandCenterBody extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _ServerUsageCard extends StatelessWidget {
+  const _ServerUsageCard({required this.stats});
+
+  final AdminServerUsageSnapshot stats;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.dns_outlined, color: tokens.foregroundMuted),
+              const SizedBox(width: 8),
+              Text(
+                'Sunucu ve depolama',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (stats.cpuSupported)
+            _UsageBar(
+              label: 'CPU',
+              valueLabel: _formatPercent(stats.cpuUsagePct),
+              value: stats.cpuUsagePct / 100,
+              color: tokens.accent,
+            ),
+          if (stats.diskSupported) ...[
+            if (stats.cpuSupported) const SizedBox(height: 12),
+            _UsageBar(
+              label: 'Disk',
+              valueLabel:
+                  '${_formatPercent(stats.diskUsedPct)} dolu · ${_formatMegabytes(stats.diskFreeMb)} boş',
+              value: stats.diskUsedPct / 100,
+              color: stats.diskUsedPct >= 85 ? tokens.danger : tokens.warning,
+            ),
+          ],
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _MetricPill(
+                icon: Icons.photo_library_outlined,
+                label: 'Upload',
+                value:
+                    '${stats.uploadedPhotoCount} görsel · ${_formatMegabytes(stats.uploadedPhotoSizeMb)}',
+              ),
+              _MetricPill(
+                icon: Icons.storage_outlined,
+                label: 'Veritabanı',
+                value: _formatMegabytes(stats.databaseSizeMb),
+              ),
+              if (stats.diskSupported)
+                _MetricPill(
+                  icon: Icons.storage_outlined,
+                  label: 'Disk toplam',
+                  value: _formatMegabytes(stats.diskTotalMb),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UsageBar extends StatelessWidget {
+  const _UsageBar({
+    required this.label,
+    required this.valueLabel,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String valueLabel;
+  final double value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    final normalized = value.clamp(0, 1).toDouble();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(label, style: Theme.of(context).textTheme.labelLarge),
+            const Spacer(),
+            Text(
+              valueLabel,
+              style: Theme.of(
+                context,
+              ).textTheme.labelMedium?.copyWith(color: tokens.foregroundMuted),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
+          child: LinearProgressIndicator(
+            value: normalized,
+            minHeight: 8,
+            color: color,
+            backgroundColor: tokens.panelBorder,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MetricPill extends StatelessWidget {
+  const _MetricPill({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: tokens.panelRaised,
+        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
+        border: Border.all(color: tokens.panelBorder),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: tokens.foregroundMuted),
+          const SizedBox(width: 6),
+          Text('$label: ', style: Theme.of(context).textTheme.labelMedium),
+          Text(
+            value,
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(color: tokens.foregroundMuted),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1017,21 +1194,11 @@ class _AdminTeacherAccountsPageState
                     return SurfaceCard(
                       child: ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: CircleAvatar(
-                          backgroundColor: Theme.of(
-                            context,
-                          ).colorScheme.primaryContainer,
-                          child: Text(
-                            item.name.isNotEmpty
-                                ? item.name[0].toUpperCase()
-                                : '?',
-                            style: TextStyle(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onPrimaryContainer,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
+                        leading: RemoteAvatar(
+                          label: item.name,
+                          imageUrl: session!.config
+                              .resolveUrl(item.avatarPath ?? '')
+                              .toString(),
                         ),
                         title: Text(
                           item.name,
@@ -1582,6 +1749,16 @@ class AdminModuleManagementPage extends ConsumerWidget {
                             );
                           },
                         ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: OutlinedButton.icon(
+                            onPressed: () =>
+                                context.go('/admin/app/${module.key}'),
+                            icon: const Icon(Icons.tune_outlined),
+                            label: const Text('Bu modülün yönetim sayfası'),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -2116,7 +2293,7 @@ class _StatusPill extends StatelessWidget {
   }
 }
 
-class _RequestPreviewList extends StatelessWidget {
+class _RequestPreviewList extends ConsumerWidget {
   const _RequestPreviewList({
     required this.items,
     required this.emptyMessage,
@@ -2134,8 +2311,9 @@ class _RequestPreviewList extends StatelessWidget {
   final bool isBusy;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (items.isEmpty) return Text(emptyMessage);
+    final config = ref.watch(appConfigProvider);
     return Column(
       children: items
           .map(
@@ -2143,6 +2321,11 @@ class _RequestPreviewList extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 12),
               child: _QueueItemCard(
                 title: item.categoryLabel,
+                leading: RemoteAvatar(
+                  label: item.requesterName,
+                  imageUrl: config.resolveUrl(item.requesterAvatar).toString(),
+                  radius: 22,
+                ),
                 subtitle: [
                   item.requesterName,
                   '@${item.requesterHandle}',
@@ -2162,7 +2345,7 @@ class _RequestPreviewList extends StatelessWidget {
   }
 }
 
-class _VerificationPreviewList extends StatelessWidget {
+class _VerificationPreviewList extends ConsumerWidget {
   const _VerificationPreviewList({
     required this.items,
     required this.emptyMessage,
@@ -2180,8 +2363,9 @@ class _VerificationPreviewList extends StatelessWidget {
   final bool isBusy;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (items.isEmpty) return Text(emptyMessage);
+    final config = ref.watch(appConfigProvider);
     return Column(
       children: items
           .map(
@@ -2189,6 +2373,17 @@ class _VerificationPreviewList extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 12),
               child: _QueueItemCard(
                 title: item.requesterName,
+                leading: RemoteAvatar(
+                  label: item.requesterName,
+                  imageUrl: config.resolveUrl(item.requesterAvatar).toString(),
+                  radius: 22,
+                ),
+                media: item.proofPath.isEmpty
+                    ? null
+                    : _QueueMediaPreview(
+                        imageUrl: item.proofPath,
+                        semanticLabel: '${item.requesterName} kanıt görseli',
+                      ),
                 subtitle: [
                   '@${item.requesterHandle}',
                   item.isTeacherVerification
@@ -2210,7 +2405,7 @@ class _VerificationPreviewList extends StatelessWidget {
   }
 }
 
-class _TeacherNetworkPreviewList extends StatelessWidget {
+class _TeacherNetworkPreviewList extends ConsumerWidget {
   const _TeacherNetworkPreviewList({
     required this.items,
     required this.emptyMessage,
@@ -2230,8 +2425,9 @@ class _TeacherNetworkPreviewList extends StatelessWidget {
   final bool isBusy;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (items.isEmpty) return Text(emptyMessage);
+    final config = ref.watch(appConfigProvider);
     return Column(
       children: items
           .map(
@@ -2240,6 +2436,16 @@ class _TeacherNetworkPreviewList extends StatelessWidget {
               child: _QueueItemCard(
                 title:
                     '${item.alumniHandle.isNotEmpty ? '@${item.alumniHandle}' : item.alumniName} -> ${item.teacherHandle.isNotEmpty ? '@${item.teacherHandle}' : item.teacherName}',
+                leading: _AvatarPair(
+                  firstLabel: item.alumniName,
+                  firstImageUrl: config
+                      .resolveUrl(item.alumniAvatar)
+                      .toString(),
+                  secondLabel: item.teacherName,
+                  secondImageUrl: config
+                      .resolveUrl(item.teacherAvatar)
+                      .toString(),
+                ),
                 subtitle: [
                   _formatTeacherRelationship(item.relationshipType),
                   _formatGraduationYear(item.alumniGraduationYear),
@@ -2277,6 +2483,8 @@ class _QueueItemCard extends StatelessWidget {
     required this.canModerate,
     required this.onApprove,
     required this.onReject,
+    this.leading,
+    this.media,
     this.extraActions = const <Widget>[],
   });
 
@@ -2286,6 +2494,8 @@ class _QueueItemCard extends StatelessWidget {
   final bool canModerate;
   final VoidCallback? onApprove;
   final VoidCallback? onReject;
+  final Widget? leading;
+  final Widget? media;
   final List<Widget> extraActions;
 
   @override
@@ -2301,15 +2511,30 @@ class _QueueItemCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (leading != null) ...[leading!, const SizedBox(width: 10)],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: Theme.of(context).textTheme.titleSmall),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: tokens.foregroundMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
+          if (media != null) ...[const SizedBox(height: 12), media!],
+          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Row(
             children: [
               Container(
@@ -2341,7 +2566,81 @@ class _QueueItemCard extends StatelessWidget {
   }
 }
 
-class _ContentModerationCard extends StatelessWidget {
+class _AvatarPair extends StatelessWidget {
+  const _AvatarPair({
+    required this.firstLabel,
+    required this.firstImageUrl,
+    required this.secondLabel,
+    required this.secondImageUrl,
+  });
+
+  final String firstLabel;
+  final String firstImageUrl;
+  final String secondLabel;
+  final String secondImageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 62,
+      height: 44,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 0,
+            top: 0,
+            child: RemoteAvatar(
+              label: firstLabel,
+              imageUrl: firstImageUrl,
+              radius: 20,
+            ),
+          ),
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Theme.of(context).sdal.panelRaised,
+                  width: 2,
+                ),
+              ),
+              child: RemoteAvatar(
+                label: secondLabel,
+                imageUrl: secondImageUrl,
+                radius: 20,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QueueMediaPreview extends StatelessWidget {
+  const _QueueMediaPreview({
+    required this.imageUrl,
+    required this.semanticLabel,
+  });
+
+  final String imageUrl;
+  final String semanticLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return SdalNetworkImage(
+      imageUrl: imageUrl,
+      height: 132,
+      width: double.infinity,
+      borderRadius: BorderRadius.circular(SdalThemeTokens.radiusMd),
+      semanticLabel: semanticLabel,
+    );
+  }
+}
+
+class _ContentModerationCard extends ConsumerWidget {
   const _ContentModerationCard({
     required this.postPreviewState,
     required this.commentPreviewState,
@@ -2359,7 +2658,8 @@ class _ContentModerationCard extends StatelessWidget {
   final void Function(String type, int id) onDelete;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final config = ref.watch(appConfigProvider);
     final items = <({String type, AdminModerationItem item, bool canDelete})>[
       ...postPreviewState.asData?.value.items.map(
             (item) => (type: 'post', item: item, canDelete: canDeletePosts),
@@ -2407,17 +2707,47 @@ class _ContentModerationCard extends StatelessWidget {
                         '${entry.item.typeLabel} · ${entry.item.authorName}',
                         style: Theme.of(context).textTheme.titleSmall,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        entry.item.authorHandle.isEmpty
-                            ? _workspaceTimestamp(context, entry.item.createdAt)
-                            : '@${entry.item.authorHandle} · ${_workspaceTimestamp(context, entry.item.createdAt)}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).sdal.foregroundMuted,
-                        ),
-                      ),
                       const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          RemoteAvatar(
+                            label: entry.item.authorName,
+                            imageUrl: config
+                                .resolveUrl(entry.item.authorAvatar)
+                                .toString(),
+                            radius: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              entry.item.authorHandle.isEmpty
+                                  ? _workspaceTimestamp(
+                                      context,
+                                      entry.item.createdAt,
+                                    )
+                                  : '@${entry.item.authorHandle} · ${_workspaceTimestamp(context, entry.item.createdAt)}',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).sdal.foregroundMuted,
+                                  ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
                       Text(entry.item.content),
+                      if (entry.item.imageUrl.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        _QueueMediaPreview(
+                          imageUrl: entry.item.imageUrl,
+                          semanticLabel:
+                              '${entry.item.typeLabel} içerik görseli',
+                        ),
+                      ],
                       if (entry.canDelete) ...[
                         const SizedBox(height: 12),
                         Align(

@@ -32,6 +32,21 @@ class AdminActionController extends Notifier<AsyncActionState> {
         case 'story':
           await _repository.deleteStory(id, reason: reason);
           break;
+        case 'group':
+          await _repository.deleteGroup(id, reason: reason);
+          break;
+        case 'album_photo':
+          await _repository.deleteAlbumPhoto(id);
+          break;
+        case 'chat_message':
+          await _repository.deleteChatMessage(id);
+          break;
+        case 'direct_message':
+          await _repository.deleteDirectMessage(id);
+          break;
+        case 'follow':
+          await _repository.deleteFollow(id);
+          break;
         default:
           throw StateError('Unsupported admin content type: $type');
       }
@@ -768,6 +783,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
     ref.invalidate(adminPostPreviewProvider);
     ref.invalidate(adminCommentPreviewProvider);
     ref.invalidate(adminStoryPreviewProvider);
+    ref.invalidate(adminAppModuleContentProvider);
     ref.invalidate(adminSummaryProvider);
     ref.invalidate(adminLiveProvider);
   }

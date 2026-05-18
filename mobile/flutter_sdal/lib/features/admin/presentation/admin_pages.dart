@@ -12,6 +12,7 @@ import '../../../core/session/session_controller.dart';
 import '../../../core/text/sdal_date_time.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 
@@ -1259,6 +1260,13 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                       children: [
                         for (final item in broadcasts.take(10))
                           _AdminPreviewLine(
+                            leading: item.imageUrl.isEmpty
+                                ? null
+                                : _BroadcastImagePreview(
+                                    imageShape: item.imageShape,
+                                    imageUrl: item.imageUrl,
+                                    size: 44,
+                                  ),
                             title: item.title.isEmpty
                                 ? item.body
                                 : '${item.senderLabel}: ${item.title}',
@@ -1680,6 +1688,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
               states: [userPreviewState],
               builder: () {
                 final users = userPreviewState.value!;
+                final config = ref.watch(appConfigProvider);
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1689,6 +1698,13 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                       children: [
                         for (final item in users.items)
                           _AdminPreviewLine(
+                            leading: RemoteAvatar(
+                              label: item.name,
+                              imageUrl: config
+                                  .resolveUrl(item.avatar)
+                                  .toString(),
+                              radius: 20,
+                            ),
                             title: item.handle.isNotEmpty
                                 ? '@${item.handle}'
                                 : item.name,
@@ -4687,6 +4703,20 @@ class _AdminUserDetailOverviewPage extends ConsumerWidget {
                       ),
                       _AdminDetailRow(label: 'Şehir', value: detail.city),
                       _AdminDetailRow(label: 'Website', value: detail.website),
+                      if (detail.avatar.trim().isNotEmpty &&
+                          detail.avatar.trim().toLowerCase() != 'yok') ...[
+                        SdalNetworkImage(
+                          imageUrl: detail.avatar,
+                          height: 180,
+                          width: double.infinity,
+                          borderRadius: BorderRadius.circular(
+                            SdalThemeTokens.radiusLg,
+                          ),
+                          semanticLabel:
+                              '${detail.firstName} ${detail.lastName} avatar',
+                        ),
+                        const SizedBox(height: 8),
+                      ],
                       _AdminDetailRow(label: 'Avatar', value: detail.avatar),
                     ],
                   ),
@@ -5359,6 +5389,7 @@ class _AdminPreviewLine extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.trailing,
+    this.leading,
     this.action,
     this.onTap,
   });
@@ -5366,6 +5397,7 @@ class _AdminPreviewLine extends StatelessWidget {
   final String title;
   final String subtitle;
   final String trailing;
+  final Widget? leading;
   final Widget? action;
   final VoidCallback? onTap;
 
@@ -5415,6 +5447,10 @@ class _AdminPreviewLine extends StatelessWidget {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (leading != null) ...[
+                        leading!,
+                        const SizedBox(width: 10),
+                      ],
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -5438,13 +5474,29 @@ class _AdminPreviewLine extends StatelessWidget {
                     ],
                   )
                 else ...[
-                  Text(title, style: theme.textTheme.titleSmall),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    maxLines: 4,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (leading != null) ...[
+                        leading!,
+                        const SizedBox(width: 10),
+                      ],
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(title, style: theme.textTheme.titleSmall),
+                            const SizedBox(height: 4),
+                            Text(
+                              subtitle,
+                              maxLines: 4,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodyMedium,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 10),
                   metaRow,

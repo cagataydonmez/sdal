@@ -42,7 +42,8 @@ export function registerAdminMobileRoutes(app, {
   normalizeRole,
   getModeratorPermissionSummary,
   writeAuditLog,
-  scheduleEngagementRecalculation
+  scheduleEngagementRecalculation,
+  readAdminStorageSnapshot
 }) {
   async function buildAccess(req) {
     const user = req.authUser || getCurrentUser(req);
@@ -156,6 +157,9 @@ export function registerAdminMobileRoutes(app, {
         counts,
         attention,
         modules: access.modules,
+        system: typeof readAdminStorageSnapshot === 'function'
+          ? readAdminStorageSnapshot()
+          : null,
         recentAudit: recentAudit.map((row) => ({
           id: Number(row.id || 0),
           actorUserId: Number(row.actor_user_id || 0),

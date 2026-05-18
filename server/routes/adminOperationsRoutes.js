@@ -72,6 +72,8 @@ export function registerAdminOperationsRoutes(app, deps) {
     const verifiedOnly = String(rawQuery.verified || '').trim() === '1';
     const onlineOnly = String(rawQuery.online || '').trim() === '1';
     const adminOnly = String(rawQuery.admin || '').trim() === '1';
+    const userId = Number(rawQuery.userId || rawQuery.user_id || 0);
+    const cohort = String(rawQuery.cohort || rawQuery.graduationYear || '').trim();
     const minScoreRaw = String(rawQuery.minScore ?? rawQuery.min_score ?? '').trim();
     const maxScoreRaw = String(rawQuery.maxScore ?? rawQuery.max_score ?? '').trim();
     const minScore = minScoreRaw === '' ? NaN : Number(minScoreRaw);
@@ -96,6 +98,14 @@ export function registerAdminOperationsRoutes(app, deps) {
     if (q) {
       whereParts.push('(LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.isim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.soyisim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.email AS TEXT)) LIKE LOWER(?))');
       params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+    }
+    if (userId) {
+      whereParts.push('u.id = ?');
+      params.push(userId);
+    }
+    if (cohort) {
+      whereParts.push("CAST(COALESCE(u.mezuniyetyili, '') AS TEXT) = ?");
+      params.push(cohort);
     }
     if (withPhoto) {
       whereParts.push("u.resim IS NOT NULL AND TRIM(CAST(u.resim AS TEXT)) != '' AND LOWER(TRIM(CAST(u.resim AS TEXT))) != 'yok'");
@@ -1028,14 +1038,30 @@ export function registerAdminOperationsRoutes(app, deps) {
       const krt = String(req.query.krt || '');
       const kid = String(req.query.kid || '');
       const diz = String(req.query.diz || '');
-      let where = '';
+      const q = String(req.query.q || '').trim();
+      const userId = Number(req.query.userId || req.query.user_id || 0);
+      const cohort = String(req.query.cohort || req.query.graduationYear || '').trim();
+      const whereParts = [];
       let params = [];
       if (krt === 'onaybekleyen') {
-        where = `WHERE ${albumInactivePredicate}`;
+        whereParts.push(albumInactivePredicate);
       } else if (krt === 'kategori' && kid) {
-        where = 'WHERE katid = ?';
-        params = [kid];
+        whereParts.push('f.katid = ?');
+        params.push(kid);
       }
+      if (userId) {
+        whereParts.push('CAST(f.ekleyenid AS INTEGER) = CAST(? AS INTEGER)');
+        params.push(userId);
+      }
+      if (cohort) {
+        whereParts.push("CAST(COALESCE(u.mezuniyetyili, '') AS TEXT) = ?");
+        params.push(cohort);
+      }
+      if (q) {
+        whereParts.push('(LOWER(CAST(f.baslik AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(f.aciklama AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?))');
+        params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+      }
+      const where = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
       const orderMap = {
         baslikartan: 'baslik',
         baslikazalan: 'baslik DESC',
@@ -1051,13 +1077,21 @@ export function registerAdminOperationsRoutes(app, deps) {
         hitazalan: 'hit DESC'
       };
       const orderBy = orderMap[diz] || 'aktif DESC';
-      const photos = await sqlAllAsync(`SELECT * FROM album_foto ${where} ORDER BY ${orderBy}`, params);
+      const photos = await sqlAllAsync(
+        `SELECT f.*, u.kadi AS uploader_kadi, u.isim AS uploader_isim, u.soyisim AS uploader_soyisim,
+                u.resim AS uploader_resim, u.mezuniyetyili AS uploader_mezuniyetyili
+         FROM album_foto f
+         LEFT JOIN uyeler u ON CAST(u.id AS INTEGER) = CAST(f.ekleyenid AS INTEGER)
+         ${where}
+         ORDER BY f.${orderBy}`,
+        params
+      );
       const categories = await sqlAllAsync('SELECT * FROM album_kat');
       const uploaderIds = Array.from(new Set(photos.map((photo) => Number(photo.ekleyenid || 0)).filter((id) => Number.isInteger(id) && id > 0)));
       const photoIds = Array.from(new Set(photos.map((photo) => Number(photo.id || 0)).filter((id) => Number.isInteger(id) && id > 0)));
       const uploaderRows = uploaderIds.length
         ? await sqlAllAsync(
-          `SELECT id, kadi
+          `SELECT id, kadi, isim, soyisim, resim, mezuniyetyili
            FROM uyeler
            WHERE id IN (${uploaderIds.map(() => '?').join(',')})`,
           uploaderIds
