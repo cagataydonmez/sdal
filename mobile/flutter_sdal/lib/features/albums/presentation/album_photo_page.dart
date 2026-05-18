@@ -11,6 +11,7 @@ import '../../../app/providers.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/routing/route_refresh_coordinator.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/text/sdal_date_time.dart';
 import '../../../core/widgets/empty_state_view.dart';
@@ -68,6 +69,11 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
     final submittingComment =
         actionState.isLoading &&
         actionState.scope == 'albums:comment:${widget.photoId}';
+    ref.listen<RouteRefreshSignal?>(routeRefreshSignalProvider, (_, next) {
+      if (next?.matches('/albums/photo/${widget.photoId}') ?? false) {
+        _load(silent: true);
+      }
+    });
 
     return FeatureScaffold(
       title: _photo?.title ?? 'Fotoğraf',
@@ -340,9 +346,9 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
     );
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool silent = false}) async {
     setState(() {
-      _isLoading = true;
+      _isLoading = !silent || _photo == null;
       _error = '';
     });
     try {

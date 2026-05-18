@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../features/messenger/data/messenger_repository.dart';
+import '../../features/notifications/data/notifications_repository.dart';
 import '../l10n/context_l10n.dart';
 import '../shell/shell_metadata_repository.dart';
 import '../session/session_controller.dart';
@@ -40,8 +42,11 @@ class FeatureScaffold extends ConsumerWidget {
     final location = _resolveCurrentLocation(context);
     final canPop = Navigator.of(context).canPop();
     final isAdminSurface = _isAdminSurface(location);
+    final isAdminRoot = location == '/admin' || location == '/moderation';
     final showAdminBack = isAdminSurface && session?.user != null;
-    final fallbackBackLocation = session?.defaultHomePath ?? '/feed';
+    final fallbackBackLocation = showAdminBack && !isAdminRoot
+        ? (location.startsWith('/moderation') ? '/moderation' : '/admin')
+        : (session?.defaultHomePath ?? '/feed');
     _FeatureRouteHistory.record(location);
     final resolvedActions = <Widget>[
       ...?actions,
@@ -55,7 +60,7 @@ class FeatureScaffold extends ConsumerWidget {
     ];
 
     return PopScope<Object?>(
-      canPop: !showAdminBack || canPop,
+      canPop: !showAdminBack || (!isAdminRoot && canPop),
       onPopInvokedWithResult: (didPop, result) {
         if (!showAdminBack) return;
         if (didPop) {
@@ -120,8 +125,15 @@ class FeatureScaffold extends ConsumerWidget {
           actions: resolvedActions,
         ),
         floatingActionButton: floatingActionButton,
-        body: _AdminBackSwipeRegion(
-          enabled: showAdminBack,
+        bottomNavigationBar: showAdminBack
+            ? _AdminSurfaceNavigationBar(
+                session: session!,
+                currentLocation: location,
+                shellMenu: shellMenu,
+              )
+            : null,
+        body: _BackSwipeRegion(
+          enabled: canPop || showAdminBack,
           onBack: () => _goBack(
             context,
             currentLocation: location,
@@ -179,6 +191,11 @@ class FeatureScaffold extends ConsumerWidget {
     required String currentLocation,
     required String fallbackLocation,
   }) {
+    if (currentLocation == '/admin' || currentLocation == '/moderation') {
+      _FeatureRouteHistory.remove(currentLocation);
+      context.go(fallbackLocation);
+      return;
+    }
     final navigator = Navigator.of(context);
     if (navigator.canPop()) {
       _FeatureRouteHistory.remove(currentLocation);
@@ -224,8 +241,8 @@ class _FeatureRouteHistory {
   }
 }
 
-class _AdminBackSwipeRegion extends StatefulWidget {
-  const _AdminBackSwipeRegion({
+class _BackSwipeRegion extends StatefulWidget {
+  const _BackSwipeRegion({
     required this.enabled,
     required this.onBack,
     required this.child,
@@ -236,11 +253,16 @@ class _AdminBackSwipeRegion extends StatefulWidget {
   final Widget child;
 
   @override
-  State<_AdminBackSwipeRegion> createState() => _AdminBackSwipeRegionState();
+  State<_BackSwipeRegion> createState() => _BackSwipeRegionState();
 }
 
-class _AdminBackSwipeRegionState extends State<_AdminBackSwipeRegion> {
+class _BackSwipeRegionState extends State<_BackSwipeRegion> {
+  static const _edgeWidth = 44.0;
+  static const _distanceThreshold = 72.0;
+  static const _velocityThreshold = 520.0;
+
   double? _dragStartX;
+  double _dragDistance = 0;
   bool _handledDrag = false;
 
   @override
@@ -250,26 +272,163 @@ class _AdminBackSwipeRegionState extends State<_AdminBackSwipeRegion> {
       behavior: HitTestBehavior.translucent,
       onHorizontalDragStart: (details) {
         _dragStartX = details.globalPosition.dx;
+        _dragDistance = 0;
         _handledDrag = false;
       },
       onHorizontalDragUpdate: (details) {
         final startX = _dragStartX;
-        if (_handledDrag || startX == null || startX > 32) return;
-        if (details.primaryDelta != null && details.primaryDelta! > 18) {
+        if (_handledDrag || startX == null || startX > _edgeWidth) return;
+        _dragDistance += details.primaryDelta ?? 0;
+        if (_dragDistance > _distanceThreshold) {
           _handledDrag = true;
           widget.onBack();
         }
       },
       onHorizontalDragEnd: (details) {
         final startX = _dragStartX;
-        if (_handledDrag || startX == null || startX > 32) return;
+        if (_handledDrag || startX == null || startX > _edgeWidth) return;
         final velocity = details.primaryVelocity ?? 0;
-        if (velocity > 450) {
+        if (velocity > _velocityThreshold ||
+            _dragDistance > _distanceThreshold) {
           _handledDrag = true;
           widget.onBack();
         }
       },
       child: widget.child,
+    );
+  }
+}
+
+class _AdminSurfaceNavigationBar extends ConsumerWidget {
+  const _AdminSurfaceNavigationBar({
+    required this.session,
+    required this.currentLocation,
+    required this.shellMenu,
+  });
+
+  final SessionSnapshot session;
+  final String currentLocation;
+  final ShellMenuSnapshot? shellMenu;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final unreadMessages = ref.watch(messengerUnreadCountProvider).value ?? 0;
+    final localUnreadNotifications =
+        ref.watch(notificationUnreadCountProvider).value ?? 0;
+    final unreadNotifications =
+        localUnreadNotifications >
+            (shellMenu?.badgeForRoute('/notifications') ?? 0)
+        ? localUnreadNotifications
+        : (shellMenu?.badgeForRoute('/notifications') ?? 0);
+    final adminRoute = session.managementEntryPath;
+    final destinations = <({String route, NavigationDestination destination})>[
+      (
+        route: '/feed',
+        destination: NavigationDestination(
+          icon: const Icon(Icons.dynamic_feed_outlined),
+          selectedIcon: const Icon(Icons.dynamic_feed),
+          label: l10n.tabFeed,
+        ),
+      ),
+      (
+        route: '/explore',
+        destination: NavigationDestination(
+          icon: const Icon(Icons.explore_outlined),
+          selectedIcon: const Icon(Icons.explore),
+          label: l10n.tabExplore,
+        ),
+      ),
+      (
+        route: '/messenger',
+        destination: NavigationDestination(
+          icon: _AdminNavBadgeIcon(
+            icon: Icons.chat_bubble_outline,
+            count: unreadMessages,
+            unreadSemanticLabel: l10n.messagesUnreadCount(unreadMessages),
+          ),
+          selectedIcon: _AdminNavBadgeIcon(
+            icon: Icons.chat_bubble,
+            count: unreadMessages,
+            unreadSemanticLabel: l10n.messagesUnreadCount(unreadMessages),
+          ),
+          label: l10n.messagesTitle,
+        ),
+      ),
+      (
+        route: '/notifications',
+        destination: NavigationDestination(
+          icon: _AdminNavBadgeIcon(
+            icon: Icons.notifications_outlined,
+            count: unreadNotifications,
+            unreadSemanticLabel: l10n.notificationsUnreadCount(
+              unreadNotifications,
+            ),
+          ),
+          selectedIcon: _AdminNavBadgeIcon(
+            icon: Icons.notifications,
+            count: unreadNotifications,
+            unreadSemanticLabel: l10n.notificationsUnreadCount(
+              unreadNotifications,
+            ),
+          ),
+          label: l10n.tabNotifications,
+        ),
+      ),
+      (
+        route: '/profile',
+        destination: NavigationDestination(
+          icon: const Icon(Icons.person_outline),
+          selectedIcon: const Icon(Icons.person),
+          label: l10n.tabProfile,
+        ),
+      ),
+      (
+        route: adminRoute,
+        destination: NavigationDestination(
+          icon: const Icon(Icons.admin_panel_settings_outlined),
+          selectedIcon: const Icon(Icons.admin_panel_settings),
+          label: l10n.adminPanelTitle,
+        ),
+      ),
+    ];
+    final selectedIndex = destinations.indexWhere(
+      (item) =>
+          currentLocation == item.route ||
+          currentLocation.startsWith('${item.route}/') ||
+          (item.route == adminRoute &&
+              (currentLocation.startsWith('/admin') ||
+                  currentLocation.startsWith('/moderation'))),
+    );
+
+    return NavigationBar(
+      selectedIndex: selectedIndex < 0
+          ? destinations.length - 1
+          : selectedIndex,
+      onDestinationSelected: (index) => context.go(destinations[index].route),
+      destinations: [for (final item in destinations) item.destination],
+    );
+  }
+}
+
+class _AdminNavBadgeIcon extends StatelessWidget {
+  const _AdminNavBadgeIcon({
+    required this.icon,
+    required this.count,
+    required this.unreadSemanticLabel,
+  });
+
+  final IconData icon;
+  final int count;
+  final String unreadSemanticLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Icon(icon);
+    if (count <= 0) return child;
+    return Semantics(
+      label: unreadSemanticLabel,
+      child: Badge(label: Text(count > 99 ? '99+' : '$count'), child: child),
     );
   }
 }

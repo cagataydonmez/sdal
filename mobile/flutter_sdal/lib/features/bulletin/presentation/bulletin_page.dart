@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart';
+import '../../../core/routing/route_refresh_coordinator.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/text/sdal_date_time.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
@@ -55,6 +56,12 @@ class _BulletinPageState extends ConsumerState<BulletinPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<RouteRefreshSignal?>(routeRefreshSignalProvider, (_, next) {
+      if (next?.matches('/panolar') ?? false) {
+        _load(reset: true, silent: true);
+      }
+    });
+
     return FeatureScaffold(
       title: 'Panolar',
       actions: [
@@ -170,13 +177,13 @@ class _BulletinPageState extends ConsumerState<BulletinPage> {
     );
   }
 
-  Future<void> _load({required bool reset}) async {
+  Future<void> _load({required bool reset, bool silent = false}) async {
     if (_isLoadingMore) return;
     setState(() {
       if (reset) {
-        _isLoadingInitial = true;
+        _isLoadingInitial = !silent || _items.isEmpty;
         _page = 1;
-        _items.clear();
+        if (!silent || _items.isEmpty) _items.clear();
         _hasMore = true;
       } else {
         _isLoadingMore = true;

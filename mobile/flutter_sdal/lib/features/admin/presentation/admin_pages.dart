@@ -5165,7 +5165,7 @@ class _AdminSectionCard extends StatelessWidget {
       padding: EdgeInsets.zero,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => context.push('/admin/${section.key}'),
+        onTap: () => context.go('/admin/${section.key}'),
         child: Padding(
           padding: const EdgeInsets.all(18),
           child: Row(

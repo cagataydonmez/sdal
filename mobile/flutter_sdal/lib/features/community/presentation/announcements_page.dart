@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/media/pick_cropped_image.dart';
+import '../../../core/routing/route_refresh_coordinator.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/text/sdal_date_time.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
@@ -63,6 +64,11 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
     final otherItems = sortedItems.length > 1
         ? sortedItems.skip(1).toList()
         : <AnnouncementItem>[];
+    ref.listen<RouteRefreshSignal?>(routeRefreshSignalProvider, (_, next) {
+      if (next?.matches('/announcements') ?? false) {
+        _load(reset: true, silent: true);
+      }
+    });
 
     return FeatureScaffold(
       title: l10n.announcementsTitle,
@@ -433,10 +439,10 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
     if (ok) _load(reset: true);
   }
 
-  Future<void> _load({required bool reset}) async {
+  Future<void> _load({required bool reset, bool silent = false}) async {
     if (reset) {
       setState(() {
-        _isLoadingInitial = true;
+        _isLoadingInitial = !silent || (_items.isEmpty && _draftItems.isEmpty);
         _hasMore = true;
         _error = '';
       });

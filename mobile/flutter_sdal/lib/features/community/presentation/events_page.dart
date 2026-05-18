@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/media/pick_cropped_image.dart';
+import '../../../core/routing/route_refresh_coordinator.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/text/sdal_date_time.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
@@ -64,6 +65,11 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     final otherItems = sortedItems.length > 1
         ? sortedItems.skip(1).toList()
         : <EventItem>[];
+    ref.listen<RouteRefreshSignal?>(routeRefreshSignalProvider, (_, next) {
+      if (next?.matches('/events') ?? false) {
+        _load(reset: true, silent: true);
+      }
+    });
 
     return FeatureScaffold(
       title: l10n.eventsTitle,
@@ -475,10 +481,10 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     if (ok) _load(reset: true);
   }
 
-  Future<void> _load({required bool reset}) async {
+  Future<void> _load({required bool reset, bool silent = false}) async {
     if (reset) {
       setState(() {
-        _isLoadingInitial = true;
+        _isLoadingInitial = !silent || (_items.isEmpty && _draftItems.isEmpty);
         _hasMore = true;
         _error = '';
       });

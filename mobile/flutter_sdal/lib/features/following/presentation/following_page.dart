@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
+import '../../../core/routing/route_refresh_coordinator.dart';
 import '../../../core/text/sdal_date_time.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/empty_state_view.dart';
@@ -54,6 +55,11 @@ class _FollowingPageState extends ConsumerState<FollowingPage> {
     final messengerState = ref.watch(messengerActionControllerProvider);
     final config = ref.watch(appConfigProvider);
     final tokens = Theme.of(context).sdal;
+    ref.listen<RouteRefreshSignal?>(routeRefreshSignalProvider, (_, next) {
+      if (next?.matches('/following') ?? false) {
+        _load(reset: true, silent: true);
+      }
+    });
 
     return FeatureScaffold(
       title: 'Takip Ettiklerim',
@@ -242,10 +248,10 @@ class _FollowingPageState extends ConsumerState<FollowingPage> {
     );
   }
 
-  Future<void> _load({required bool reset}) async {
+  Future<void> _load({required bool reset, bool silent = false}) async {
     if (reset) {
       setState(() {
-        _isLoadingInitial = true;
+        _isLoadingInitial = !silent || _items.isEmpty;
         _error = '';
         _hasMore = true;
       });

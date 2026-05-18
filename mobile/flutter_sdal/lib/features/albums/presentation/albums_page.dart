@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/config/app_config.dart';
+import '../../../core/routing/route_refresh_coordinator.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/page_onboarding_card.dart';
 import '../../../core/widgets/sdal_network_image.dart';
@@ -30,6 +31,12 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<RouteRefreshSignal?>(routeRefreshSignalProvider, (_, next) {
+      if (next?.matches('/albums') ?? false) {
+        _load(silent: true);
+      }
+    });
+
     return FeatureScaffold(
       title: 'Albümler',
       background: FeatureScaffoldBackground.immersive,
@@ -142,9 +149,9 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     );
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool silent = false}) async {
     setState(() {
-      _isLoading = true;
+      _isLoading = !silent || _dashboard == null;
       _error = '';
     });
     try {

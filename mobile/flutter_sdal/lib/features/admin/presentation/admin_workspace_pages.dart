@@ -15,6 +15,14 @@ import 'widgets/admin_mobile_widgets.dart';
 String _workspaceTimestamp(BuildContext context, String raw) =>
     raw.isEmpty ? '' : formatSdalTimestamp(context, raw);
 
+void _openWorkspaceRoute(BuildContext context, String path) {
+  if (path.startsWith('/admin') || path.startsWith('/moderation')) {
+    context.go(path);
+    return;
+  }
+  context.push(path);
+}
+
 class AdminWorkspacePage extends ConsumerWidget {
   const AdminWorkspacePage({super.key});
 
@@ -229,7 +237,7 @@ class _AdminCommandCenterBody extends StatelessWidget {
                 label: item.label,
                 count: item.count,
                 tone: adminToneFromString(item.tone),
-                onTap: () => context.push(item.path),
+                onTap: () => _openWorkspaceRoute(context, item.path),
               ),
             ),
         const _SectionLabel('Görev alanları'),
@@ -242,7 +250,7 @@ class _AdminCommandCenterBody extends StatelessWidget {
               icon: _moduleIcon(module.key),
               badge: _moduleBadge(module.key, counts),
               tone: _moduleTone(module.key),
-              onTap: () => context.push(module.path),
+              onTap: () => _openWorkspaceRoute(context, module.path),
             ),
           ),
         if (isRootAdmin) ...[
@@ -253,7 +261,7 @@ class _AdminCommandCenterBody extends StatelessWidget {
                 'Üye aktivite izleme ve yalnızca root yetkisine açık işlemler.',
             icon: Icons.shield_outlined,
             tone: AdminTone.accent,
-            onTap: () => context.push('/admin/root'),
+            onTap: () => _openWorkspaceRoute(context, '/admin/root'),
           ),
           const SizedBox(height: 10),
           AdminSectionCard(
@@ -261,7 +269,8 @@ class _AdminCommandCenterBody extends StatelessWidget {
             subtitle: 'Rol ve özel izin setlerini düzenle.',
             icon: Icons.admin_panel_settings_outlined,
             tone: AdminTone.accent,
-            onTap: () => context.push('/admin/permission-groups'),
+            onTap: () =>
+                _openWorkspaceRoute(context, '/admin/permission-groups'),
           ),
           const SizedBox(height: 10),
           AdminSectionCard(
@@ -270,7 +279,7 @@ class _AdminCommandCenterBody extends StatelessWidget {
                 'Yüksek riskli sıfırlama akışı, ayrı doğrulama gerektirir.',
             icon: Icons.delete_forever_outlined,
             tone: AdminTone.danger,
-            onTap: () => context.push('/admin/factory-reset'),
+            onTap: () => _openWorkspaceRoute(context, '/admin/factory-reset'),
           ),
         ],
         if (summary.recentAudit.isNotEmpty) ...[
@@ -286,7 +295,8 @@ class _AdminCommandCenterBody extends StatelessWidget {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: OutlinedButton.icon(
-                    onPressed: () => context.push('/admin/audit'),
+                    onPressed: () =>
+                        _openWorkspaceRoute(context, '/admin/audit'),
                     icon: const Icon(Icons.receipt_long_outlined),
                     label: const Text('Denetim kaydını aç'),
                   ),
@@ -719,7 +729,8 @@ class ModeratorWorkspacePage extends ConsumerWidget {
                         countLabel: '$requestTotal bekleyen kayıt',
                         icon: Icons.assignment_turned_in_outlined,
                         tone: _WorkspaceTone.success,
-                        onTap: () => context.push('/admin/requests'),
+                        onTap: () =>
+                            _openWorkspaceRoute(context, '/admin/requests'),
                       ),
                     if (canReviewVerification)
                       _WorkspaceNavCard(
@@ -729,7 +740,8 @@ class ModeratorWorkspacePage extends ConsumerWidget {
                         countLabel: '$verificationTotal bekleyen kayıt',
                         icon: Icons.badge_outlined,
                         tone: _WorkspaceTone.info,
-                        onTap: () => context.push('/admin/requests'),
+                        onTap: () =>
+                            _openWorkspaceRoute(context, '/admin/requests'),
                       ),
                     if (canReviewRequests)
                       _WorkspaceNavCard(
@@ -740,7 +752,10 @@ class ModeratorWorkspacePage extends ConsumerWidget {
                             '$teacherNetworkLinkTotal bekleyen bağlantı',
                         icon: Icons.school_outlined,
                         tone: _WorkspaceTone.info,
-                        onTap: () => context.push('/admin/teacher-network'),
+                        onTap: () => _openWorkspaceRoute(
+                          context,
+                          '/admin/teacher-network',
+                        ),
                       ),
                     if (user.hasAdminAccess)
                       _WorkspaceNavCard(
@@ -750,7 +765,10 @@ class ModeratorWorkspacePage extends ConsumerWidget {
                         countLabel: 'Hesap listesi',
                         icon: Icons.manage_accounts_outlined,
                         tone: _WorkspaceTone.accent,
-                        onTap: () => context.push('/admin/teacher-accounts'),
+                        onTap: () => _openWorkspaceRoute(
+                          context,
+                          '/admin/teacher-accounts',
+                        ),
                       ),
                     if (contentTotal > 0)
                       _WorkspaceNavCard(
@@ -760,7 +778,8 @@ class ModeratorWorkspacePage extends ConsumerWidget {
                         countLabel: '$contentTotal kayıt sırada',
                         icon: Icons.shield_outlined,
                         tone: _WorkspaceTone.warning,
-                        onTap: () => context.push('/admin/content'),
+                        onTap: () =>
+                            _openWorkspaceRoute(context, '/admin/content'),
                       ),
                   ],
                 ),

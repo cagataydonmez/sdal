@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/config/app_config.dart';
+import '../../../core/routing/route_refresh_coordinator.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -33,6 +34,11 @@ class _AlbumCategoryPageState extends ConsumerState<AlbumCategoryPage> {
   @override
   Widget build(BuildContext context) {
     final config = ref.watch(appConfigProvider);
+    ref.listen<RouteRefreshSignal?>(routeRefreshSignalProvider, (_, next) {
+      if (next?.matches('/albums/${widget.categoryId}') ?? false) {
+        _load(reset: true, silent: true);
+      }
+    });
     ref.listen<int>(albumPhotoEditCounterProvider, (_, _) {
       _load(reset: true);
     });
@@ -269,10 +275,10 @@ class _AlbumCategoryPageState extends ConsumerState<AlbumCategoryPage> {
     );
   }
 
-  Future<void> _load({required bool reset}) async {
+  Future<void> _load({required bool reset, bool silent = false}) async {
     if (reset) {
       setState(() {
-        _isLoading = true;
+        _isLoading = !silent || _detail == null;
         _error = '';
       });
     } else {

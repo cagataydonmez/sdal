@@ -7,6 +7,7 @@ import '../../features/messenger/data/messenger_repository.dart';
 import '../../features/notifications/data/notifications_repository.dart';
 import '../l10n/context_l10n.dart';
 import '../onboarding/account_setup_progress_store.dart';
+import '../routing/route_refresh_coordinator.dart';
 import '../session/session_controller.dart';
 import '../session/session_models.dart';
 import '../shell/shell_metadata_repository.dart';
@@ -66,6 +67,7 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
   static const _swipeDistanceThreshold = 96.0;
   static const _swipeVelocityThreshold = 450.0;
   int _lastIndex = -1;
+  String _lastVisibleLocation = '';
   double _horizontalDragDistance = 0;
 
   void _onTap(int index) {
@@ -118,11 +120,11 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
     }
   }
 
-  String _currentLocation(BuildContext context) {
+  Uri _currentUri(BuildContext context) {
     try {
-      return GoRouterState.of(context).uri.path;
+      return GoRouterState.of(context).uri;
     } catch (_) {
-      return _tabRootPaths[widget.navigationShell.currentIndex];
+      return Uri(path: _tabRootPaths[widget.navigationShell.currentIndex]);
     }
   }
 
@@ -185,7 +187,15 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
         ref.watch(notificationUnreadCountProvider).value ?? 0;
     final shellMenu = ref.watch(shellMenuProvider).value;
     final session = ref.watch(sessionControllerProvider).value;
-    final location = _currentLocation(context);
+    final currentUri = _currentUri(context);
+    final location = currentUri.path;
+    if (_lastVisibleLocation != currentUri.toString()) {
+      _lastVisibleLocation = currentUri.toString();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        scheduleRouteSilentRefresh(ref, currentUri);
+      });
+    }
     final userId = session?.user?.id ?? 0;
     final verificationRequestSubmitted = userId > 0
         ? ref.watch(verificationRequestSubmittedProvider(userId)).value ?? false
@@ -448,10 +458,9 @@ class _AccountSetupBanner extends StatelessWidget {
     return SafeArea(
       bottom: false,
       child: Material(
-        color: (requiresProfileCompletion
-                ? tokens.warningMuted
-                : tokens.infoMuted)
-            .withValues(alpha: 0.92),
+        color:
+            (requiresProfileCompletion ? tokens.warningMuted : tokens.infoMuted)
+                .withValues(alpha: 0.92),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
           child: LayoutBuilder(

@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/media/pick_cropped_image.dart';
+import '../../../core/routing/route_refresh_coordinator.dart';
 import '../../../core/state/async_action_state.dart';
 import '../../../core/text/sdal_date_time.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
@@ -61,6 +62,11 @@ class _JobsPageState extends ConsumerState<JobsPage> {
     final userId = session?.user?.id ?? 0;
     final actionState = ref.watch(jobsActionControllerProvider);
     final sortedItems = _getSortedItems();
+    ref.listen<RouteRefreshSignal?>(routeRefreshSignalProvider, (_, next) {
+      if (next?.matches('/jobs') ?? false) {
+        _load(silent: true);
+      }
+    });
 
     return FeatureScaffold(
       title: l10n.jobsTitle,
@@ -490,9 +496,9 @@ class _JobsPageState extends ConsumerState<JobsPage> {
     if (ok) _load();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool silent = false}) async {
     setState(() {
-      _isLoading = true;
+      _isLoading = !silent || (_items.isEmpty && _draftItems.isEmpty);
       _error = '';
     });
     try {

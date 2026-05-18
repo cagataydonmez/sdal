@@ -48,6 +48,7 @@ import '../../features/requests/presentation/requests_page.dart';
 import '../../features/requests/presentation/module_access_request_page.dart';
 import '../../features/stories/presentation/expired_stories_page.dart';
 import '../../l10n/generated/app_localizations.dart';
+import 'route_refresh_coordinator.dart';
 import '../session/session_controller.dart';
 import '../session/session_models.dart';
 import '../widgets/app_tab_shell.dart';
@@ -866,7 +867,7 @@ const _kDuration = Duration(milliseconds: 280);
 const _kTabDuration = Duration(milliseconds: 220);
 
 Page<void> _tabPage(Widget child) => CustomTransitionPage<void>(
-  child: child,
+  child: RouteSilentRefresh(child: child),
   transitionDuration: _kTabDuration,
   reverseTransitionDuration: _kTabDuration,
   transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -886,9 +887,9 @@ Page<void> _tabPage(Widget child) => CustomTransitionPage<void>(
 
 /// Slide from right + fade. Use for list / feature pages pushed from the tab shell.
 Page<void> _slidePage(Widget child) => _isCupertinoNavigationPlatform
-    ? CupertinoPage<void>(child: child)
+    ? CupertinoPage<void>(child: RouteSilentRefresh(child: child))
     : CustomTransitionPage<void>(
-        child: child,
+        child: RouteSilentRefresh(child: child),
         transitionDuration: _kDuration,
         reverseTransitionDuration: _kDuration,
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -902,9 +903,9 @@ Page<void> _slidePage(Widget child) => _isCupertinoNavigationPlatform
 
 /// Lift from below + fade. Use for detail pages opened from a list item.
 Page<void> _liftPage(Widget child) => _isCupertinoNavigationPlatform
-    ? CupertinoPage<void>(child: child)
+    ? CupertinoPage<void>(child: RouteSilentRefresh(child: child))
     : CustomTransitionPage<void>(
-        child: child,
+        child: RouteSilentRefresh(child: child),
         transitionDuration: _kDuration,
         reverseTransitionDuration: _kDuration,
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -918,7 +919,7 @@ Page<void> _liftPage(Widget child) => _isCupertinoNavigationPlatform
 
 /// Cross-fade. Use for full-screen takeovers (auth, status screens).
 Page<void> _fadePage(Widget child) => CustomTransitionPage<void>(
-  child: child,
+  child: RouteSilentRefresh(child: child),
   transitionDuration: _kDuration,
   transitionsBuilder: (context, animation, secondaryAnimation, child) =>
       FadeTransition(
@@ -940,7 +941,7 @@ Widget _buildPushPopTransition({
   final isPopping = animation.status == AnimationStatus.reverse;
   final position = Tween<Offset>(
     begin: isPopping ? Offset.zero : enterOffset,
-    end: isPopping ? const Offset(0.08, 0) : Offset.zero,
+    end: isPopping ? const Offset(1, 0) : Offset.zero,
   ).animate(curved);
 
   final transitioningChild = SlideTransition(position: position, child: child);
