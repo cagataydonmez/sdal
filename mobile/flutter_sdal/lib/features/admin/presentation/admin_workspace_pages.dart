@@ -272,6 +272,16 @@ class _AdminCommandCenterBody extends StatelessWidget {
               onTap: () => _openWorkspaceRoute(context, module.path),
             ),
           ),
+        const _SectionLabel('Modül yönetim paneli'),
+        AdminSectionCard(
+          title: 'Uygulama modülleri',
+          subtitle:
+              'Akış, ağ, takip, mesajlar ve diğer modüllerin canlı yönetim sayfaları.',
+          icon: Icons.dashboard_customize_outlined,
+          tone: AdminTone.info,
+          onTap: () => _openWorkspaceRoute(context, '/admin/modules'),
+        ),
+        const SizedBox(height: 10),
         if (isRootAdmin) ...[
           const _SectionLabel('Root araçları'),
           AdminSectionCard(
