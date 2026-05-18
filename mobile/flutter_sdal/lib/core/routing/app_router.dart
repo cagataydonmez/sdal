@@ -17,6 +17,8 @@ import '../../features/admin/presentation/admin_pages.dart';
 import '../../features/admin/presentation/admin_app_module_pages.dart';
 import '../../features/admin/presentation/admin_root_pages.dart';
 import '../../features/admin/presentation/admin_workspace_pages.dart';
+import '../../presentation/admin/admin_panel_entry.dart';
+import '../../presentation/admin/core/admin_theme.dart';
 import '../../features/bulletin/presentation/bulletin_page.dart';
 import '../../features/explore/presentation/explore_page.dart';
 import '../../features/explore/presentation/member_detail_page.dart';
@@ -651,13 +653,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/admin',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
-            _adminPanelPage(const AdminWorkspacePage(), root: true),
+            _adminPanelPage(const SdalAdaptiveAdminPanel(), root: true),
       ),
       GoRoute(
         path: '/moderation',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) =>
-            _adminPanelPage(const ModeratorWorkspacePage(), root: true),
+        pageBuilder: (context, state) => _adminPanelPage(
+          const SdalAdaptiveAdminPanel(initialModule: AdminModuleId.moderation),
+          root: true,
+        ),
       ),
       GoRoute(
         path: '/admin/modules',
