@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'core/adaptive_admin_scaffold.dart';
 import 'core/admin_theme.dart';
@@ -29,11 +30,15 @@ class SdalAdaptiveAdminPanel extends ConsumerStatefulWidget {
 class _SdalAdaptiveAdminPanelState
     extends ConsumerState<SdalAdaptiveAdminPanel> {
   late AdminModuleId _selectedModule;
+  late final PageController _pageController;
 
   @override
   void initState() {
     super.initState();
     _selectedModule = widget.initialModule;
+    _pageController = PageController(
+      initialPage: _moduleIndex(widget.initialModule),
+    );
   }
 
   @override
@@ -41,12 +46,20 @@ class _SdalAdaptiveAdminPanelState
     super.didUpdateWidget(oldWidget);
     if (oldWidget.initialModule != widget.initialModule) {
       _selectedModule = widget.initialModule;
+      _pageController.jumpToPage(_moduleIndex(widget.initialModule));
     }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final mobile = MediaQuery.sizeOf(context).width < 600;
     return Theme(
       data: theme.copyWith(
         extensions: [
@@ -64,18 +77,60 @@ class _SdalAdaptiveAdminPanelState
       ),
       child: AdaptiveAdminScaffold(
         selectedModule: _selectedModule,
-        onModuleSelected: (module) => setState(() => _selectedModule = module),
+        onModuleSelected: _selectModule,
+        onExit: _exitAdminPanel,
         actions: [
           IconButton(
             tooltip: 'Güvenlik durumu',
-            onPressed: () =>
-                setState(() => _selectedModule = AdminModuleId.securityConfig),
+            onPressed: () => _selectModule(AdminModuleId.securityConfig),
             icon: const Icon(Icons.security_outlined),
           ),
         ],
-        body: _AdminModuleHost(module: _selectedModule),
+        body: PageView(
+          controller: _pageController,
+          physics: mobile
+              ? const PageScrollPhysics()
+              : const NeverScrollableScrollPhysics(),
+          onPageChanged: (index) {
+            final module = adminDestinations[index].id;
+            if (module != _selectedModule) {
+              setState(() => _selectedModule = module);
+            }
+          },
+          children: [
+            for (final destination in adminDestinations)
+              _AdminModuleHost(module: destination.id),
+          ],
+        ),
       ),
     );
+  }
+
+  void _selectModule(AdminModuleId module) {
+    final nextIndex = _moduleIndex(module);
+    setState(() => _selectedModule = module);
+    if (_pageController.hasClients) {
+      _pageController.animateToPage(
+        nextIndex,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  void _exitAdminPanel() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    context.go('/');
+  }
+
+  int _moduleIndex(AdminModuleId module) {
+    final index = adminDestinations.indexWhere(
+      (destination) => destination.id == module,
+    );
+    return index < 0 ? 0 : index;
   }
 }
 

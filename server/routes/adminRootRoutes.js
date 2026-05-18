@@ -532,6 +532,71 @@ export function registerAdminRootRoutes(app, {
     }
   }));
 
+  app.put('/api/admin/permissions/matrix', ...rootOnly, asyncRoute(async (req, res) => {
+    try {
+      await rbacService.seedDefaults();
+      const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+      const modulePermissionMap = {
+        moderation: ['posts', 'stories', 'groups', 'messages', 'events', 'announcements', 'albums'],
+        requests: ['reports'],
+        members: ['users'],
+        communication: ['communication'],
+        security: ['security'],
+        system: ['settings', 'database'],
+        audit: ['logs']
+      };
+      const roleNames = ['admin', 'mod', 'auditor'];
+      let groups = await rbacService.listGroups();
+      const existingNames = new Set(groups.map((group) => String(group.name || '').toLowerCase()));
+      if (!existingNames.has('auditor')) {
+        await rbacService.createGroup({
+          name: 'auditor',
+          description: 'Read-only audit and review access.',
+          permissions: []
+        });
+        groups = await rbacService.listGroups();
+      }
+      const groupByName = new Map(groups.map((group) => [String(group.name || '').toLowerCase(), group]));
+      const nextPermissionsByRole = new Map();
+      for (const roleName of roleNames) {
+        const current = groupByName.get(roleName);
+        nextPermissionsByRole.set(roleName, new Map((current?.permissions || []).map((permission) => [
+          permission.key,
+          { key: permission.key, canRead: false, canWrite: false }
+        ])));
+      }
+      for (const row of rows) {
+        const moduleKey = String(row?.module || '').trim();
+        const enabledRoles = new Set((Array.isArray(row?.roles) ? row.roles : []).map((role) => String(role || '').trim().toLowerCase()));
+        for (const permissionKey of modulePermissionMap[moduleKey] || []) {
+          for (const roleName of roleNames) {
+            const rolePermissions = nextPermissionsByRole.get(roleName);
+            if (!rolePermissions) continue;
+            const enabled = enabledRoles.has(roleName) || (roleName === 'mod' && enabledRoles.has('moderator'));
+            rolePermissions.set(permissionKey, {
+              key: permissionKey,
+              canRead: enabled,
+              canWrite: enabled && roleName !== 'auditor'
+            });
+          }
+        }
+      }
+      for (const roleName of roleNames) {
+        const group = groupByName.get(roleName);
+        if (!group) continue;
+        await rbacService.updateGroup(group.id, {
+          name: group.name,
+          description: group.description,
+          permissions: Array.from(nextPermissionsByRole.get(roleName).values())
+        });
+      }
+      logAdminAction(req, 'permission_matrix_updated', { rowCount: rows.length });
+      res.json({ ok: true, groups: await rbacService.listGroups() });
+    } catch (err) {
+      res.status(statusForError(err)).json({ error: 'PERMISSION_MATRIX_UPDATE_FAILED', message: err?.message || 'Failed to update permission matrix.' });
+    }
+  }));
+
   app.get('/api/admin/users/permissions', ...rootOnly, asyncRoute(async (req, res) => {
     await rbacService.seedDefaults();
     res.json(await rbacService.listUsersWithGroups({

@@ -57,5 +57,67 @@ class MembersController extends Notifier<MembersState> {
     state = state.copyWith(selectedId: member.id);
   }
 
+  Future<void> addWarning(String reason) async {
+    final member = state.selectedMember;
+    if (member == null) return;
+    await ref
+        .read(membersRepositoryProvider)
+        .addWarning(memberId: member.id, reason: reason);
+    _replaceSelected(
+      member.copyWith(
+        penaltyStatus: MemberPenaltyStatus.warned,
+        timeline: [
+          MemberTimelineEvent(
+            title: 'Uyarı eklendi',
+            detail: reason,
+            happenedAt: DateTime.now(),
+          ),
+          ...member.timeline,
+        ],
+      ),
+    );
+  }
+
+  Future<void> updateSelectedStatus({
+    required MemberPenaltyStatus penaltyStatus,
+    required String backendStatus,
+    required String reason,
+    required String timelineTitle,
+  }) async {
+    final member = state.selectedMember;
+    if (member == null) return;
+    await ref
+        .read(membersRepositoryProvider)
+        .updateStatus(
+          memberId: member.id,
+          status: backendStatus,
+          reason: reason,
+        );
+    _replaceSelected(
+      member.copyWith(
+        penaltyStatus: penaltyStatus,
+        timeline: [
+          MemberTimelineEvent(
+            title: timelineTitle,
+            detail: reason,
+            happenedAt: DateTime.now(),
+          ),
+          ...member.timeline,
+        ],
+      ),
+    );
+  }
+
+  void _replaceSelected(MemberRecord updated) {
+    final current = state.members.data ?? const <MemberRecord>[];
+    state = state.copyWith(
+      members: AdminAsyncState.loaded([
+        for (final member in current)
+          if (member.id == updated.id) updated else member,
+      ]),
+      selectedId: updated.id,
+    );
+  }
+
   void resetFilters() => Future<void>.microtask(refresh);
 }

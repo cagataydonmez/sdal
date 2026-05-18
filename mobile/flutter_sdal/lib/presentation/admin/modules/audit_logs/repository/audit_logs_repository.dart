@@ -1,58 +1,58 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../../features/admin/data/admin_repository.dart' as legacy;
 import '../../../core/security/audit_diff_viewer.dart';
 import '../models/audit_logs_models.dart';
 
 final auditLogsRepositoryProvider = Provider<AuditLogsRepository>(
-  (_) => const AuditLogsRepository(),
+  (ref) => AuditLogsRepository(ref.watch(legacy.adminRepositoryProvider)),
 );
 
 class AuditLogsRepository {
-  const AuditLogsRepository();
+  const AuditLogsRepository(this._adminRepository);
+
+  final legacy.AdminRepository _adminRepository;
 
   Future<AuditLogsSnapshot> fetchAuditLogs() async {
-    await Future<void>.delayed(const Duration(milliseconds: 190));
-    return const AuditLogsSnapshot(
-      entries: [
-        AuditLogEntry(
-          id: 'aud-1',
-          actorName: 'Root Admin',
-          action: 'user.status.updated',
-          target: 'Kerem Uslu',
-          happenedAt: 'Bugün 14:22',
-          diffEntries: [
-            AuditDiffEntry(
-              field: 'status',
-              oldValue: 'active',
-              newValue: 'suspended',
-            ),
-            AuditDiffEntry(
-              field: 'reason',
-              oldValue: '-',
-              newValue: 'Kişisel veri paylaşımı',
-            ),
-          ],
-        ),
-        AuditLogEntry(
-          id: 'aud-2',
-          actorName: 'Operasyon Admin',
-          action: 'broadcast.sent',
-          target: 'Tüm Üyeler',
-          happenedAt: 'Dün 19:04',
-          diffEntries: [
-            AuditDiffEntry(
-              field: 'target',
-              oldValue: 'dry_run',
-              newValue: 'all_members',
-            ),
-            AuditDiffEntry(
-              field: 'recipients',
-              oldValue: '0',
-              newValue: '1840',
-            ),
-          ],
-        ),
-      ],
+    final snapshot = await _adminRepository.fetchAuditLog();
+    return AuditLogsSnapshot(
+      entries: snapshot.items.map(_fromLegacy).toList(growable: false),
     );
+  }
+
+  AuditLogEntry _fromLegacy(legacy.AdminAuditLogItem item) {
+    return AuditLogEntry(
+      id: '${item.id}',
+      actorName: item.actorLabel,
+      action: item.action,
+      target: '${item.targetType}:${item.targetId}',
+      happenedAt: item.createdAt,
+      diffEntries: _diffFromMetadata(item.metadata),
+    );
+  }
+
+  List<AuditDiffEntry> _diffFromMetadata(Map<String, Object?> metadata) {
+    final entries = <AuditDiffEntry>[];
+    for (final entry in metadata.entries) {
+      final value = entry.value;
+      if (value is Map) {
+        final oldValue = value['old'] ?? value['before'];
+        final newValue = value['new'] ?? value['after'];
+        if (oldValue != null || newValue != null) {
+          entries.add(
+            AuditDiffEntry(
+              field: entry.key,
+              oldValue: '$oldValue',
+              newValue: '$newValue',
+            ),
+          );
+          continue;
+        }
+      }
+      entries.add(
+        AuditDiffEntry(field: entry.key, oldValue: '-', newValue: '$value'),
+      );
+    }
+    return entries;
   }
 }

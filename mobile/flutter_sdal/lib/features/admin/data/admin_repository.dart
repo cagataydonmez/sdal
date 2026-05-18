@@ -1574,6 +1574,7 @@ class AdminModuleContentQuery {
 class AdminModerationItem {
   const AdminModerationItem({
     required this.id,
+    this.authorUserId = 0,
     required this.typeLabel,
     required this.content,
     required this.createdAt,
@@ -1584,6 +1585,7 @@ class AdminModerationItem {
   });
 
   final int id;
+  final int authorUserId;
   final String typeLabel;
   final String content;
   final String createdAt;
@@ -1611,6 +1613,13 @@ class AdminModerationItem {
     final fullName = '$firstName $lastName'.trim();
     return AdminModerationItem(
       id: asInt(map['id']) ?? 0,
+      authorUserId:
+          asInt(map['user_id']) ??
+          asInt(map['owner_id']) ??
+          asInt(map['created_by']) ??
+          asInt(map['poster_id']) ??
+          asInt(map['author_id']) ??
+          0,
       typeLabel: typeLabel,
       content: coalesceText([
         map['title'],
@@ -3408,6 +3417,68 @@ class AdminRepository {
     await _apiClient.delete<dynamic>('/api/new/admin/follows/$id');
   }
 
+  Future<JsonMap> lockModerationItem({
+    required String entityType,
+    required int entityId,
+  }) async {
+    final result = await _apiClient.post<JsonMap>(
+      '/api/new/admin/moderation/locks',
+      body: {'entityType': entityType, 'entityId': entityId},
+      decoder: asJsonMap,
+    );
+    return asJsonMap(result.rawData);
+  }
+
+  Future<void> releaseModerationItemLock({
+    required String entityType,
+    required int entityId,
+  }) async {
+    await _apiClient.delete<dynamic>(
+      '/api/new/admin/moderation/locks/$entityType/$entityId',
+    );
+  }
+
+  Future<void> escalateModerationItem({
+    required String entityType,
+    required int entityId,
+    required String policyCategory,
+    required String reason,
+  }) async {
+    await _apiClient.post<dynamic>(
+      '/api/new/admin/moderation/escalations',
+      body: {
+        'entityType': entityType,
+        'entityId': entityId,
+        'policyCategory': policyCategory,
+        'reason': reason,
+      },
+    );
+  }
+
+  Future<void> resolveModerationItem({
+    required String entityType,
+    required int entityId,
+    required String policyCategory,
+    required String reason,
+  }) async {
+    await _apiClient.post<dynamic>(
+      '/api/new/admin/moderation/$entityType/$entityId/resolve',
+      body: {'policyCategory': policyCategory, 'reason': reason},
+    );
+  }
+
+  Future<void> updateModerationAuthorStatus({
+    required String entityType,
+    required int entityId,
+    required String status,
+    required String reason,
+  }) async {
+    await _apiClient.patch<dynamic>(
+      '/api/new/admin/moderation/$entityType/$entityId/author-status',
+      body: {'status': status, 'reason': reason},
+    );
+  }
+
   Future<List<AdminContentApprovalSetting>>
   fetchContentApprovalSettings() async {
     final result = await _apiClient.get<JsonMap>(
@@ -4410,6 +4481,29 @@ class AdminRepository {
     await _apiClient.patch<dynamic>(
       '/api/admin/users/$id/status',
       body: {'status': status, 'reason': reason},
+    );
+  }
+
+  Future<void> addUserWarning({required int id, required String reason}) async {
+    await _apiClient.post<dynamic>(
+      '/api/admin/users/$id/warnings',
+      body: {'reason': reason},
+    );
+  }
+
+  Future<void> revokeTrustedDevice({required int id}) async {
+    await _apiClient.post<dynamic>(
+      '/api/new/admin/auth-security/trusted-devices/$id/revoke',
+      body: {},
+    );
+  }
+
+  Future<void> savePermissionMatrix({
+    required List<Map<String, Object?>> rows,
+  }) async {
+    await _apiClient.put<dynamic>(
+      '/api/admin/permissions/matrix',
+      body: {'rows': rows},
     );
   }
 }

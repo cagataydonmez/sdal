@@ -38,6 +38,7 @@ class ModerationItem {
     required this.type,
     required this.title,
     required this.body,
+    required this.authorUserId,
     required this.authorName,
     required this.authorRiskLabel,
     required this.violationCategory,
@@ -51,6 +52,7 @@ class ModerationItem {
   final ModerationContentType type;
   final String title;
   final String body;
+  final int authorUserId;
   final String authorName;
   final String authorRiskLabel;
   final PolicyCategory violationCategory;
@@ -68,6 +70,7 @@ class ModerationItem {
       type: type,
       title: title,
       body: body,
+      authorUserId: authorUserId,
       authorName: authorName,
       authorRiskLabel: authorRiskLabel,
       violationCategory: violationCategory,

@@ -8,12 +8,14 @@ class AdaptiveAdminScaffold extends StatelessWidget {
     required this.selectedModule,
     required this.onModuleSelected,
     required this.body,
+    required this.onExit,
     this.actions = const <Widget>[],
   });
 
   final AdminModuleId selectedModule;
   final ValueChanged<AdminModuleId> onModuleSelected;
   final Widget body;
+  final VoidCallback onExit;
   final List<Widget> actions;
 
   @override
@@ -29,22 +31,22 @@ class AdaptiveAdminScaffold extends StatelessWidget {
         if (breakpoint == AdminBreakpoint.mobile) {
           return Scaffold(
             appBar: AppBar(
-              title: const Text('Yönetim Komuta Merkezi'),
+              leading: IconButton(
+                tooltip: 'Admin panelden çık',
+                onPressed: onExit,
+                icon: const Icon(Icons.close),
+              ),
+              title: Text(adminDestinations[safeIndex].label),
               actions: actions,
             ),
             body: body,
-            bottomNavigationBar: BottomNavigationBar(
-              type: BottomNavigationBarType.fixed,
-              currentIndex: safeIndex,
-              onTap: (index) => onModuleSelected(adminDestinations[index].id),
-              items: [
-                for (final destination in adminDestinations)
-                  BottomNavigationBarItem(
-                    icon: Icon(destination.icon),
-                    activeIcon: Icon(destination.selectedIcon),
-                    label: destination.label,
-                  ),
-              ],
+            bottomNavigationBar: SafeArea(
+              top: false,
+              child: _AdminMobileModuleBar(
+                selectedIndex: safeIndex,
+                onSelected: (index) =>
+                    onModuleSelected(adminDestinations[index].id),
+              ),
             ),
           );
         }
@@ -53,6 +55,11 @@ class AdaptiveAdminScaffold extends StatelessWidget {
         return Scaffold(
           appBar: AppBar(
             title: const Text('Yönetim Komuta Merkezi'),
+            leading: IconButton(
+              tooltip: 'Admin panelden çık',
+              onPressed: onExit,
+              icon: const Icon(Icons.close),
+            ),
             actions: actions,
           ),
           body: Row(
@@ -85,6 +92,137 @@ class AdaptiveAdminScaffold extends StatelessWidget {
   }
 }
 
+class _AdminMobileModuleBar extends StatefulWidget {
+  const _AdminMobileModuleBar({
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  @override
+  State<_AdminMobileModuleBar> createState() => _AdminMobileModuleBarState();
+}
+
+class _AdminMobileModuleBarState extends State<_AdminMobileModuleBar> {
+  late final ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected());
+  }
+
+  @override
+  void didUpdateWidget(covariant _AdminMobileModuleBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedIndex != widget.selectedIndex) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected());
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToSelected() {
+    if (!_scrollController.hasClients) return;
+    final rawOffset = (widget.selectedIndex * 100.0) - 24.0;
+    final targetOffset = rawOffset < 0 ? 0.0 : rawOffset;
+    final cappedOffset =
+        targetOffset > _scrollController.position.maxScrollExtent
+        ? _scrollController.position.maxScrollExtent
+        : targetOffset;
+    _scrollController.animateTo(
+      cappedOffset,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        border: Border(top: BorderSide(color: scheme.outlineVariant)),
+      ),
+      child: SizedBox(
+        height: 72,
+        child: ListView.separated(
+          controller: _scrollController,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          scrollDirection: Axis.horizontal,
+          itemCount: adminDestinations.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 8),
+          itemBuilder: (context, index) {
+            final destination = adminDestinations[index];
+            final selected = index == widget.selectedIndex;
+            return Semantics(
+              selected: selected,
+              button: true,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => widget.onSelected(index),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  constraints: const BoxConstraints(minWidth: 92),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? scheme.primaryContainer
+                        : scheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: selected ? scheme.primary : scheme.outlineVariant,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        selected ? destination.selectedIcon : destination.icon,
+                        size: 20,
+                        color: selected
+                            ? scheme.onPrimaryContainer
+                            : scheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        destination.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: selected
+                                  ? scheme.onPrimaryContainer
+                                  : scheme.onSurfaceVariant,
+                              fontWeight: selected
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
 class AdminAdaptiveWorkspace extends StatelessWidget {
   const AdminAdaptiveWorkspace({
     super.key,
@@ -110,7 +248,9 @@ class AdminAdaptiveWorkspace extends StatelessWidget {
           AdminBreakpoint.mobile => _AdminMobileWorkspace(
             title: title,
             header: header,
-            child: listPane,
+            listPane: listPane,
+            detailPane: detailPane,
+            actionPane: actionPane,
           ),
           AdminBreakpoint.tablet => _AdminTabletWorkspace(
             title: title,
@@ -385,31 +525,91 @@ class AdminPanelCard extends StatelessWidget {
   }
 }
 
-class _AdminMobileWorkspace extends StatelessWidget {
+class _AdminMobileWorkspace extends StatefulWidget {
   const _AdminMobileWorkspace({
     required this.title,
-    required this.child,
+    required this.listPane,
+    required this.detailPane,
+    required this.actionPane,
     this.header,
   });
 
   final String title;
   final Widget? header;
+  final Widget listPane;
+  final Widget detailPane;
+  final Widget actionPane;
+
+  @override
+  State<_AdminMobileWorkspace> createState() => _AdminMobileWorkspaceState();
+}
+
+class _AdminMobileWorkspaceState extends State<_AdminMobileWorkspace> {
+  int _selectedPane = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(widget.title, style: Theme.of(context).textTheme.titleLarge),
+          if (widget.header != null) ...[
+            const SizedBox(height: 12),
+            widget.header!,
+          ],
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<int>(
+              selected: {_selectedPane},
+              onSelectionChanged: (selection) =>
+                  setState(() => _selectedPane = selection.first),
+              segments: const [
+                ButtonSegment<int>(
+                  value: 0,
+                  icon: Icon(Icons.view_list_outlined),
+                  label: Text('Liste'),
+                ),
+                ButtonSegment<int>(
+                  value: 1,
+                  icon: Icon(Icons.article_outlined),
+                  label: Text('Detay'),
+                ),
+                ButtonSegment<int>(
+                  value: 2,
+                  icon: Icon(Icons.rule_outlined),
+                  label: Text('İşlem'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: IndexedStack(
+              index: _selectedPane,
+              children: [
+                _AdminMobilePane(child: widget.listPane),
+                _AdminMobilePane(child: widget.detailPane),
+                _AdminMobilePane(child: widget.actionPane),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminMobilePane extends StatelessWidget {
+  const _AdminMobilePane({required this.child});
+
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text(title, style: Theme.of(context).textTheme.headlineSmall),
-        if (header != null) ...[const SizedBox(height: 12), header!],
-        const SizedBox(height: 14),
-        SizedBox(
-          height: MediaQuery.sizeOf(context).height * 0.68,
-          child: child,
-        ),
-      ],
-    );
+    return Padding(padding: const EdgeInsets.only(bottom: 12), child: child);
   }
 }
 

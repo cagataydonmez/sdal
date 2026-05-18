@@ -38,7 +38,7 @@ function parseMetadata(value) {
   }
 }
 
-export function registerAdminSecurityRoutes(app, { requireAdmin, sqlGetAsync, sqlAllAsync }) {
+export function registerAdminSecurityRoutes(app, { requireAdmin, sqlGetAsync, sqlAllAsync, sqlRunAsync, logAdminAction }) {
   /**
    * GET /api/new/admin/security/status
    * Returns validation rejection log, schema coverage, and active helmet headers.
@@ -188,6 +188,36 @@ export function registerAdminSecurityRoutes(app, { requireAdmin, sqlGetAsync, sq
     } catch (error) {
       console.error('admin.auth-security failed:', error);
       res.status(500).json({ ok: false, message: 'Auth security snapshot could not be loaded.' });
+    }
+  });
+
+  app.post('/api/new/admin/auth-security/trusted-devices/:id/revoke', requireAdmin, async (req, res) => {
+    const id = Number(req.params.id || 0);
+    if (!id) return res.status(400).json({ ok: false, message: 'Geçersiz cihaz kaydı.' });
+    try {
+      const row = await sqlGetAsync(
+        `SELECT d.id, d.user_id, d.revoked_at, u.kadi
+           FROM trusted_devices d
+           LEFT JOIN uyeler u ON u.id = d.user_id
+          WHERE d.id = ?`,
+        [id]
+      );
+      if (!row) return res.status(404).json({ ok: false, message: 'Cihaz kaydı bulunamadı.' });
+      if (row.revoked_at) return res.json({ ok: true, alreadyRevoked: true });
+      const now = new Date().toISOString();
+      await sqlRunAsync('UPDATE trusted_devices SET revoked_at = ? WHERE id = ?', [now, id]);
+      if (typeof logAdminAction === 'function') {
+        logAdminAction(req, 'trusted_device_revoked', {
+          targetType: 'trusted_device',
+          targetId: id,
+          userId: Number(row.user_id || 0),
+          handle: String(row.kadi || '')
+        });
+      }
+      res.json({ ok: true, revokedAt: now });
+    } catch (error) {
+      console.error('admin.trusted-device-revoke failed:', error);
+      res.status(500).json({ ok: false, message: 'Cihaz oturumu kapatılamadı.' });
     }
   });
 }

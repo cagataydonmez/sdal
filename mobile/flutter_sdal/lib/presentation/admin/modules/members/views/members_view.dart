@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/adaptive_admin_scaffold.dart';
+import '../../../core/security/step_up_auth_dialog.dart';
 import '../models/members_models.dart';
 import '../state/members_state.dart';
 
@@ -171,13 +172,30 @@ class _TimelineTile extends StatelessWidget {
   }
 }
 
-class _MemberActions extends StatelessWidget {
+class _MemberActions extends ConsumerStatefulWidget {
   const _MemberActions({required this.member});
 
   final MemberRecord? member;
 
   @override
+  ConsumerState<_MemberActions> createState() => _MemberActionsState();
+}
+
+class _MemberActionsState extends ConsumerState<_MemberActions> {
+  final _reasonController = TextEditingController();
+
+  @override
+  void dispose() {
+    _reasonController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final member = widget.member;
+    final suspended =
+        member?.penaltyStatus == MemberPenaltyStatus.suspended ||
+        member?.penaltyStatus == MemberPenaltyStatus.banned;
     return AdminPanelCard(
       child: ListView(
         children: [
@@ -188,23 +206,116 @@ class _MemberActions extends StatelessWidget {
           const SizedBox(height: 10),
           Text(member?.name ?? 'Üye seçilmedi'),
           const SizedBox(height: 12),
+          TextField(
+            controller: _reasonController,
+            enabled: member != null,
+            minLines: 3,
+            maxLines: 5,
+            decoration: const InputDecoration(
+              labelText: 'Operasyon gerekçesi',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
           OutlinedButton.icon(
-            onPressed: member == null ? null : () {},
+            onPressed: member == null ? null : _addWarning,
             icon: const Icon(Icons.warning_outlined),
             label: const Text('Uyarı ekle'),
           ),
           OutlinedButton.icon(
-            onPressed: member == null ? null : () {},
-            icon: const Icon(Icons.pause_circle_outline),
-            label: const Text('Geçici askıya al'),
+            onPressed: member == null
+                ? null
+                : () => suspended
+                      ? _restoreMember(member)
+                      : _suspendMember(member),
+            icon: Icon(
+              suspended
+                  ? Icons.play_circle_outline
+                  : Icons.pause_circle_outline,
+            ),
+            label: Text(suspended ? 'Askıyı kaldır' : 'Geçici askıya al'),
           ),
           FilledButton.icon(
-            onPressed: member == null ? null : () {},
+            onPressed: member == null
+                ? null
+                : () => _openPermanentBanReview(member),
             icon: const Icon(Icons.block_outlined),
             label: const Text('Kalıcı ban incelemesi aç'),
           ),
         ],
       ),
     );
+  }
+
+  String? _validatedReason() {
+    final reason = _reasonController.text.trim();
+    if (reason.length >= 8) return reason;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Gerekçe en az 8 karakter olmalı.')),
+    );
+    return null;
+  }
+
+  Future<void> _addWarning() async {
+    final reason = _validatedReason();
+    if (reason == null) return;
+    await ref.read(membersControllerProvider.notifier).addWarning(reason);
+    _reasonController.clear();
+  }
+
+  Future<void> _suspendMember(MemberRecord member) async {
+    final reason = _validatedReason();
+    if (reason == null) return;
+    final stepUp = await StepUpAuthDialog.confirm(
+      context,
+      operationLabel: 'Üyeyi askıya alma',
+      riskDescription:
+          'Bu işlem kullanıcının hesabını askıya alır. Devam etmek için admin şifreni doğrula.',
+    );
+    if (stepUp == null) return;
+    await ref
+        .read(membersControllerProvider.notifier)
+        .updateSelectedStatus(
+          penaltyStatus: MemberPenaltyStatus.suspended,
+          backendStatus: 'suspended',
+          reason: reason,
+          timelineTitle: 'Hesap geçici askıya alındı',
+        );
+    _reasonController.clear();
+  }
+
+  Future<void> _restoreMember(MemberRecord member) async {
+    final reason = _validatedReason();
+    if (reason == null) return;
+    await ref
+        .read(membersControllerProvider.notifier)
+        .updateSelectedStatus(
+          penaltyStatus: MemberPenaltyStatus.clear,
+          backendStatus: 'active',
+          reason: reason,
+          timelineTitle: 'Askı kaldırıldı',
+        );
+    _reasonController.clear();
+  }
+
+  Future<void> _openPermanentBanReview(MemberRecord member) async {
+    final reason = _validatedReason();
+    if (reason == null) return;
+    final stepUp = await StepUpAuthDialog.confirm(
+      context,
+      operationLabel: 'Kalıcı ban incelemesi',
+      riskDescription:
+          'Bu işlem hesabı askıya alır ve kalıcı ban incelemesi için kayıt oluşturur.',
+    );
+    if (stepUp == null) return;
+    await ref
+        .read(membersControllerProvider.notifier)
+        .updateSelectedStatus(
+          penaltyStatus: MemberPenaltyStatus.banned,
+          backendStatus: 'suspended',
+          reason: reason,
+          timelineTitle: 'Kalıcı ban incelemesi açıldı',
+        );
+    _reasonController.clear();
   }
 }

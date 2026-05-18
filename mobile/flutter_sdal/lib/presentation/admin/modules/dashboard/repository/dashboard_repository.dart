@@ -1,61 +1,89 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../../features/admin/data/admin_repository.dart' as legacy;
 import '../models/dashboard_models.dart';
 
 final dashboardRepositoryProvider = Provider<DashboardRepository>(
-  (_) => const DashboardRepository(),
+  (ref) => DashboardRepository(ref.watch(legacy.adminRepositoryProvider)),
 );
 
 class DashboardRepository {
-  const DashboardRepository();
+  const DashboardRepository(this._adminRepository);
+
+  final legacy.AdminRepository _adminRepository;
 
   Future<DashboardSnapshot> fetchDashboard() async {
-    await Future<void>.delayed(const Duration(milliseconds: 220));
-    return const DashboardSnapshot(
-      systemStatus: 'Sistem Durumu: Stabil',
+    final summary = await _adminRepository.fetchMobileSummary();
+    final counts = summary.counts;
+    final system = summary.system;
+    final cpuValue = system?.cpuSupported == true
+        ? '${system!.cpuUsagePct.toStringAsFixed(0)}%'
+        : 'N/A';
+    final dbValue = system == null
+        ? 'N/A'
+        : '${system.databaseSizeMb.toStringAsFixed(system.databaseSizeMb >= 10 ? 0 : 1)} MB';
+    final pendingCount = summary.attention.fold<int>(
+      0,
+      (sum, item) => sum + item.count,
+    );
+    return DashboardSnapshot(
+      sourceLabel: '/api/admin/mobile/summary',
+      systemStatus: pendingCount == 0
+          ? 'Sistem Durumu: Stabil'
+          : 'Sistem Durumu: ${summary.attention.length} uyarı izleniyor',
       metrics: [
         DashboardMetric(
           label: 'Bekleyen Üyelik',
-          value: '18',
-          trendLabel: '7 kayıt bugün geldi',
+          value: '${counts['pendingUsers'] ?? counts['pendingRequests'] ?? 0}',
+          trendLabel: 'Backend kuyruğundan canlı',
         ),
         DashboardMetric(
           label: 'Raporlanan İçerik',
-          value: '11',
-          trendLabel: '3 yüksek öncelik',
+          value:
+              '${(counts['posts'] ?? 0) + (counts['comments'] ?? 0) + (counts['stories'] ?? 0)}',
+          trendLabel: 'Post, yorum ve hikaye toplamı',
         ),
         DashboardMetric(
           label: 'Açık İtirazlar',
-          value: '4',
-          trendLabel: 'En eskisi 21 saat',
+          value: '${counts['appeals'] ?? 0}',
+          trendLabel: 'İtiraz sayacı yoksa 0 döner',
         ),
         DashboardMetric(
           label: 'Sistem Sağlığı (CPU/DB)',
-          value: '96%',
-          trendLabel: 'DB gecikmesi normal',
+          value: cpuValue,
+          trendLabel: 'DB: $dbValue',
         ),
       ],
-      weeklyTraffic: [
-        WeeklyTrafficPoint(dayLabel: 'Pzt', traffic: 240, actions: 28),
-        WeeklyTrafficPoint(dayLabel: 'Sal', traffic: 310, actions: 34),
-        WeeklyTrafficPoint(dayLabel: 'Çar', traffic: 280, actions: 31),
-        WeeklyTrafficPoint(dayLabel: 'Per', traffic: 360, actions: 44),
-        WeeklyTrafficPoint(dayLabel: 'Cum', traffic: 410, actions: 48),
-        WeeklyTrafficPoint(dayLabel: 'Cmt', traffic: 260, actions: 22),
-        WeeklyTrafficPoint(dayLabel: 'Paz', traffic: 220, actions: 19),
-      ],
-      alerts: [
-        SystemAlert(
-          title: 'Push teslimat izleme',
-          message: 'Son 1 saatte 2 cihaz token hatası verdi.',
-          severity: 'medium',
-        ),
-        SystemAlert(
-          title: 'Moderasyon SLA',
-          message: '1 kritik içerik 4 saat sınırına yaklaşıyor.',
-          severity: 'high',
-        ),
-      ],
+      weeklyTraffic: _trafficFromAudit(summary.recentAudit),
+      alerts: summary.attention
+          .map(
+            (item) => SystemAlert(
+              title: item.label,
+              message: '${item.count} kayıt işlem bekliyor.',
+              severity: item.tone,
+            ),
+          )
+          .toList(growable: false),
     );
+  }
+
+  List<WeeklyTrafficPoint> _trafficFromAudit(
+    List<legacy.AdminAuditLogItem> audit,
+  ) {
+    const labels = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+    final counts = List<int>.filled(7, 0);
+    for (final item in audit) {
+      final parsed = DateTime.tryParse(item.createdAt);
+      if (parsed == null) continue;
+      counts[parsed.weekday - 1] += 1;
+    }
+    return [
+      for (var i = 0; i < labels.length; i++)
+        WeeklyTrafficPoint(
+          dayLabel: labels[i],
+          traffic: counts[i],
+          actions: counts[i],
+        ),
+    ];
   }
 }

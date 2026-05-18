@@ -40,12 +40,14 @@ class DashboardSnapshot {
     required this.weeklyTraffic,
     required this.alerts,
     required this.systemStatus,
+    this.sourceLabel,
   });
 
   final List<DashboardMetric> metrics;
   final List<WeeklyTrafficPoint> weeklyTraffic;
   final List<SystemAlert> alerts;
   final String systemStatus;
+  final String? sourceLabel;
 
   bool get isEmpty => metrics.isEmpty && alerts.isEmpty;
 }

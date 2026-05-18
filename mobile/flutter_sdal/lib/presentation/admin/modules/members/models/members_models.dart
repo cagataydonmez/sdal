@@ -30,6 +30,21 @@ class MemberRecord {
   final String role;
   final MemberPenaltyStatus penaltyStatus;
   final List<MemberTimelineEvent> timeline;
+
+  MemberRecord copyWith({
+    MemberPenaltyStatus? penaltyStatus,
+    List<MemberTimelineEvent>? timeline,
+  }) {
+    return MemberRecord(
+      id: id,
+      name: name,
+      email: email,
+      graduationYear: graduationYear,
+      role: role,
+      penaltyStatus: penaltyStatus ?? this.penaltyStatus,
+      timeline: timeline ?? this.timeline,
+    );
+  }
 }
 
 String memberPenaltyLabel(MemberPenaltyStatus status) {

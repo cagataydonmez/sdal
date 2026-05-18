@@ -299,4 +299,34 @@ export function registerAdminMobileRoutes(app, {
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
   });
+
+  app.post('/api/admin/users/:id/warnings', requireAuth, requirePermission(ADMIN_PERMISSIONS.USERS_MANAGE_STATUS), async (req, res) => {
+    try {
+      const targetId = Number(req.params.id || 0);
+      if (!targetId) return res.status(400).send('Geçersiz kullanıcı ID.');
+      if (Number(req.session.userId || 0) === targetId) return res.status(403).send('Kendi hesabınıza uyarı ekleyemezsiniz.');
+      const reason = requireReason(req, res);
+      if (!reason) return;
+      const target = await sqlGetAsync('SELECT id, kadi, role FROM uyeler WHERE id = ?', [targetId]);
+      if (!target) return res.status(404).send('Kullanıcı bulunamadı.');
+      const actorRole = req.adminAccess.role;
+      const targetRole = normalizeRole(target.role);
+      if (targetRole === 'root') return res.status(403).send('Root kullanıcıya uyarı eklenemez.');
+      if (targetRole === 'admin' && actorRole !== 'root') return res.status(403).send('Admin hesabına yalnızca root uyarı ekleyebilir.');
+      writeAuditLog(req, {
+        actorUserId: req.session.userId,
+        action: 'user_warning_added',
+        targetType: 'user',
+        targetId: String(targetId),
+        metadata: {
+          handle: String(target.kadi || ''),
+          reason
+        }
+      });
+      res.status(201).json({ ok: true, userId: targetId });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
 }

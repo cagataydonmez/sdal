@@ -2,6 +2,8 @@ import { buildVerificationApprovalEmail } from '../src/infra/verificationEmailTe
 import { APPROVAL_STATUS, PUBLICATION_STATUS } from '../src/shared/contentState.js';
 
 const TEACHER_COHORT_VALUE = '9999';
+const MODERATION_LOCK_TTL_MS = 2 * 60 * 1000;
+const moderationLocks = new Map();
 
 function isTeacherCohort(mezuniyetyili) {
   const raw = String(mezuniyetyili || '').trim().toLowerCase();
@@ -66,6 +68,155 @@ export function registerAdminContentModerationRoutes(app, {
     group_announcement: { table: 'group_announcements', ownerColumn: 'created_by', titleColumn: 'title', bodyColumn: 'body', imageColumn: 'image' },
     group_post: { table: 'posts', ownerColumn: 'user_id', titleColumn: 'content', bodyColumn: 'content', imageColumn: 'image' }
   };
+
+  function normalizeModerationEntityType(value) {
+    return String(value || '').trim().toLowerCase().replace(/[^a-z0-9_:-]+/g, '_');
+  }
+
+  function moderationLockKey(entityType, entityId) {
+    return `${normalizeModerationEntityType(entityType)}:${Number(entityId || 0)}`;
+  }
+
+  function pruneModerationLocks(nowMs = Date.now()) {
+    for (const [key, lock] of moderationLocks.entries()) {
+      if (!lock?.expiresAtMs || lock.expiresAtMs <= nowMs) moderationLocks.delete(key);
+    }
+  }
+
+  function actorLockLabel(req) {
+    const user = req.authUser || getCurrentUser(req) || {};
+    const name = `${String(user.isim || user.firstName || '').trim()} ${String(user.soyisim || user.lastName || '').trim()}`.trim();
+    return name || String(user.username || user.kadi || user.handle || '').trim() || `Admin #${req.session?.userId || ''}`.trim();
+  }
+
+  app.post('/api/new/admin/moderation/locks', requireModerationPermission('posts.view'), async (req, res) => {
+    const entityType = normalizeModerationEntityType(req.body?.entityType || req.body?.entity_type || req.body?.type);
+    const entityId = Number(req.body?.entityId || req.body?.entity_id || req.body?.id || 0);
+    if (!entityType || !entityId) return res.status(400).json({ ok: false, message: 'Geçersiz moderasyon kaydı.' });
+    pruneModerationLocks();
+    const key = moderationLockKey(entityType, entityId);
+    const actorId = Number(req.session?.userId || req.authUser?.id || 0);
+    const existing = moderationLocks.get(key);
+    const nowMs = Date.now();
+    if (existing && Number(existing.actorId || 0) !== actorId) {
+      return res.status(409).json({
+        ok: false,
+        locked: true,
+        lock: {
+          entityType,
+          entityId,
+          moderatorId: existing.actorId,
+          moderatorName: existing.actorName,
+          lockedAt: existing.lockedAt,
+          expiresAt: existing.expiresAt
+        }
+      });
+    }
+    const lockedAt = new Date(nowMs).toISOString();
+    const expiresAt = new Date(nowMs + MODERATION_LOCK_TTL_MS).toISOString();
+    const lock = {
+      actorId,
+      actorName: actorLockLabel(req),
+      lockedAt,
+      expiresAt,
+      expiresAtMs: nowMs + MODERATION_LOCK_TTL_MS
+    };
+    moderationLocks.set(key, lock);
+    res.json({
+      ok: true,
+      locked: true,
+      lock: {
+        entityType,
+        entityId,
+        moderatorId: actorId,
+        moderatorName: lock.actorName,
+        lockedAt,
+        expiresAt
+      }
+    });
+  });
+
+  app.delete('/api/new/admin/moderation/locks/:entityType/:entityId', requireModerationPermission('posts.view'), async (req, res) => {
+    const key = moderationLockKey(req.params.entityType, req.params.entityId);
+    moderationLocks.delete(key);
+    res.json({ ok: true });
+  });
+
+  app.post('/api/new/admin/moderation/escalations', requireModerationPermission('posts.moderate'), async (req, res) => {
+    const entityType = normalizeModerationEntityType(req.body?.entityType || req.body?.entity_type || req.body?.type);
+    const entityId = Number(req.body?.entityId || req.body?.entity_id || req.body?.id || 0);
+    const policyCategory = String(req.body?.policyCategory || req.body?.policy_category || '').trim();
+    const reason = String(req.body?.reason || req.body?.note || '').trim();
+    if (!entityType || !entityId) return res.status(400).json({ ok: false, message: 'Geçersiz moderasyon kaydı.' });
+    if (!policyCategory) return res.status(400).json({ ok: false, message: 'Politika kategorisi zorunlu.' });
+    if (reason.length < 8) return res.status(400).json({ ok: false, message: 'Eskale gerekçesi en az 8 karakter olmalı.' });
+    logAdminAction(req, 'moderation_escalated', {
+      targetType: entityType,
+      targetId: entityId,
+      policyCategory,
+      reason
+    });
+    res.status(201).json({ ok: true, escalated: true });
+  });
+
+  app.post('/api/new/admin/moderation/:entityType/:entityId/resolve', requireModerationPermission('posts.moderate'), async (req, res) => {
+    const entityType = normalizeModerationEntityType(req.params.entityType);
+    const entityId = Number(req.params.entityId || 0);
+    const policyCategory = String(req.body?.policyCategory || req.body?.policy_category || '').trim();
+    const reason = String(req.body?.reason || req.body?.note || '').trim();
+    if (!entityType || !entityId) return res.status(400).json({ ok: false, message: 'Geçersiz moderasyon kaydı.' });
+    if (!policyCategory) return res.status(400).json({ ok: false, message: 'Politika kategorisi zorunlu.' });
+    if (reason.length < 8) return res.status(400).json({ ok: false, message: 'Kapatma gerekçesi en az 8 karakter olmalı.' });
+    logAdminAction(req, 'moderation_resolved_without_action', {
+      targetType: entityType,
+      targetId: entityId,
+      policyCategory,
+      reason
+    });
+    moderationLocks.delete(moderationLockKey(entityType, entityId));
+    res.json({ ok: true, resolved: true });
+  });
+
+  app.patch('/api/new/admin/moderation/:entityType/:entityId/author-status', requireModerationPermission('users.moderate'), async (req, res) => {
+    const entityType = normalizeModerationEntityType(req.params.entityType);
+    const entityId = Number(req.params.entityId || 0);
+    const status = String(req.body?.status || '').trim().toLowerCase();
+    const reason = String(req.body?.reason || '').trim().slice(0, 500);
+    if (!entityType || !entityId) return res.status(400).json({ ok: false, message: 'Geçersiz moderasyon kaydı.' });
+    if (!['active', 'suspended'].includes(status)) return res.status(400).json({ ok: false, message: 'Geçersiz kullanıcı durumu.' });
+    if (status === 'suspended' && reason.length < 8) return res.status(400).json({ ok: false, message: 'Askıya alma gerekçesi en az 8 karakter olmalı.' });
+    const ownerLookup = {
+      post: { table: 'posts', ownerExpr: 'user_id' },
+      comment: { table: 'post_comments', ownerExpr: 'COALESCE(author_id, user_id)' },
+      story: { table: 'stories', ownerExpr: 'user_id' },
+      job: { table: 'jobs', ownerExpr: 'poster_id' },
+      event: { table: 'events', ownerExpr: 'created_by' },
+      announcement: { table: 'announcements', ownerExpr: 'created_by' }
+    };
+    const config = ownerLookup[entityType];
+    if (!config) return res.status(400).json({ ok: false, message: 'Desteklenmeyen içerik tipi.' });
+    try {
+      const row = await sqlGetAsync(`SELECT id, ${config.ownerExpr} AS user_id FROM ${config.table} WHERE id = ?`, [entityId]);
+      if (!row) return res.status(404).json({ ok: false, message: 'İçerik bulunamadı.' });
+      const userId = Number(row.user_id || 0);
+      if (!userId) return res.status(404).json({ ok: false, message: 'İçerik sahibi bulunamadı.' });
+      const target = ensureCanModerateTargetUser(req, res, userId, { notFoundMessage: 'İçerik sahibi bulunamadı.' });
+      if (!target) return;
+      const nextBanned = status === 'suspended' ? 1 : 0;
+      await sqlRunAsync('UPDATE uyeler SET yasak = ? WHERE id = ?', [nextBanned, userId]);
+      logAdminAction(req, status === 'suspended' ? 'moderation_author_suspended' : 'moderation_author_unsuspended', {
+        targetType: 'user',
+        targetId: userId,
+        entityType,
+        entityId,
+        reason
+      });
+      res.json({ ok: true, userId, status });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).json({ ok: false, message: 'Kullanıcı durumu güncellenemedi.' });
+    }
+  });
 
   function ensureContentApprovalSettingsTable() {
     sqlRun(`

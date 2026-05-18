@@ -17,6 +17,7 @@ export const DEFAULT_PERMISSIONS = Object.freeze([
   { key: 'events', label: 'Events', description: 'Events and event approval workflows.' },
   { key: 'announcements', label: 'Announcements', description: 'Announcements and publishing workflows.' },
   { key: 'albums', label: 'Albums', description: 'Album categories, photos and related moderation.' },
+  { key: 'communication', label: 'Communication', description: 'Broadcast notifications and admin communication operations.' },
   { key: 'settings', label: 'Settings', description: 'Site controls, modules, languages and operational settings.' },
   { key: 'database', label: 'Database', description: 'Database backup, restore and inspection tools.' },
   { key: 'logs', label: 'Logs', description: 'Application and legacy log views.' },

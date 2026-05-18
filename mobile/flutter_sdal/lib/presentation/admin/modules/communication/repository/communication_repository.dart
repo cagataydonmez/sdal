@@ -1,39 +1,45 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../../features/admin/data/admin_repository.dart' as legacy;
 import '../models/communication_models.dart';
 
 final communicationRepositoryProvider = Provider<CommunicationRepository>(
-  (_) => const CommunicationRepository(),
+  (ref) => CommunicationRepository(ref.watch(legacy.adminRepositoryProvider)),
 );
 
 class CommunicationRepository {
-  const CommunicationRepository();
+  const CommunicationRepository(this._adminRepository);
+
+  final legacy.AdminRepository _adminRepository;
 
   Future<CommunicationSnapshot> loadComposer() async {
-    await Future<void>.delayed(const Duration(milliseconds: 180));
-    return const CommunicationSnapshot(
-      draft: BroadcastDraft(
+    final settings = await _adminRepository.fetchPushSettings();
+    return CommunicationSnapshot(
+      draft: const BroadcastDraft(
         segment: BroadcastTargetSegment.allMembers,
-        title: 'SDAL Sosyal duyurusu',
-        body: 'Topluluk için yeni bir güncelleme var.',
+        title: '',
+        body: '',
         imageUrl: '',
         deepLink: '/feed',
         cohort: '',
       ),
       dryRun: BroadcastDryRunResult(
-        estimatedRecipients: 1840,
-        validationMessage: 'Dry run başarılı, gönderim kuralları uygun.',
+        estimatedRecipients: settings.registeredUsers,
+        validationMessage: settings.enabled
+            ? 'Push servisi açık, kayıtlı cihaz verisi backendden alındı.'
+            : 'Push servisi kapalı görünüyor.',
       ),
     );
   }
 
   Future<BroadcastDryRunResult> dryRun(BroadcastDraft draft) async {
-    await Future<void>.delayed(const Duration(milliseconds: 170));
+    final settings = await _adminRepository.fetchPushSettings();
     final base = switch (draft.segment) {
-      BroadcastTargetSegment.allMembers => 1840,
-      BroadcastTargetSegment.graduatesOnly => 1510,
-      BroadcastTargetSegment.teachersOnly => 92,
-      BroadcastTargetSegment.cohort => draft.cohort.trim().isEmpty ? 0 : 128,
+      BroadcastTargetSegment.allMembers => settings.registeredUsers,
+      BroadcastTargetSegment.graduatesOnly => settings.registeredUsers,
+      BroadcastTargetSegment.teachersOnly => 0,
+      BroadcastTargetSegment.cohort =>
+        draft.cohort.trim().isEmpty ? 0 : settings.registeredUsers,
     };
     return BroadcastDryRunResult(
       estimatedRecipients: base,
@@ -47,9 +53,26 @@ class CommunicationRepository {
     required BroadcastDraft draft,
     required String securityToken,
   }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 250));
     if (securityToken.isEmpty) {
       throw ArgumentError('Toplu bildirim için step-up token zorunlu.');
     }
+    await _adminRepository.sendNotificationBroadcast(
+      target: _targetForSegment(draft.segment),
+      sender: 'admin',
+      title: draft.title,
+      body: draft.body,
+      imageUrl: draft.imageUrl,
+      targetRoute: draft.deepLink,
+      targetLabel: draft.deepLink,
+    );
+  }
+
+  String _targetForSegment(BroadcastTargetSegment segment) {
+    return switch (segment) {
+      BroadcastTargetSegment.allMembers => 'all',
+      BroadcastTargetSegment.graduatesOnly => 'verified',
+      BroadcastTargetSegment.teachersOnly => 'teachers',
+      BroadcastTargetSegment.cohort => 'cohort',
+    };
   }
 }
