@@ -153,6 +153,31 @@ class AdminActionController extends Notifier<AsyncActionState> {
     }
   }
 
+  Future<bool> applySupportIssueAction({
+    required int userId,
+    required String action,
+    String reason = '',
+  }) async {
+    final scope = 'admin:support:$userId:$action';
+    if (!_begin(scope)) return false;
+    try {
+      await _repository.applySupportIssueAction(
+        userId: userId,
+        action: action,
+        reason: reason,
+      );
+      ref.invalidate(adminSupportIssuesProvider);
+      ref.invalidate(adminAuthSecurityProvider);
+      ref.invalidate(adminUserPreviewProvider);
+      ref.invalidate(adminMobileSummaryProvider);
+      state = AsyncActionState.success(scope: scope);
+      return true;
+    } catch (error) {
+      state = AsyncActionState.error(scope: scope, message: error.toString());
+      return false;
+    }
+  }
+
   Future<AdminBroadcastResult?> sendNotificationBroadcast({
     required String target,
     required String sender,

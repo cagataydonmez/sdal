@@ -280,6 +280,7 @@ class _AdminControlCenterPageState
     if ((counts['pendingUsers'] ?? 0) > 0 ||
         (counts['suspendedUsers'] ?? 0) > 0) {
       add('members');
+      add('support');
     }
     add('memberJourney');
     if ((counts['requests'] ?? 0) > 0 ||
@@ -1080,6 +1081,26 @@ const _adminConsoleItems = <_AdminConsoleItem>[
       'mesaj',
       'medya',
       'audit',
+    ],
+  ),
+  _AdminConsoleItem(
+    id: 'support',
+    title: 'Destek çözüm merkezi',
+    subtitle:
+        'Kayıt, login, telefon doğrulama, cihaz challenge ve profil takılmalarını çöz.',
+    group: 'Üye ve kimlik',
+    path: '/admin/support',
+    icon: Icons.support_agent_outlined,
+    tone: AdminTone.warning,
+    permissions: ['users.view', 'settings.manage'],
+    keywords: [
+      'edge case',
+      'support',
+      'login',
+      'kayıt',
+      'aktivasyon',
+      'telefon',
+      'cihaz',
     ],
   ),
   _AdminConsoleItem(

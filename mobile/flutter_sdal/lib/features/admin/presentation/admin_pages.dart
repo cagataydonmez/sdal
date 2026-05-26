@@ -558,6 +558,16 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
               updatedAt: '',
             ),
           );
+    final supportIssuesState = sectionKey == 'support'
+        ? ref.watch(
+            adminSupportIssuesProvider(_userSearchController.text.trim()),
+          )
+        : const AsyncValue<AdminSupportIssueSnapshot>.data(
+            AdminSupportIssueSnapshot(
+              counts: <String, int>{},
+              items: <AdminSupportIssueItem>[],
+            ),
+          );
     final userPreviewState = sectionKey == 'management'
         ? ref.watch(adminUserPreviewProvider(userPreviewQuery))
         : const AsyncValue<AdminPreviewList<AdminUserPreviewItem>>.data(
@@ -652,6 +662,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
             sectionKey == 'management' ||
             sectionKey == 'api-monitor' ||
             sectionKey == 'auth-security' ||
+            sectionKey == 'support' ||
             sectionKey == 'notifications' ||
             sectionKey == 'operations' ||
             sectionKey == 'database' ||
@@ -686,6 +697,11 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
               if (sectionKey == 'auth-security') {
                 ref.invalidate(adminAuthSecurityProvider);
                 ref.invalidate(adminAuthSettingsProvider);
+              }
+              if (sectionKey == 'support') {
+                ref.invalidate(adminSupportIssuesProvider);
+                ref.invalidate(adminAuthSecurityProvider);
+                ref.invalidate(adminUserPreviewProvider);
               }
               if (sectionKey == 'operations') {
                 ref.invalidate(adminSiteControlsProvider);
@@ -1578,6 +1594,131 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                 '${item.deviceHashPreview.isNotEmpty ? ' · cihaz: ${item.deviceHashPreview}' : ''}'
                                 '${item.ipHashPreview.isNotEmpty ? ' · IP: ${item.ipHashPreview}' : ''}',
                             trailing: _adminTimestamp(context, item.createdAt),
+                          ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+          if (sectionKey == 'support') ...[
+            const SizedBox(height: 16),
+            SurfaceCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Edge case arama',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _userSearchController,
+                    decoration: InputDecoration(
+                      labelText: 'Üye, e-posta, sorun kodu veya durum ara',
+                      prefixIcon: const Icon(Icons.manage_search_outlined),
+                      suffixIcon: IconButton(
+                        tooltip: 'Ara',
+                        onPressed: () => setState(() {}),
+                        icon: const Icon(Icons.search),
+                      ),
+                    ),
+                    onSubmitted: (_) => setState(() {}),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            _AdminAsyncCard(
+              title: 'Destek ve çözüm merkezi',
+              states: [supportIssuesState],
+              builder: () {
+                final snapshot = supportIssuesState.value!;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _AdminPreviewListCard(
+                      title: 'Risk özeti',
+                      total: snapshot.counts['total'] ?? snapshot.items.length,
+                      children: [
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            _AdminStatChip(
+                              icon: Icons.priority_high_outlined,
+                              label:
+                                  '${snapshot.counts['critical'] ?? 0} kritik',
+                            ),
+                            _AdminStatChip(
+                              icon: Icons.lock_clock_outlined,
+                              label:
+                                  '${snapshot.counts['activation_pending'] ?? 0} aktivasyon',
+                            ),
+                            _AdminStatChip(
+                              icon: Icons.block_outlined,
+                              label:
+                                  '${snapshot.counts['account_banned'] ?? 0} yasak',
+                            ),
+                            _AdminStatChip(
+                              icon: Icons.phone_locked_outlined,
+                              label:
+                                  '${snapshot.counts['phone_verification_blocked'] ?? 0} telefon',
+                            ),
+                            _AdminStatChip(
+                              icon: Icons.phonelink_lock_outlined,
+                              label:
+                                  '${snapshot.counts['device_challenge_pending'] ?? 0} cihaz',
+                            ),
+                            _AdminStatChip(
+                              icon: Icons.assignment_ind_outlined,
+                              label:
+                                  '${snapshot.counts['profile_onboarding_stuck'] ?? 0} profil',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Bu alan, kayıt, login ve normal kullanım akışında kullanıcıyı kilitleyen durumları tek listede toplar. Aksiyonlar audit kaydı bırakır.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _AdminPreviewListCard(
+                      title: 'Çözülebilir üye durumları',
+                      total: snapshot.items.length,
+                      children: [
+                        for (final item in snapshot.items)
+                          _AdminPreviewLine(
+                            leading: RemoteAvatar(
+                              label: item.user.displayName,
+                              imageUrl: item.user.avatar,
+                              radius: 22,
+                            ),
+                            title:
+                                '${item.user.displayName}${item.user.handle.isNotEmpty ? ' · @${item.user.handle}' : ''}',
+                            subtitle:
+                                '${item.issueSummary}\n'
+                                'Aktif: ${item.user.active ? 'evet' : 'hayır'} · Yasak: ${item.user.banned ? 'evet' : 'hayır'} · Doğrulama: ${item.user.verificationStatus.isEmpty ? (item.user.verified ? 'verified' : 'pending') : item.user.verificationStatus}'
+                                '${item.user.lastAuthEvent.isNotEmpty ? ' · Son auth: ${item.user.lastAuthEvent}' : ''}',
+                            trailing: _supportSeverityLabel(
+                              item.primarySeverity,
+                            ),
+                            action: _SupportIssueActionMenu(
+                              item: item,
+                              busy: actionState.isLoading,
+                              onApply: (action) => _handleSupportIssueAction(
+                                context,
+                                ref,
+                                item: item,
+                                action: action,
+                              ),
+                            ),
+                            onTap: () => context.go(
+                              '/admin/member-journey?id=${item.user.id}',
+                            ),
                           ),
                       ],
                     ),
@@ -2767,6 +2908,79 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
           ok
               ? (enabled ? 'SMS doğrulama açıldı.' : 'SMS doğrulama kapatıldı.')
               : (actionState.message ?? 'Doğrulama ayarı güncellenemedi.'),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleSupportIssueAction(
+    BuildContext context,
+    WidgetRef ref, {
+    required AdminSupportIssueItem item,
+    required AdminSupportAction action,
+  }) async {
+    final reasonController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(action.label),
+        content: SizedBox(
+          width: 460,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(item.user.displayName),
+              const SizedBox(height: 8),
+              Text(action.description),
+              const SizedBox(height: 14),
+              TextField(
+                controller: reasonController,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Admin notu',
+                  hintText: 'Neden uygulandığını kısa yaz',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: Icon(
+              action.destructive
+                  ? Icons.warning_amber_outlined
+                  : Icons.check_circle_outline,
+            ),
+            label: const Text('Uygula'),
+          ),
+        ],
+      ),
+    );
+    final reason = reasonController.text.trim();
+    reasonController.dispose();
+    if (confirmed != true || !context.mounted) return;
+    final ok = await ref
+        .read(adminActionControllerProvider.notifier)
+        .applySupportIssueAction(
+          userId: item.user.id,
+          action: action.key,
+          reason: reason,
+        );
+    if (!context.mounted) return;
+    final actionState = ref.read(adminActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? '${action.label} uygulandı.'
+              : (actionState.message ?? 'Destek aksiyonu uygulanamadı.'),
         ),
       ),
     );
@@ -5384,6 +5598,74 @@ class _AdminPreviewListCard extends StatelessWidget {
   }
 }
 
+class _SupportIssueActionMenu extends StatelessWidget {
+  const _SupportIssueActionMenu({
+    required this.item,
+    required this.busy,
+    required this.onApply,
+  });
+
+  final AdminSupportIssueItem item;
+  final bool busy;
+  final ValueChanged<AdminSupportAction> onApply;
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleActions = item.actions
+        .where((action) => action.key.trim().isNotEmpty)
+        .toList(growable: false);
+    if (visibleActions.isEmpty) return const SizedBox.shrink();
+    if (visibleActions.length <= 2) {
+      return Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          for (final action in visibleActions)
+            OutlinedButton.icon(
+              onPressed: busy ? null : () => onApply(action),
+              icon: Icon(
+                action.destructive
+                    ? Icons.warning_amber_outlined
+                    : Icons.build_circle_outlined,
+                size: 18,
+              ),
+              label: Text(action.label),
+            ),
+        ],
+      );
+    }
+    return PopupMenuButton<AdminSupportAction>(
+      tooltip: 'Destek aksiyonu',
+      enabled: !busy,
+      icon: const Icon(Icons.more_horiz_rounded),
+      onSelected: onApply,
+      itemBuilder: (context) => [
+        for (final action in visibleActions)
+          PopupMenuItem<AdminSupportAction>(
+            value: action,
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(
+                action.destructive
+                    ? Icons.warning_amber_outlined
+                    : Icons.build_circle_outlined,
+              ),
+              title: Text(action.label),
+              subtitle: action.description.isEmpty
+                  ? null
+                  : Text(
+                      action.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _AdminPreviewLine extends StatelessWidget {
   const _AdminPreviewLine({
     required this.title,
@@ -6558,6 +6840,15 @@ Color _adminToneColor(BuildContext context, _AdminTone tone) {
   };
 }
 
+String _supportSeverityLabel(String severity) {
+  return switch (severity.trim().toLowerCase()) {
+    'critical' => 'Kritik',
+    'high' => 'Yüksek',
+    'medium' => 'Orta',
+    _ => 'Düşük',
+  };
+}
+
 Future<void> _showAdminLoginDialog(BuildContext context, WidgetRef ref) async {
   final passwordController = TextEditingController();
   final confirmed = await showDialog<bool>(
@@ -6868,6 +7159,11 @@ List<_AdminSection> _visibleAdminSections(AdminAccessSnapshot access) {
         key.contains('user') ||
         key.contains('role')) {
       visibleKeys.add('management');
+      visibleKeys.add('support');
+    }
+    if (key.contains('auth') || key.contains('setting')) {
+      visibleKeys.add('auth-security');
+      visibleKeys.add('support');
     }
   }
   return _adminSections
@@ -6984,6 +7280,22 @@ const _adminSections = <_AdminSection>[
       'Güvenilir cihaz ve revoke durumu',
       'SMS deneme ve audit kayıtları',
       'E-posta challenge izleme',
+    ],
+  ),
+  _AdminSection(
+    key: 'support',
+    title: 'Destek çözüm merkezi',
+    summary: 'Kayıt, login ve kullanım edge case sorunlarını çöz.',
+    description:
+        'Aktivasyon, yasak, SMS doğrulama, yeni cihaz challenge, profil onboarding ve manuel doğrulama takılmalarını admin uygulamasından müdahale edilebilir hale getirir.',
+    icon: Icons.support_agent_outlined,
+    tone: _AdminTone.warning,
+    routeFile: 'server/routes/adminSecurityRoutes.js',
+    capabilities: [
+      'Takılan kayıt ve aktivasyon hesapları',
+      'Telefon doğrulama ve cihaz challenge temizliği',
+      'Profil onboarding ve doğrulama bayrakları',
+      'Auditli tek tık destek aksiyonları',
     ],
   ),
   _AdminSection(

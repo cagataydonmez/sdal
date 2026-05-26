@@ -128,6 +128,189 @@ class AdminAuthSettingsSnapshot {
   }
 }
 
+class AdminSupportIssueSnapshot {
+  const AdminSupportIssueSnapshot({required this.counts, required this.items});
+
+  final Map<String, int> counts;
+  final List<AdminSupportIssueItem> items;
+
+  factory AdminSupportIssueSnapshot.fromMap(JsonMap map) {
+    final rawCounts = asJsonMap(map['counts']);
+    return AdminSupportIssueSnapshot(
+      counts: rawCounts.map((key, value) => MapEntry(key, asInt(value) ?? 0)),
+      items: asJsonMapList(
+        map['items'],
+      ).map(AdminSupportIssueItem.fromMap).toList(growable: false),
+    );
+  }
+}
+
+class AdminSupportIssueItem {
+  const AdminSupportIssueItem({
+    required this.user,
+    required this.issues,
+    required this.actions,
+  });
+
+  final AdminSupportIssueUser user;
+  final List<AdminSupportIssue> issues;
+  final List<AdminSupportAction> actions;
+
+  String get primarySeverity {
+    const order = {'critical': 4, 'high': 3, 'medium': 2, 'low': 1};
+    var best = 'low';
+    var score = 0;
+    for (final issue in issues) {
+      final next = order[issue.severity] ?? 0;
+      if (next > score) {
+        score = next;
+        best = issue.severity;
+      }
+    }
+    return best;
+  }
+
+  String get issueSummary => issues.map((item) => item.title).join(' · ');
+
+  factory AdminSupportIssueItem.fromMap(JsonMap map) {
+    return AdminSupportIssueItem(
+      user: AdminSupportIssueUser.fromMap(asJsonMap(map['user'])),
+      issues: asJsonMapList(
+        map['issues'],
+      ).map(AdminSupportIssue.fromMap).toList(growable: false),
+      actions: asJsonMapList(
+        map['actions'],
+      ).map(AdminSupportAction.fromMap).toList(growable: false),
+    );
+  }
+}
+
+class AdminSupportIssueUser {
+  const AdminSupportIssueUser({
+    required this.id,
+    required this.handle,
+    required this.name,
+    required this.email,
+    required this.avatar,
+    required this.role,
+    required this.active,
+    required this.banned,
+    required this.verified,
+    required this.profileInitialized,
+    required this.verificationStatus,
+    required this.phoneVerificationRequired,
+    required this.manualReviewRequired,
+    required this.phoneVerifiedAt,
+    required this.activeTrustedDevices,
+    required this.pendingEmailChallenges,
+    required this.deniedPhoneAttempts,
+    required this.warnAuthEvents,
+    required this.lastAuthEvent,
+    required this.lastAuthAt,
+    required this.lastSeenAt,
+  });
+
+  final int id;
+  final String handle;
+  final String name;
+  final String email;
+  final String avatar;
+  final String role;
+  final bool active;
+  final bool banned;
+  final bool verified;
+  final bool profileInitialized;
+  final String verificationStatus;
+  final bool phoneVerificationRequired;
+  final bool manualReviewRequired;
+  final String phoneVerifiedAt;
+  final int activeTrustedDevices;
+  final int pendingEmailChallenges;
+  final int deniedPhoneAttempts;
+  final int warnAuthEvents;
+  final String lastAuthEvent;
+  final String lastAuthAt;
+  final String lastSeenAt;
+
+  String get displayName =>
+      name.isNotEmpty ? name : (handle.isNotEmpty ? '@$handle' : 'Üye #$id');
+
+  factory AdminSupportIssueUser.fromMap(JsonMap map) {
+    return AdminSupportIssueUser(
+      id: asInt(map['id']) ?? 0,
+      handle: coalesceText([map['handle'], map['kadi']], fallback: ''),
+      name: coalesceText([map['name']], fallback: ''),
+      email: coalesceText([map['email']], fallback: ''),
+      avatar: coalesceText([map['avatar'], map['resim']], fallback: ''),
+      role: coalesceText([map['role']], fallback: 'user'),
+      active: asBool(map['active']) ?? false,
+      banned: asBool(map['banned']) ?? false,
+      verified: asBool(map['verified']) ?? false,
+      profileInitialized: asBool(map['profileInitialized']) ?? false,
+      verificationStatus: coalesceText([
+        map['verificationStatus'],
+      ], fallback: ''),
+      phoneVerificationRequired:
+          asBool(map['phoneVerificationRequired']) ?? false,
+      manualReviewRequired: asBool(map['manualReviewRequired']) ?? false,
+      phoneVerifiedAt: coalesceText([map['phoneVerifiedAt']], fallback: ''),
+      activeTrustedDevices: asInt(map['activeTrustedDevices']) ?? 0,
+      pendingEmailChallenges: asInt(map['pendingEmailChallenges']) ?? 0,
+      deniedPhoneAttempts: asInt(map['deniedPhoneAttempts']) ?? 0,
+      warnAuthEvents: asInt(map['warnAuthEvents']) ?? 0,
+      lastAuthEvent: coalesceText([map['lastAuthEvent']], fallback: ''),
+      lastAuthAt: coalesceText([map['lastAuthAt']], fallback: ''),
+      lastSeenAt: coalesceText([map['lastSeenAt']], fallback: ''),
+    );
+  }
+}
+
+class AdminSupportIssue {
+  const AdminSupportIssue({
+    required this.code,
+    required this.title,
+    required this.detail,
+    required this.severity,
+  });
+
+  final String code;
+  final String title;
+  final String detail;
+  final String severity;
+
+  factory AdminSupportIssue.fromMap(JsonMap map) {
+    return AdminSupportIssue(
+      code: coalesceText([map['code']], fallback: ''),
+      title: coalesceText([map['title']], fallback: 'Destek sorunu'),
+      detail: coalesceText([map['detail']], fallback: ''),
+      severity: coalesceText([map['severity']], fallback: 'low'),
+    );
+  }
+}
+
+class AdminSupportAction {
+  const AdminSupportAction({
+    required this.key,
+    required this.label,
+    required this.description,
+    required this.destructive,
+  });
+
+  final String key;
+  final String label;
+  final String description;
+  final bool destructive;
+
+  factory AdminSupportAction.fromMap(JsonMap map) {
+    return AdminSupportAction(
+      key: coalesceText([map['key']], fallback: ''),
+      label: coalesceText([map['label']], fallback: 'Uygula'),
+      description: coalesceText([map['description']], fallback: ''),
+      destructive: asBool(map['destructive']) ?? false,
+    );
+  }
+}
+
 class AdminVerifiedPhoneItem {
   const AdminVerifiedPhoneItem({
     required this.userId,
@@ -3248,6 +3431,31 @@ class AdminRepository {
     return AdminAuthSecuritySnapshot.fromMap(asJsonMap(result.rawData));
   }
 
+  Future<AdminSupportIssueSnapshot> fetchSupportIssues({
+    String query = '',
+  }) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/admin/support-issues',
+      query: {'limit': '60', if (query.trim().isNotEmpty) 'q': query.trim()},
+      decoder: asJsonMap,
+    );
+    return AdminSupportIssueSnapshot.fromMap(asJsonMap(result.rawData));
+  }
+
+  Future<void> applySupportIssueAction({
+    required int userId,
+    required String action,
+    String reason = '',
+  }) async {
+    await _apiClient.post<dynamic>(
+      '/api/new/admin/support-issues/$userId/actions',
+      body: {
+        'action': action,
+        if (reason.trim().isNotEmpty) 'reason': reason.trim(),
+      },
+    );
+  }
+
   Future<List<AdminRequestNotificationItem>> fetchRequestNotifications() async {
     final result = await _apiClient.get<JsonMap>(
       '/api/new/admin/requests/notifications',
@@ -4794,6 +5002,12 @@ final adminSecurityProvider = FutureProvider<AdminSecuritySnapshot>(
 final adminAuthSecurityProvider = FutureProvider<AdminAuthSecuritySnapshot>(
   (ref) => ref.watch(adminRepositoryProvider).fetchAuthSecurity(),
 );
+
+final adminSupportIssuesProvider =
+    FutureProvider.family<AdminSupportIssueSnapshot, String>(
+      (ref, query) =>
+          ref.watch(adminRepositoryProvider).fetchSupportIssues(query: query),
+    );
 
 final adminAuthSettingsProvider = FutureProvider<AdminAuthSettingsSnapshot>(
   (ref) => ref.watch(adminRepositoryProvider).fetchAuthSettings(),
