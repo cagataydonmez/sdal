@@ -50,7 +50,7 @@ class SdalLogoBadge extends StatelessWidget {
               (effectiveRadius - borderWidth).clamp(0, effectiveRadius),
             ),
             child: Image.asset(
-              'icon.png',
+              tokens.logoAsset,
               width: size,
               height: size,
               fit: BoxFit.cover,

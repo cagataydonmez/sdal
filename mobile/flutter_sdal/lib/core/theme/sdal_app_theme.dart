@@ -43,7 +43,7 @@ enum SdalAppTheme {
 
   /// Dark-mode accent for watchOS .tint().
   Color get watchAccent => switch (this) {
-    kor   => const Color(0xFFE99A73),
+    kor   => const Color(0xFF818CF8),
     atlas => const Color(0xFF4D9FFF),
     vibe  => const Color(0xFFB47FFF),
     zinc  => const Color(0xFF22D3EE),
@@ -53,7 +53,7 @@ enum SdalAppTheme {
 
   /// Three representative swatch colors for the theme picker.
   List<Color> get swatches => switch (this) {
-    kor   => const [Color(0xFFE99A73), Color(0xFFB45637), Color(0xFF17120F)],
+    kor   => const [Color(0xFF818CF8), Color(0xFF3E3FBC), Color(0xFF0C0C1E)],
     atlas => const [Color(0xFF4D9FFF), Color(0xFF1060A0), Color(0xFF0A1428)],
     vibe  => const [Color(0xFFB47FFF), Color(0xFF6200EE), Color(0xFF110820)],
     zinc  => const [Color(0xFF22D3EE), Color(0xFF0891B2), Color(0xFF0A0A0B)],
@@ -147,6 +147,7 @@ const _atlasLight = SdalThemeTokens(
   buttonRadius: 10,
   inputRadius: 12,
   panelBorderWidth: 0.8,
+  logoAsset: 'assets/logo_atlas.png',
 );
 
 const _atlasDark = SdalThemeTokens(
@@ -181,6 +182,7 @@ const _atlasDark = SdalThemeTokens(
   buttonRadius: 10,
   inputRadius: 12,
   panelBorderWidth: 0.8,
+  logoAsset: 'assets/logo_atlas.png',
 );
 
 // ---------------------------------------------------------------------------
@@ -219,6 +221,7 @@ const _vibeLight = SdalThemeTokens(
   buttonRadius: 22,
   inputRadius: 22,
   panelBorderWidth: 0.7,
+  logoAsset: 'assets/logo_vibe.png',
 );
 
 const _vibeDark = SdalThemeTokens(
@@ -253,6 +256,7 @@ const _vibeDark = SdalThemeTokens(
   buttonRadius: 22,
   inputRadius: 22,
   panelBorderWidth: 0.7,
+  logoAsset: 'assets/logo_vibe.png',
 );
 
 // ---------------------------------------------------------------------------
@@ -291,6 +295,7 @@ const _zincLight = SdalThemeTokens(
   buttonRadius: 4,
   inputRadius: 6,
   panelBorderWidth: 0.8,
+  logoAsset: 'assets/logo_zinc.png',
 );
 
 const _zincDark = SdalThemeTokens(
@@ -325,6 +330,7 @@ const _zincDark = SdalThemeTokens(
   buttonRadius: 4,
   inputRadius: 6,
   panelBorderWidth: 0.8,
+  logoAsset: 'assets/logo_zinc.png',
 );
 
 // ---------------------------------------------------------------------------
@@ -363,6 +369,7 @@ const _emberLight = SdalThemeTokens(
   buttonRadius: 14,
   inputRadius: 14,
   panelBorderWidth: 0.8,
+  logoAsset: 'assets/logo_ember.png',
 );
 
 const _emberDark = SdalThemeTokens(
@@ -397,6 +404,7 @@ const _emberDark = SdalThemeTokens(
   buttonRadius: 14,
   inputRadius: 14,
   panelBorderWidth: 0.8,
+  logoAsset: 'assets/logo_ember.png',
 );
 
 // ---------------------------------------------------------------------------
@@ -435,6 +443,7 @@ const _mistLight = SdalThemeTokens(
   buttonRadius: 18,
   inputRadius: 18,
   panelBorderWidth: 0.7,
+  logoAsset: 'assets/logo_mist.png',
 );
 
 const _mistDark = SdalThemeTokens(
@@ -469,4 +478,5 @@ const _mistDark = SdalThemeTokens(
   buttonRadius: 18,
   inputRadius: 18,
   panelBorderWidth: 0.7,
+  logoAsset: 'assets/logo_mist.png',
 );
