@@ -147,18 +147,22 @@ jobs:
           fi
 
       - name: Deploy over SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.DO_HOST }}
-          username: ${{ secrets.DO_USER }}
-          key: ${{ secrets.DO_SSH_KEY }}
-          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
-          port: ${{ secrets.DO_PORT }}
-          timeout: 40s
-          command_timeout: 20m
-          debug: true
-          script_stop: true
-          script: |
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+          DO_PORT: ${{ secrets.DO_PORT }}
+          DO_APP_DIR: ${{ secrets.DO_APP_DIR }}
+          DO_ENV_FILE: ${{ secrets.DO_ENV_FILE }}
+        run: |
+          set -euo pipefail
+          KEY_FILE="$(mktemp)"
+          trap 'rm -f "$KEY_FILE"' EXIT
+          printf '%s\n' "$DO_SSH_KEY" >"$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          REMOTE_ENV_FILE="${DO_ENV_FILE:-/etc/sdal/sdal.env}"
+          REMOTE_ENV="$(printf 'APP_DIR=%q BRANCH=%q ENV_FILE=%q' "$DO_APP_DIR" "main" "$REMOTE_ENV_FILE")"
+          ssh -i "$KEY_FILE" -p "$DO_PORT" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=40 "${DO_USER}@${DO_HOST}" "$REMOTE_ENV bash -s" <<'REMOTE'
             set -euo pipefail
             export APP_DIR="${{ secrets.DO_APP_DIR }}"
             export BRANCH="main"
@@ -182,21 +186,22 @@ jobs:
             else
               bash "$APP_DIR/ops/deploy-systemd.sh"
             fi
+          REMOTE
 
       - name: Deploy Failure Diagnostics
         if: failure()
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.DO_HOST }}
-          username: ${{ secrets.DO_USER }}
-          key: ${{ secrets.DO_SSH_KEY }}
-          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
-          port: ${{ secrets.DO_PORT }}
-          timeout: 40s
-          command_timeout: 10m
-          debug: true
-          script_stop: false
-          script: |
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+          DO_PORT: ${{ secrets.DO_PORT }}
+        run: |
+          set -euo pipefail
+          KEY_FILE="$(mktemp)"
+          trap 'rm -f "$KEY_FILE"' EXIT
+          printf '%s\n' "$DO_SSH_KEY" >"$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          ssh -i "$KEY_FILE" -p "$DO_PORT" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=40 "${DO_USER}@${DO_HOST}" "bash -s" <<'REMOTE' || true
             set -euo pipefail
             echo "[diag] date=$(date -Iseconds)"
             echo "[diag] whoami=$(whoami)"
@@ -221,20 +226,25 @@ jobs:
             fi
             echo "[diag] listening ports"
             ss -ltnp || true
+          REMOTE
 
       - name: Post-Deploy Health Verification
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.DO_HOST }}
-          username: ${{ secrets.DO_USER }}
-          key: ${{ secrets.DO_SSH_KEY }}
-          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
-          port: ${{ secrets.DO_PORT }}
-          timeout: 40s
-          command_timeout: 10m
-          debug: true
-          script_stop: true
-          script: |
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+          DO_PORT: ${{ secrets.DO_PORT }}
+          DO_ENV_FILE: ${{ secrets.DO_ENV_FILE }}
+          EXPECTED_DB_DRIVER: ${{ vars.EXPECTED_DB_DRIVER }}
+        run: |
+          set -euo pipefail
+          KEY_FILE="$(mktemp)"
+          trap 'rm -f "$KEY_FILE"' EXIT
+          printf '%s\n' "$DO_SSH_KEY" >"$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          REMOTE_ENV_FILE="${DO_ENV_FILE:-/etc/sdal/sdal.env}"
+          REMOTE_ENV="$(printf 'ENV_FILE=%q EXPECTED_DB_DRIVER=%q' "$REMOTE_ENV_FILE" "${EXPECTED_DB_DRIVER:-}")"
+          ssh -i "$KEY_FILE" -p "$DO_PORT" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=40 "${DO_USER}@${DO_HOST}" "$REMOTE_ENV bash -s" <<'REMOTE'
             set -euo pipefail
             ENV_FILE="${{ secrets.DO_ENV_FILE }}"
             if [[ -z "${ENV_FILE:-}" ]]; then
@@ -333,21 +343,22 @@ jobs:
 
             verify_ws_upgrade "/ws/chat" "$APP_DOMAIN_VALUE"
             verify_ws_upgrade "/ws/messenger" "$APP_DOMAIN_VALUE"
+          REMOTE
 
       - name: Post-Deploy Failure Diagnostics
         if: failure()
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.DO_HOST }}
-          username: ${{ secrets.DO_USER }}
-          key: ${{ secrets.DO_SSH_KEY }}
-          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
-          port: ${{ secrets.DO_PORT }}
-          timeout: 40s
-          command_timeout: 10m
-          debug: true
-          script_stop: false
-          script: |
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+          DO_PORT: ${{ secrets.DO_PORT }}
+        run: |
+          set -euo pipefail
+          KEY_FILE="$(mktemp)"
+          trap 'rm -f "$KEY_FILE"' EXIT
+          printf '%s\n' "$DO_SSH_KEY" >"$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          ssh -i "$KEY_FILE" -p "$DO_PORT" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=40 "${DO_USER}@${DO_HOST}" "bash -s" <<'REMOTE' || true
             set -euo pipefail
             echo "[diag-post] date=$(date -Iseconds)"
             if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
@@ -360,3 +371,4 @@ jobs:
               journalctl -u sdal-api.service -n 200 --no-pager || true
             fi
             ss -ltnp || true
+          REMOTE
