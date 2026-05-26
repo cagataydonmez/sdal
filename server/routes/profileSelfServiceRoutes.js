@@ -76,6 +76,35 @@ export function registerProfileSelfServiceRoutes(app, {
     return Number.isFinite(year) ? year : null;
   }
 
+  function privateUploadUrl(kind, filename) {
+    const safeName = path.basename(String(filename || '').trim());
+    if (!safeName) return '';
+    return `/api/private/uploads/${encodeURIComponent(kind)}/${encodeURIComponent(safeName)}`;
+  }
+
+  function normalizePrivateUploadUrl(value) {
+    const text = String(value || '').trim();
+    const match = text.match(/^\/uploads\/(verification-proofs|request-attachments)\/([^/?#]+)/);
+    if (!match) return text;
+    return privateUploadUrl(match[1], decodeURIComponent(match[2]));
+  }
+
+  function normalizeRequestPayloadJson(raw) {
+    if (!raw) return raw;
+    try {
+      const payload = typeof raw === 'object' ? raw : JSON.parse(String(raw));
+      if (Array.isArray(payload?.attachments)) {
+        payload.attachments = payload.attachments.map((item) => {
+          if (!item || typeof item !== 'object') return item;
+          return { ...item, url: normalizePrivateUploadUrl(item.url) };
+        });
+      }
+      return JSON.stringify(payload);
+    } catch {
+      return raw;
+    }
+  }
+
   function normalizeTeacherProfileInput(body, cohortValue) {
     if (normalizeCohortValue(cohortValue) !== '9999') {
       return {
@@ -656,6 +685,10 @@ export function registerProfileSelfServiceRoutes(app, {
          ORDER BY r.id DESC`,
         [req.session.userId]
       );
+      const normalizedMemberRequests = memberRequests.map((row) => ({
+        ...row,
+        payload_json: normalizeRequestPayloadJson(row.payload_json)
+      }));
       const verificationColumns = await getTableColumnSetAsync('verification_requests');
       const optionalVerificationColumn = (column, fallback = "''") =>
         verificationColumns.has(column) ? column : `${fallback} AS ${column}`;
@@ -678,7 +711,7 @@ export function registerProfileSelfServiceRoutes(app, {
         category_label: row.request_type === 'teacher_verification' ? 'Öğretmen doğrulama' : 'Profil doğrulama',
         payload_json: JSON.stringify({
           requestType: row.request_type || 'member_verification',
-          proofPath: row.proof_path || '',
+          proofPath: normalizePrivateUploadUrl(row.proof_path || ''),
           proofImageRecordId: row.proof_image_record_id || ''
         }),
         status: row.status || 'pending',
@@ -686,7 +719,7 @@ export function registerProfileSelfServiceRoutes(app, {
         reviewed_at: row.reviewed_at || '',
         resolution_note: row.resolution_note || ''
       }));
-      const items = [...memberRequests, ...verificationItems].sort((left, right) => {
+      const items = [...normalizedMemberRequests, ...verificationItems].sort((left, right) => {
         const leftTime = new Date(left.created_at || 0).getTime();
         const rightTime = new Date(right.created_at || 0).getTime();
         if (Number.isFinite(leftTime) && Number.isFinite(rightTime) && leftTime !== rightTime) {
@@ -722,7 +755,7 @@ export function registerProfileSelfServiceRoutes(app, {
         name: req.file.originalname,
         mime: validation.mime,
         size: Number(req.file.size || 0),
-        url: `/uploads/request-attachments/${req.file.filename}`
+        url: privateUploadUrl('request-attachments', req.file.filename)
       }
     });
   });

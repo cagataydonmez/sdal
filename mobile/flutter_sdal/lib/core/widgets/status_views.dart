@@ -1,42 +1,60 @@
 import 'package:flutter/material.dart';
-import '../l10n/context_l10n.dart';
 import '../theme/sdal_theme_tokens.dart';
 import 'sdal_logo_badge.dart';
 
-class AppSplashScreen extends StatelessWidget {
+class AppSplashScreen extends StatefulWidget {
   const AppSplashScreen({super.key});
+
+  @override
+  State<AppSplashScreen> createState() => _AppSplashScreenState();
+}
+
+class _AppSplashScreenState extends State<AppSplashScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
+    _pulse = Tween<double>(begin: 0.82, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).sdal;
-    final theme = Theme.of(context);
     return Scaffold(
       body: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [tokens.canvas, tokens.panelRaised, tokens.accentMuted],
+          gradient: RadialGradient(
+            center: Alignment.center,
+            radius: 1.0,
+            colors: [
+              tokens.accentMuted,
+              tokens.canvas,
+              tokens.canvasSubtle,
+            ],
+            stops: const [0.0, 0.52, 1.0],
           ),
         ),
         child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SdalLogoBadge(size: 180, frameSize: 192),
-                const SizedBox(height: 18),
-                CircularProgressIndicator(color: tokens.accent),
-                const SizedBox(height: 18),
-                Text(
-                  context.l10n.splashPreparing,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    color: tokens.foreground,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
+          child: FadeTransition(
+            opacity: _pulse,
+            child: ScaleTransition(
+              scale: _pulse,
+              child: const SdalLogoBadge(size: 180, frameSize: 200),
             ),
           ),
         ),

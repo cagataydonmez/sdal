@@ -28,7 +28,7 @@ class RemoteAvatar extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: ColoredBox(
           color: normalizedUrl.isEmpty
-              ? tokens.imageError
+              ? tokens.accentMuted
               : tokens.imagePlaceholder,
           child: normalizedUrl.isEmpty
               ? _AvatarInitials(initials: initials)
@@ -73,8 +73,8 @@ class _AvatarInitials extends StatelessWidget {
       child: Text(
         initials,
         style: theme.textTheme.titleSmall?.copyWith(
-          color: tokens.foreground,
-          fontWeight: FontWeight.w700,
+          color: tokens.accent,
+          fontWeight: FontWeight.w800,
         ),
       ),
     );

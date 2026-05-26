@@ -29,16 +29,16 @@ class EmptyStateView extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: compact ? 44 : 56,
-              height: compact ? 44 : 56,
+              width: compact ? 44 : 60,
+              height: compact ? 44 : 60,
               decoration: BoxDecoration(
-                color: tokens.panelMuted,
-                shape: BoxShape.circle,
+                color: tokens.accentMuted,
+                borderRadius: BorderRadius.circular(SdalThemeTokens.radiusLg),
               ),
               child: Icon(
                 icon,
-                size: compact ? 20 : 26,
-                color: tokens.foregroundMuted,
+                size: compact ? 20 : 28,
+                color: tokens.accent,
               ),
             ),
             SizedBox(height: compact ? 10 : 14),

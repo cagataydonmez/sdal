@@ -7,9 +7,22 @@ export function registerMemberDirectoryRoutes(app, {
   logUserActivity = null
 }) {
   const testMultiAccountEmail = 'cagatay.donmez@gmail.com';
-  const hideTestEmail = (row) => {
-    if (String(row?.email || '').trim().toLowerCase() !== testMultiAccountEmail) return row;
-    return { ...row, email: '', mailkapali: 1 };
+  const sanitizeDirectoryRow = (row, { viewerId } = {}) => {
+    const isSelf = Number(row?.id || 0) === Number(viewerId || 0);
+    const isTestEmail = String(row?.email || '').trim().toLowerCase() === testMultiAccountEmail;
+    const isEmailHidden = isTestEmail || Number(row?.mailkapali || 0) === 1;
+    const { dogumgun, dogumay, dogumyil, mailkapali, ...safeRow } = row || {};
+    const sanitized = {
+      ...safeRow,
+      email: isEmailHidden ? '' : row?.email || ''
+    };
+    if (isSelf) {
+      sanitized.mailkapali = Number(mailkapali || 0);
+      sanitized.dogumgun = dogumgun;
+      sanitized.dogumay = dogumay;
+      sanitized.dogumyil = dogumyil;
+    }
+    return sanitized;
   };
 
   app.get('/api/members', async (req, res) => {
@@ -145,11 +158,11 @@ export function registerMemberDirectoryRoutes(app, {
       }
 
       const rowsWithTrustBadges = rows.map((rawRow) => {
-        const row = hideTestEmail(rawRow);
+        const row = sanitizeDirectoryRow(rawRow, { viewerId: req.session.userId });
         return {
           ...row,
-        following: Number(row?.following || 0) > 0,
-        trust_badges: buildMemberTrustBadges(row)
+          following: Number(row?.following || 0) > 0,
+          trust_badges: buildMemberTrustBadges(row)
         };
       });
 
@@ -225,7 +238,7 @@ export function registerMemberDirectoryRoutes(app, {
       }
       return res.json({
         row: {
-          ...hideTestEmail(row),
+          ...sanitizeDirectoryRow(row, { viewerId: req.session.userId }),
           following: Number(row?.following || 0) > 0
         }
       });

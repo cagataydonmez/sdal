@@ -47,11 +47,11 @@ class ErrorView extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: compact ? 40 : 56,
-          height: compact ? 40 : 56,
+          width: compact ? 44 : 60,
+          height: compact ? 44 : 60,
           decoration: BoxDecoration(
             color: tokens.dangerMuted,
-            shape: BoxShape.circle,
+            borderRadius: BorderRadius.circular(SdalThemeTokens.radiusLg),
           ),
           child: Icon(icon, size: compact ? 20 : 28, color: tokens.danger),
         ),

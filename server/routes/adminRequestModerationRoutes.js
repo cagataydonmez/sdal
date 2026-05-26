@@ -30,6 +30,35 @@ export function registerAdminRequestModerationRoutes(app, {
   assignUserToCohort,
   applyUserGraduationYearChange
 }) {
+  function privateUploadUrl(kind, filename) {
+    const safeName = String(filename || '').trim().split('/').pop();
+    if (!safeName) return '';
+    return `/api/private/uploads/${encodeURIComponent(kind)}/${encodeURIComponent(safeName)}`;
+  }
+
+  function normalizePrivateUploadUrl(value) {
+    const text = String(value || '').trim();
+    const match = text.match(/^\/uploads\/(verification-proofs|request-attachments)\/([^/?#]+)/);
+    if (!match) return text;
+    return privateUploadUrl(match[1], decodeURIComponent(match[2]));
+  }
+
+  function normalizeRequestPayloadJson(raw) {
+    if (!raw) return raw;
+    try {
+      const payload = typeof raw === 'object' ? raw : JSON.parse(String(raw));
+      if (Array.isArray(payload?.attachments)) {
+        payload.attachments = payload.attachments.map((item) => {
+          if (!item || typeof item !== 'object') return item;
+          return { ...item, url: normalizePrivateUploadUrl(item.url) };
+        });
+      }
+      return JSON.stringify(payload);
+    } catch {
+      return raw;
+    }
+  }
+
   app.get('/api/new/admin/requests/notifications', requireAdmin, async (req, res) => {
     try {
       const actor = req.authUser || getCurrentUser(req);
@@ -135,7 +164,10 @@ export function registerAdminRequestModerationRoutes(app, {
         [...params, limit, safeOffset]
       );
       res.json({
-        items,
+        items: items.map((item) => ({
+          ...item,
+          payload_json: normalizeRequestPayloadJson(item.payload_json)
+        })),
         meta: {
           page: safePage,
           pages,

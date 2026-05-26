@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import 'image_lightbox.dart';
+import '../config/app_config.dart';
 import '../network/legacy_media_value.dart';
 import '../theme/sdal_theme_tokens.dart';
 
@@ -80,8 +83,57 @@ class SdalNetworkImage extends ConsumerWidget {
       return SizedBox(width: width, height: height, child: fallbackError);
     }
 
+    final uri = Uri.tryParse(trimmed);
+    final needsAuthCookie =
+        uri?.path.startsWith('/api/private/uploads/') == true;
+    if (needsAuthCookie && uri != null) {
+      final apiClient = ref.watch(apiClientProvider);
+      return FutureBuilder<String?>(
+        future: apiClient.cookieHeaderForUri(uri),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return SizedBox(
+              width: width,
+              height: height,
+              child: fallbackPlaceholder,
+            );
+          }
+          final cookie = snapshot.data ?? '';
+          final headers = cookie.isEmpty
+              ? null
+              : <String, String>{HttpHeaders.cookieHeader: cookie};
+          return _buildImage(
+            trimmed,
+            lightboxUrl: lightboxImageUrl,
+            config: config,
+            headers: headers,
+            fallbackPlaceholder: fallbackPlaceholder,
+            fallbackError: fallbackError,
+          );
+        },
+      );
+    }
+
+    return _buildImage(
+      trimmed,
+      lightboxUrl: lightboxImageUrl,
+      config: config,
+      fallbackPlaceholder: fallbackPlaceholder,
+      fallbackError: fallbackError,
+    );
+  }
+
+  Widget _buildImage(
+    String trimmed, {
+    required AppConfig config,
+    required Widget fallbackPlaceholder,
+    required Widget fallbackError,
+    String? lightboxUrl,
+    Map<String, String>? headers,
+  }) {
     Widget child = Image.network(
       trimmed,
+      headers: headers,
       width: width,
       height: height,
       fit: fit,
@@ -110,12 +162,12 @@ class SdalNetworkImage extends ConsumerWidget {
       child = ClipRRect(borderRadius: borderRadius!, child: child);
     }
 
-    final lightboxRaw = normalizeLegacyMediaValue(lightboxImageUrl ?? '');
-    final lightboxUrl = lightboxRaw.isEmpty
+    final lightboxRaw = normalizeLegacyMediaValue(lightboxUrl ?? '');
+    final resolvedLightboxUrl = lightboxRaw.isEmpty
         ? trimmed
         : config.resolveUrl(lightboxRaw).toString();
     child = SdalLightboxImage(
-      imageProvider: NetworkImage(lightboxUrl),
+      imageProvider: NetworkImage(resolvedLightboxUrl, headers: headers),
       semanticLabel: semanticLabel,
       enabled: enableLightbox,
       child: child,

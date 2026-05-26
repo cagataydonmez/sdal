@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class SurfaceCard extends StatelessWidget {
+class SurfaceCard extends StatefulWidget {
   const SurfaceCard({
     super.key,
     required this.child,
@@ -21,27 +21,91 @@ class SurfaceCard extends StatelessWidget {
   final bool semanticContainer;
 
   @override
+  State<SurfaceCard> createState() => _SurfaceCardState();
+}
+
+class _SurfaceCardState extends State<SurfaceCard>
+    with SingleTickerProviderStateMixin {
+  AnimationController? _ctrl;
+  Animation<double>? _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.onTap != null) {
+      _ctrl = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 70),
+        reverseDuration: const Duration(milliseconds: 130),
+      );
+      _scale = Tween<double>(begin: 1.0, end: 0.975).animate(
+        CurvedAnimation(parent: _ctrl!, curve: Curves.easeOut),
+      );
+    }
+  }
+
+  @override
+  void didUpdateWidget(SurfaceCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.onTap == null && widget.onTap != null && _ctrl == null) {
+      _ctrl = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 70),
+        reverseDuration: const Duration(milliseconds: 130),
+      );
+      _scale = Tween<double>(begin: 1.0, end: 0.975).animate(
+        CurvedAnimation(parent: _ctrl!, curve: Curves.easeOut),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    Widget cardChild = Padding(padding: padding, child: child);
-    if (onTap != null) {
-      cardChild = InkWell(onTap: onTap, child: cardChild);
+    Widget cardChild = Padding(padding: widget.padding, child: widget.child);
+    if (widget.onTap != null) {
+      cardChild = InkWell(
+        onTap: widget.onTap,
+        onTapDown: (_) => _ctrl?.forward(),
+        onTapUp: (_) => _ctrl?.reverse(),
+        onTapCancel: () => _ctrl?.reverse(),
+        child: cardChild,
+      );
     }
 
-    Widget card = Card(clipBehavior: Clip.antiAlias, color: color, child: cardChild);
-    if (tooltip != null) {
-      card = Tooltip(message: tooltip!, child: card);
+    Widget card = Card(
+      clipBehavior: Clip.antiAlias,
+      color: widget.color,
+      child: cardChild,
+    );
+    if (widget.tooltip != null) {
+      card = Tooltip(message: widget.tooltip!, child: card);
+    }
+
+    if (_scale != null) {
+      card = AnimatedBuilder(
+        animation: _scale!,
+        builder: (context, child) =>
+            Transform.scale(scale: _scale!.value, child: child),
+        child: card,
+      );
     }
 
     final shouldWrapSemantics =
-        semanticLabel != null || semanticContainer || onTap != null;
+        widget.semanticLabel != null || widget.semanticContainer || widget.onTap != null;
     if (!shouldWrapSemantics) return card;
 
     final semantics = Semantics(
-      button: onTap != null,
-      container: semanticContainer || onTap != null,
-      label: semanticLabel,
-      child: semanticLabel == null ? card : ExcludeSemantics(child: card),
+      button: widget.onTap != null,
+      container: widget.semanticContainer || widget.onTap != null,
+      label: widget.semanticLabel,
+      child: widget.semanticLabel == null ? card : ExcludeSemantics(child: card),
     );
-    return onTap == null ? semantics : MergeSemantics(child: semantics);
+    return widget.onTap == null ? semantics : MergeSemantics(child: semantics);
   }
 }

@@ -19,6 +19,7 @@ class SdalLogoBadge extends StatelessWidget {
     const borderWidth = 1.2;
     final shadowOpacity = brightness == Brightness.dark ? 0.28 : 0.08;
 
+    final isLarge = effectiveFrameSize >= 72;
     return SizedBox.square(
       dimension: effectiveFrameSize,
       child: DecoratedBox(
@@ -28,9 +29,17 @@ class SdalLogoBadge extends StatelessWidget {
           border: Border.all(color: tokens.panelBorder, width: borderWidth),
           boxShadow: [
             BoxShadow(
+              color: tokens.accent.withValues(
+                alpha: brightness == Brightness.dark ? 0.22 : 0.14,
+              ),
+              blurRadius: isLarge ? 32 : 14,
+              spreadRadius: isLarge ? 2 : 1,
+              offset: Offset(0, isLarge ? 4 : 2),
+            ),
+            BoxShadow(
               color: Colors.black.withValues(alpha: shadowOpacity),
-              blurRadius: effectiveFrameSize >= 72 ? 18 : 10,
-              offset: Offset(0, effectiveFrameSize >= 72 ? 8 : 4),
+              blurRadius: isLarge ? 18 : 10,
+              offset: Offset(0, isLarge ? 8 : 4),
             ),
           ],
         ),

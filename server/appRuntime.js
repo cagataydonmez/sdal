@@ -109,6 +109,13 @@ app.use(presenceMiddleware({ sqlRun, sqlRunAsync, onlineHeartbeatMs: ONLINE_HEAR
 app.use(requestLoggingMiddleware({ writeAppLog, writeLegacyLog }));
 registerLegacyStatics(app, legacyDir);
 registerStaticUploads(app, uploadsDir);
+app.use('/uploads', (req, res, next) => {
+  const rel = String(req.path || '').replace(/^\/+/, '').toLowerCase();
+  if (rel.startsWith('verification-proofs/') || rel.startsWith('request-attachments/')) {
+    return res.status(404).send('Not found');
+  }
+  return next();
+});
 app.use('/uploads', express.static(uploadsDir, {
   setHeaders(res, filePath) {
     const rel = path.relative(uploadsDir, filePath).split(path.sep).join('/').toLowerCase();
@@ -153,6 +160,13 @@ if (!fs.existsSync(verificationProofDir)) {
 const requestAttachmentDir = path.join(uploadsDir, 'request-attachments');
 if (!fs.existsSync(requestAttachmentDir)) {
   fs.mkdirSync(requestAttachmentDir, { recursive: true });
+}
+
+function privateUploadUrl(kind, filename) {
+  const safeKind = String(kind || '').trim();
+  const safeName = path.basename(String(filename || '').trim());
+  if (!safeKind || !safeName) return '';
+  return `/api/private/uploads/${encodeURIComponent(safeKind)}/${encodeURIComponent(safeName)}`;
 }
 
 let chatWss = null;
@@ -358,6 +372,13 @@ const uploadRateLimit = createRateLimitMiddleware({
   bucket: 'upload_write',
   limit: envInt('RATE_LIMIT_UPLOAD_MAX', 25),
   windowSeconds: envInt('RATE_LIMIT_UPLOAD_WINDOW_SECONDS', 600),
+  keyGenerator: (req) => `user:${Number(req.session?.userId || 0)}:ip:${req.ip}`
+});
+
+const mailTestRateLimit = createRateLimitMiddleware({
+  bucket: 'mail_test',
+  limit: envInt('RATE_LIMIT_MAIL_TEST_MAX', 10),
+  windowSeconds: envInt('RATE_LIMIT_MAIL_TEST_WINDOW_SECONDS', 3600),
   keyGenerator: (req) => `user:${Number(req.session?.userId || 0)}:ip:${req.ip}`
 });
 
@@ -1375,6 +1396,36 @@ function requireAlbumAdmin(req, res, next) {
   req.adminUser = user;
   return next();
 }
+
+app.get('/api/private/uploads/:kind/:file', requireAuth, (req, res) => {
+  const kind = String(req.params.kind || '').trim();
+  const file = String(req.params.file || '').trim();
+  const safeFile = path.basename(file);
+  const dirByKind = {
+    'verification-proofs': verificationProofDir,
+    'request-attachments': requestAttachmentDir
+  };
+  const baseDir = dirByKind[kind];
+  if (!baseDir || !safeFile || safeFile !== file) return res.status(404).send('Dosya bulunamadı.');
+
+  const user = req.authUser || getCurrentUser(req);
+  const userId = Number(req.session?.userId || user?.id || 0);
+  const ownerPrefix = kind === 'verification-proofs' ? `proof_${userId}_` : `request_${userId}_`;
+  if (!hasAdminRole(user) && (!userId || !safeFile.startsWith(ownerPrefix))) {
+    return res.status(403).send('Bu dosyaya erişim yetkiniz yok.');
+  }
+
+  const basePath = path.resolve(baseDir);
+  const fullPath = path.resolve(baseDir, safeFile);
+  if (!fullPath.startsWith(`${basePath}${path.sep}`) || !fs.existsSync(fullPath)) {
+    return res.status(404).send('Dosya bulunamadı.');
+  }
+
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  return res.sendFile(fullPath);
+});
 
 function isAdminMutationPath(pathValue) {
   const path = String(pathValue || '');
@@ -4384,6 +4435,8 @@ registerAccountRoutes(app, {
   mailSender,
   mailProviderStatus,
   escapeHtml,
+  requireAdmin,
+  mailTestRateLimit,
   rbacService,
   authSecurity
 });
@@ -5460,8 +5513,9 @@ app.post('/api/new/verified/request', requireAuth, (req, res) => {
     : 'member_verification';
   if (proofPath) {
     const isLegacyProof = proofPath.startsWith('/uploads/verification-proofs/');
+    const isPrivateProof = proofPath.startsWith('/api/private/uploads/verification-proofs/');
     const isVariantProof = proofPath.startsWith('/uploads/images/') || proofPath.startsWith('/api/media/image/');
-    if (!isLegacyProof && !isVariantProof) {
+    if (!isLegacyProof && !isPrivateProof && !isVariantProof) {
       return res.status(400).send('Geçersiz kanıt dosyası yolu.');
     }
   }
@@ -5520,42 +5574,15 @@ app.post('/api/new/verified/proof', requireAuth, uploadRateLimit, verificationPr
   if (ext === '.pdf') {
     return res.json({
       ok: true,
-      proof_path: `/uploads/verification-proofs/${req.file.filename}`,
+      proof_path: privateUploadUrl('verification-proofs', req.file.filename),
       proof_image_record_id: null
     });
   }
-
-  try {
-    const fileBuffer = fs.readFileSync(req.file.path);
-    const uploadResult = await processUpload({
-      buffer: fileBuffer,
-      mimeType: req.file.mimetype || 'image/jpeg',
-      userId: req.session.userId,
-      entityType: 'verification_proof',
-      entityId: String(req.session.userId),
-      sqlGet,
-      sqlRun,
-      uploadsDir,
-      writeAppLog
-    });
-    try {
-      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-    } catch {
-      // best effort
-    }
-    return res.json({
-      ok: true,
-      proof_path: uploadResult?.variants?.fullUrl || `/uploads/verification-proofs/${req.file.filename}`,
-      proof_image_record_id: uploadResult?.imageId || null
-    });
-  } catch (err) {
-    writeAppLog('error', 'verification_proof_variant_generation_failed', { userId: req.session.userId, message: err?.message });
-    return res.json({
-      ok: true,
-      proof_path: `/uploads/verification-proofs/${req.file.filename}`,
-      proof_image_record_id: null
-    });
-  }
+  return res.json({
+    ok: true,
+    proof_path: privateUploadUrl('verification-proofs', req.file.filename),
+    proof_image_record_id: null
+  });
 });
 
 function assignUserToCohort(userId) {

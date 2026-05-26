@@ -63,6 +63,8 @@ export function registerAccountRoutes(app, deps) {
     mailSender,
     mailProviderStatus,
     escapeHtml,
+    requireAdmin,
+    mailTestRateLimit,
     rbacService,
     authSecurity
   } = deps;
@@ -637,7 +639,7 @@ export function registerAccountRoutes(app, deps) {
     }
   });
 
-  app.post('/api/mail/test', async (req, res) => {
+  app.post('/api/mail/test', requireAdmin, mailTestRateLimit, async (req, res) => {
     const fallback = process.env.MAIL_FROM || process.env.SMTP_FROM || process.env.MAIL_SMTP_USER || process.env.SMTP_USER || '';
     const candidates = extractEmails(req.body?.to || fallback);
     if (!candidates.length) return res.status(400).send('Test e-mail adresi eksik.');

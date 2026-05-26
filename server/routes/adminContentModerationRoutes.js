@@ -73,6 +73,19 @@ export function registerAdminContentModerationRoutes(app, {
     return String(value || '').trim().toLowerCase().replace(/[^a-z0-9_:-]+/g, '_');
   }
 
+  function privateUploadUrl(kind, filename) {
+    const safeName = String(filename || '').trim().split('/').pop();
+    if (!safeName) return '';
+    return `/api/private/uploads/${encodeURIComponent(kind)}/${encodeURIComponent(safeName)}`;
+  }
+
+  function normalizePrivateUploadUrl(value) {
+    const text = String(value || '').trim();
+    const match = text.match(/^\/uploads\/(verification-proofs|request-attachments)\/([^/?#]+)/);
+    if (!match) return text;
+    return privateUploadUrl(match[1], decodeURIComponent(match[2]));
+  }
+
   function moderationLockKey(entityType, entityId) {
     return `${normalizeModerationEntityType(entityType)}:${Number(entityId || 0)}`;
   }
@@ -374,7 +387,10 @@ export function registerAdminContentModerationRoutes(app, {
         [...params, limit, safeOffset]
       );
       res.json({
-        items,
+        items: items.map((item) => ({
+          ...item,
+          proof_path: normalizePrivateUploadUrl(item.proof_path)
+        })),
         meta: {
           page: safePage,
           pages,
