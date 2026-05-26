@@ -7,6 +7,8 @@ import 'image_lightbox.dart';
 import '../config/app_config.dart';
 import '../network/legacy_media_value.dart';
 import '../theme/sdal_theme_tokens.dart';
+import '../theme/sdal_ux_profile.dart';
+import 'skeleton_view.dart';
 
 class SdalNetworkImage extends ConsumerWidget {
   const SdalNetworkImage({
@@ -45,20 +47,7 @@ class SdalNetworkImage extends ConsumerWidget {
     final config = ref.watch(appConfigProvider);
     final tokens = Theme.of(context).sdal;
     final fallbackPlaceholder =
-        placeholder ??
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: tokens.imagePlaceholder,
-            borderRadius: borderRadius,
-          ),
-          child: const Center(
-            child: SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          ),
-        );
+        placeholder ?? _buildPlaceholder(context, tokens);
     final fallbackError =
         errorFallback ??
         DecoratedBox(
@@ -123,6 +112,32 @@ class SdalNetworkImage extends ConsumerWidget {
     );
   }
 
+  Widget _buildPlaceholder(BuildContext context, SdalThemeTokens tokens) {
+    final style = tokens.placeholderStyle;
+    if (style == SdalPlaceholderStyle.shimmer) {
+      return SkeletonBox(
+        width: width,
+        height: height ?? 120,
+        borderRadius: borderRadius?.topLeft.x,
+      );
+    }
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: tokens.imagePlaceholder,
+        borderRadius: borderRadius,
+      ),
+      child: style == SdalPlaceholderStyle.solidColor
+          ? const SizedBox.expand()
+          : const Center(
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+    );
+  }
+
   Widget _buildImage(
     String trimmed, {
     required AppConfig config,
@@ -144,9 +159,13 @@ class SdalNetworkImage extends ConsumerWidget {
         if (!enableFade || wasSynchronouslyLoaded) {
           return image;
         }
+        final tokens = Theme.of(context).sdal;
+        final duration = tokens.placeholderStyle == SdalPlaceholderStyle.crossFade
+            ? const Duration(milliseconds: 80)
+            : const Duration(milliseconds: 220);
         return AnimatedOpacity(
           opacity: frame == null ? 0 : 1,
-          duration: const Duration(milliseconds: 220),
+          duration: duration,
           curve: Curves.easeOut,
           child: image,
         );

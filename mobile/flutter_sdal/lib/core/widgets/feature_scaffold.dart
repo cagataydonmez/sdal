@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,7 +10,9 @@ import '../shell/shell_metadata_repository.dart';
 import '../session/session_controller.dart';
 import '../session/session_models.dart';
 import '../theme/sdal_theme_tokens.dart';
+import '../theme/sdal_ux_profile.dart';
 import '../version/app_version.dart';
+import 'app_tab_shell.dart' show AppTabScaffoldKey;
 import 'remote_avatar.dart';
 import 'sdal_logo_badge.dart';
 
@@ -48,8 +52,94 @@ class FeatureScaffold extends ConsumerWidget {
         ? (location.startsWith('/moderation') ? '/moderation' : '/admin')
         : (session?.defaultHomePath ?? '/feed');
     _FeatureRouteHistory.record(location);
+
+    // ── UX profile tokens ────────────────────────────────────────────────
+    final logoPos = tokens.logoPosition;
+    final avatarPos = tokens.avatarPosition;
+    final titleAlign = tokens.titleAlignment;
+    final headerBg = tokens.headerBackground;
+    final headerStyle = tokens.headerStyle;
+    final navStyle = tokens.navStyle;
+
+    final isTransparentHeader = headerStyle == SdalHeaderStyle.transparent ||
+        headerBg == SdalHeaderBackground.transparent;
+    final toolbarH = headerStyle == SdalHeaderStyle.minimal
+        ? tokens.appBarHeight
+        : null; // null = M3 default
+
+    // ── Build leading widget ─────────────────────────────────────────────
+    Widget? leading;
+    double? leadingWidth;
+
+    if (showAdminBack) {
+      leadingWidth = 56;
+      leading = IconButton(
+        tooltip: l10n.backAction,
+        onPressed: () => _goBack(
+          context,
+          currentLocation: location,
+          fallbackLocation: fallbackBackLocation,
+        ),
+        icon: Icon(
+          isAdminRoot
+              ? Icons.keyboard_arrow_down_rounded
+              : Icons.arrow_back_ios_new_rounded,
+        ),
+      );
+    } else if (navStyle == SdalNavStyle.sideDrawer && !canPop) {
+      leadingWidth = 56;
+      leading = IconButton(
+        tooltip: 'Menü',
+        onPressed: () =>
+            AppTabScaffoldKey.maybeOf(context)?.currentState?.openDrawer(),
+        icon: const Icon(Icons.menu_rounded),
+      );
+    } else if (logoPos == SdalLogoPosition.leading && !canPop) {
+      leadingWidth = 64;
+      leading = Padding(
+        padding: const EdgeInsets.only(left: 12),
+        child: Center(
+          child: Tooltip(
+            message: l10n.tabFeed,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => context.go('/feed'),
+              child: const ExcludeSemantics(
+                child: SdalLogoBadge(size: 28, frameSize: 36),
+              ),
+            ),
+          ),
+        ),
+      );
+    } else if (session?.user != null) {
+      if (avatarPos == SdalAvatarPosition.leading ||
+          avatarPos == SdalAvatarPosition.none) {
+        if (avatarPos != SdalAvatarPosition.none) {
+          leading = _ProfileLeading(session: session!, canPop: canPop);
+          leadingWidth = canPop ? 108 : 64;
+        } else if (canPop) {
+          leading = const BackButton();
+        }
+      } else {
+        // trailing / headerHero — avatar not in leading
+        if (canPop) leading = const BackButton();
+      }
+    } else if (canPop) {
+      leading = const BackButton();
+    }
+
+    // ── Build trailing actions ───────────────────────────────────────────
+    final trailingAvatar =
+        session?.user != null && avatarPos == SdalAvatarPosition.trailing
+            ? Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: _TrailingAvatar(session: session!),
+              )
+            : null;
+
     final resolvedActions = <Widget>[
       ...?actions,
+      ?trailingAvatar,
       if (showAppMenu)
         _AppMenuButton(
           session: session,
@@ -58,6 +148,150 @@ class FeatureScaffold extends ConsumerWidget {
           shellSidebar: shellSidebar,
         ),
     ];
+
+    // ── Build title widget ───────────────────────────────────────────────
+    Widget titleWidget;
+    if (canPop || showAdminBack) {
+      if (logoPos == SdalLogoPosition.hidden ||
+          logoPos == SdalLogoPosition.leading) {
+        titleWidget = Text(title, overflow: TextOverflow.ellipsis);
+      } else {
+        titleWidget = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ExcludeSemantics(
+              child: SdalLogoBadge(size: 24, frameSize: 32),
+            ),
+            const SizedBox(width: 10),
+            Flexible(child: Text(title, overflow: TextOverflow.ellipsis)),
+          ],
+        );
+      }
+    } else if (logoPos == SdalLogoPosition.leading) {
+      titleWidget = Text(
+        title,
+        overflow: TextOverflow.ellipsis,
+      );
+    } else if (logoPos == SdalLogoPosition.hidden) {
+      titleWidget = Text(title, overflow: TextOverflow.ellipsis);
+    } else {
+      titleWidget = Tooltip(
+        message: l10n.tabFeed,
+        child: Semantics(
+          button: true,
+          label: l10n.tabFeed,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => context.go('/feed'),
+            child: const ExcludeSemantics(
+              child: SdalLogoBadge(size: 28, frameSize: 36),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // ── Build app bar ────────────────────────────────────────────────────
+    Widget? flexibleSpace;
+    Color? appBarBgColor;
+
+    if (isTransparentHeader) {
+      appBarBgColor = Colors.transparent;
+      if (headerBg == SdalHeaderBackground.gradientScrim) {
+        flexibleSpace = IgnorePointer(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withValues(alpha: 0.55),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+    } else if (headerBg == SdalHeaderBackground.frosted) {
+      appBarBgColor = Colors.transparent;
+      final sigma = tokens.blurSigma.clamp(0.1, 50.0);
+      flexibleSpace = ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+          child: Container(
+            color: tokens.panel.withValues(alpha: tokens.glassOpacity + 0.65),
+          ),
+        ),
+      );
+    }
+
+    final appBar = AppBar(
+      automaticallyImplyLeading: false,
+      toolbarHeight: toolbarH,
+      leadingWidth: leadingWidth,
+      leading: leading,
+      centerTitle: titleAlign == SdalTitleAlignment.center,
+      title: titleWidget,
+      actions: resolvedActions,
+      backgroundColor: appBarBgColor,
+      flexibleSpace: flexibleSpace,
+    );
+
+    // ── Assemble scaffold ────────────────────────────────────────────────
+    final bodyDecoration = switch (background) {
+      FeatureScaffoldBackground.editorial => BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [tokens.canvas, tokens.canvasSubtle],
+        ),
+      ),
+      FeatureScaffoldBackground.utility => BoxDecoration(
+        color: tokens.panelMuted,
+      ),
+      FeatureScaffoldBackground.immersive => BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [tokens.canvasSubtle, tokens.canvas],
+        ),
+      ),
+      FeatureScaffoldBackground.neutral => BoxDecoration(color: tokens.canvas),
+    };
+
+    Widget bodyContent = _BackSwipeRegion(
+      enabled: canPop || showAdminBack,
+      onBack: () => _goBack(
+        context,
+        currentLocation: location,
+        fallbackLocation: fallbackBackLocation,
+      ),
+      onDismissDown: showAdminBack
+          ? () => _dismissAdminPanel(
+              context,
+              currentLocation: location,
+              fallbackLocation: session?.defaultHomePath ?? '/feed',
+            )
+          : null,
+      child: Container(
+        decoration: bodyDecoration,
+        child: SafeArea(top: false, child: child),
+      ),
+    );
+
+    // Hero avatar strip for Prism-style heroAvatar header
+    if (headerStyle == SdalHeaderStyle.heroAvatar &&
+        session?.user != null &&
+        !canPop &&
+        !showAdminBack) {
+      bodyContent = Column(
+        children: [
+          _HeroAvatarStrip(session: session!, tokens: tokens),
+          Expanded(child: bodyContent),
+        ],
+      );
+    }
 
     return PopScope<Object?>(
       canPop: !showAdminBack || canPop,
@@ -74,60 +308,8 @@ class FeatureScaffold extends ConsumerWidget {
         );
       },
       child: Scaffold(
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          leadingWidth: showAdminBack
-              ? 56
-              : session?.user != null
-              ? (canPop ? 108 : 64)
-              : null,
-          leading: showAdminBack
-              ? IconButton(
-                  tooltip: l10n.backAction,
-                  onPressed: () => _goBack(
-                    context,
-                    currentLocation: location,
-                    fallbackLocation: fallbackBackLocation,
-                  ),
-                  icon: Icon(
-                    isAdminRoot
-                        ? Icons.keyboard_arrow_down_rounded
-                        : Icons.arrow_back_ios_new_rounded,
-                  ),
-                )
-              : session?.user != null
-              ? _ProfileLeading(session: session!, canPop: canPop)
-              : (canPop ? const BackButton() : null),
-          centerTitle: true,
-          title: (canPop || showAdminBack)
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const ExcludeSemantics(
-                      child: SdalLogoBadge(size: 24, frameSize: 32),
-                    ),
-                    const SizedBox(width: 10),
-                    Flexible(
-                      child: Text(title, overflow: TextOverflow.ellipsis),
-                    ),
-                  ],
-                )
-              : Tooltip(
-                  message: l10n.tabFeed,
-                  child: Semantics(
-                    button: true,
-                    label: l10n.tabFeed,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () => context.go('/feed'),
-                      child: const ExcludeSemantics(
-                        child: SdalLogoBadge(size: 28, frameSize: 36),
-                      ),
-                    ),
-                  ),
-                ),
-          actions: resolvedActions,
-        ),
+        extendBodyBehindAppBar: isTransparentHeader,
+        appBar: appBar,
         floatingActionButton: floatingActionButton,
         bottomNavigationBar: showAdminBack
             ? _AdminSurfaceNavigationBar(
@@ -136,46 +318,7 @@ class FeatureScaffold extends ConsumerWidget {
                 shellMenu: shellMenu,
               )
             : null,
-        body: _BackSwipeRegion(
-          enabled: canPop || showAdminBack,
-          onBack: () => _goBack(
-            context,
-            currentLocation: location,
-            fallbackLocation: fallbackBackLocation,
-          ),
-          onDismissDown: showAdminBack
-              ? () => _dismissAdminPanel(
-                  context,
-                  currentLocation: location,
-                  fallbackLocation: session?.defaultHomePath ?? '/feed',
-                )
-              : null,
-          child: Container(
-            decoration: switch (background) {
-              FeatureScaffoldBackground.editorial => BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [tokens.canvas, tokens.canvasSubtle],
-                ),
-              ),
-              FeatureScaffoldBackground.utility => BoxDecoration(
-                color: tokens.panelMuted,
-              ),
-              FeatureScaffoldBackground.immersive => BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [tokens.canvasSubtle, tokens.canvas],
-                ),
-              ),
-              FeatureScaffoldBackground.neutral => BoxDecoration(
-                color: tokens.canvas,
-              ),
-            },
-            child: SafeArea(top: false, child: child),
-          ),
-        ),
+        body: bodyContent,
       ),
     );
   }
@@ -496,6 +639,114 @@ class _AdminNavBadgeIcon extends StatelessWidget {
     return Semantics(
       label: unreadSemanticLabel,
       child: Badge(label: Text(count > 99 ? '99+' : '$count'), child: child),
+    );
+  }
+}
+
+class _TrailingAvatar extends StatelessWidget {
+  const _TrailingAvatar({required this.session});
+
+  final SessionSnapshot session;
+
+  @override
+  Widget build(BuildContext context) {
+    final user = session.user;
+    final l10n = context.l10n;
+    if (user == null) return const SizedBox.shrink();
+    return Semantics(
+      button: true,
+      label: l10n.profileOpenAction,
+      child: Tooltip(
+        message: l10n.profileOpenAction,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
+          onTap: () => context.go('/profile'),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Center(
+                child: RemoteAvatar(
+                  label: user.displayName,
+                  imageUrl: session.config.resolveUrl(user.photo).toString(),
+                  radius: 16,
+                  excludeFromSemantics: true,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroAvatarStrip extends StatelessWidget {
+  const _HeroAvatarStrip({required this.session, required this.tokens});
+
+  final SessionSnapshot session;
+  final SdalThemeTokens tokens;
+
+  @override
+  Widget build(BuildContext context) {
+    final user = session.user;
+    if (user == null) return const SizedBox.shrink();
+    final stripH = tokens.heroHeaderHeight.clamp(80.0, 240.0);
+    return Container(
+      height: stripH,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            tokens.accent.withValues(alpha: 0.18),
+            tokens.accentMuted.withValues(alpha: 0.08),
+          ],
+        ),
+        border: Border(
+          bottom: BorderSide(color: tokens.panelBorder, width: 0.5),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Row(
+          children: [
+            InkWell(
+              borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
+              onTap: () => context.go('/profile'),
+              child: RemoteAvatar(
+                label: user.displayName,
+                imageUrl: session.config.resolveUrl(user.photo).toString(),
+                radius: stripH * 0.28,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user.displayName,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '@${user.kadi}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: tokens.foregroundMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -19,6 +19,10 @@ THEMES = {
     "zinc":  (0xC8, 0xCD, 0xD6),  # cool silver slate
     "ember": (0xF0, 0xC0, 0x50),  # warm amber gold
     "mist":  (0x80, 0xC8, 0x9C),  # sage green
+    "nova":  (0x60, 0xA5, 0xFA),  # luminous blue
+    "prism": (0xA7, 0x8B, 0xFA),  # violet
+    "dusk":  (0xFB, 0xAF, 0x24),  # warm amber
+    "flux":  (0x2D, 0xD4, 0xBF),  # vibrant teal
 }
 
 img = Image.open(SRC).convert("RGBA")
