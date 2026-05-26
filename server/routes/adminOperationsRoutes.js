@@ -187,6 +187,634 @@ export function registerAdminOperationsRoutes(app, deps) {
     };
   }
 
+  const isPostgres = dbDriver === 'postgres';
+  const dateText = (expr) => isPostgres ? `COALESCE(${expr}::text, '')` : `COALESCE(${expr}, '')`;
+  const previewText = (value, max = 220) => String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max);
+  const plainText = (value) => String(value || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .trim();
+  const albumMediaUrl = (fileName, width = 900) => {
+    const clean = String(fileName || '').trim();
+    if (!clean) return '';
+    const params = new URLSearchParams();
+    params.set('width', String(width));
+    params.set('file', clean);
+    return `/api/media/kucukresim?${params.toString()}`;
+  };
+
+  async function safeAll(label, sql, params = []) {
+    try {
+      return await sqlAllAsync(sql, params) || [];
+    } catch (err) {
+      writeAppLog?.('warn', 'admin_member_journey_query_failed', {
+        label,
+        message: err?.message || String(err)
+      });
+      return [];
+    }
+  }
+
+  async function safeGet(label, sql, params = []) {
+    try {
+      return await sqlGetAsync(sql, params) || null;
+    } catch (err) {
+      writeAppLog?.('warn', 'admin_member_journey_query_failed', {
+        label,
+        message: err?.message || String(err)
+      });
+      return null;
+    }
+  }
+
+  async function firstSafeRows(label, variants) {
+    for (const variant of variants) {
+      const rows = await safeAll(label, variant.sql, variant.params);
+      if (rows.length) return rows;
+    }
+    return [];
+  }
+
+  async function firstSafeGet(label, variants) {
+    for (const variant of variants) {
+      const row = await safeGet(label, variant.sql, variant.params);
+      if (row) return row;
+    }
+    return null;
+  }
+
+  function safeJsonParse(value) {
+    if (!value) return {};
+    if (typeof value === 'object') return value;
+    try {
+      return JSON.parse(String(value));
+    } catch {
+      return {};
+    }
+  }
+
+  function boolish(value) {
+    return value === true || Number(value || 0) === 1 || ['true', 'evet', 'yes'].includes(String(value || '').toLowerCase());
+  }
+
+  function normalizeJourneyUser(row) {
+    const firstName = String(row?.isim || row?.first_name || '').trim();
+    const lastName = String(row?.soyisim || row?.last_name || '').trim();
+    return {
+      id: Number(row?.id || 0),
+      handle: String(row?.kadi || row?.handle || '').trim(),
+      name: `${firstName} ${lastName}`.trim(),
+      email: String(row?.email || '').trim(),
+      avatar: String(row?.resim || row?.avatar || '').trim(),
+      role: String(row?.role || 'user').trim(),
+      graduationYear: String(row?.mezuniyetyili || row?.graduation_year || '').trim(),
+      university: String(row?.universite || '').trim(),
+      city: String(row?.sehir || '').trim(),
+      profession: String(row?.meslek || '').trim(),
+      website: String(row?.websitesi || '').trim(),
+      signature: plainText(row?.imza || ''),
+      active: boolish(row?.aktiv),
+      banned: boolish(row?.yasak),
+      online: boolish(row?.online),
+      verified: boolish(row?.verified),
+      profileInitialized: boolish(row?.ilkbd ?? row?.is_profile_initialized),
+      verificationStatus: String(row?.verification_status || '').trim(),
+      activationToken: String(row?.aktivasyon || '').trim(),
+      createdAt: String(row?.ilktarih || row?.created_at || '').trim(),
+      lastSeenAt: String(row?.sontarih || row?.last_seen_at || '').trim(),
+      lastActivityDate: String(row?.sonislemtarih || '').trim(),
+      lastActivityTime: String(row?.sonislemsaat || '').trim(),
+      profileViewCount: Number(row?.hit || row?.profile_view_count || 0)
+    };
+  }
+
+  function journeyEntry({
+    id = 0,
+    type,
+    title,
+    text = '',
+    createdAt = '',
+    meta = '',
+    route = '',
+    imageUrl = '',
+    lightboxUrl = '',
+    actor = '',
+    direction = ''
+  }) {
+    return {
+      id: Number(id || 0),
+      type: String(type || ''),
+      title: String(title || ''),
+      text: plainText(text),
+      createdAt: String(createdAt || ''),
+      meta: String(meta || ''),
+      route: String(route || ''),
+      imageUrl: String(imageUrl || ''),
+      lightboxUrl: String(lightboxUrl || imageUrl || ''),
+      actor: String(actor || ''),
+      direction: String(direction || '')
+    };
+  }
+
+  function sortEntriesDescending(items) {
+    return [...items].sort((left, right) => {
+      const rightTime = new Date(right.createdAt || 0).getTime();
+      const leftTime = new Date(left.createdAt || 0).getTime();
+      return (Number.isFinite(rightTime) ? rightTime : 0) - (Number.isFinite(leftTime) ? leftTime : 0);
+    });
+  }
+
+  async function readAdminMemberJourney(userId) {
+    const userRow = await firstSafeGet('member_journey_user', [
+      {
+        sql: `SELECT id, kadi, isim, soyisim, email, aktiv, yasak, online, sontarih, sonislemtarih,
+                     sonislemsaat, resim, verified, mezuniyetyili, admin, role, universite, sehir,
+                     meslek, websitesi, imza, mailkapali, aktivasyon, verification_status,
+                     ilktarih, ilkbd, hit
+              FROM uyeler
+              WHERE id = ?`,
+        params: [userId]
+      },
+      {
+        sql: `SELECT id, kadi, isim, soyisim, email, aktiv, yasak, online, sontarih,
+                     resim, verified, mezuniyetyili, admin, role, activation_token AS aktivasyon,
+                     verification_status, created_at AS ilktarih, is_profile_initialized AS ilkbd
+              FROM users
+              WHERE id = ?`,
+        params: [userId]
+      }
+    ]);
+    const user = normalizeJourneyUser(userRow);
+    if (!user.id) return null;
+
+    const [
+      posts,
+      comments,
+      postLikes,
+      albumPhotos,
+      albumComments,
+      albumLikes,
+      messages,
+      directMessages,
+      follows,
+      followers,
+      connectionRequests,
+      mentorshipRequests,
+      teacherLinks,
+      networkingTelemetry,
+      memberRequests,
+      verificationRequests,
+      notifications,
+      notificationTelemetry,
+      pushDevices,
+      pushDeliveries,
+      audit,
+      activity,
+      sessions
+    ] = await Promise.all([
+      firstSafeRows('member_journey_posts', [
+        { sql: `SELECT id, ${dateText('created_at')} AS created_at, COALESCE(content, '') AS text, COALESCE(image_url, '') AS image_url FROM posts WHERE author_id = ? ORDER BY created_at DESC LIMIT 80`, params: [userId] },
+        { sql: `SELECT id, ${dateText('created_at')} AS created_at, COALESCE(content, '') AS text, COALESCE(image, '') AS image_url FROM posts WHERE user_id = ? ORDER BY created_at DESC LIMIT 80`, params: [userId] },
+        { sql: `SELECT id, ${dateText('tarih')} AS created_at, COALESCE(metin, '') AS text, COALESCE(resim, '') AS image_url FROM yazilar WHERE uyeid = ? ORDER BY id DESC LIMIT 80`, params: [userId] }
+      ]),
+      firstSafeRows('member_journey_comments', [
+        { sql: `SELECT c.id, c.post_id, p.author_id AS owner_user_id, ${dateText('c.created_at')} AS created_at, COALESCE(c.body, '') AS text, COALESCE(p.content, '') AS target_text FROM post_comments c LEFT JOIN posts p ON p.id = c.post_id WHERE c.author_id = ? ORDER BY c.created_at DESC LIMIT 100`, params: [userId] },
+        { sql: `SELECT c.id, c.post_id, p.user_id AS owner_user_id, ${dateText('c.created_at')} AS created_at, COALESCE(c.comment, '') AS text, COALESCE(p.content, '') AS target_text FROM post_comments c LEFT JOIN posts p ON p.id = c.post_id WHERE c.user_id = ? ORDER BY c.created_at DESC LIMIT 100`, params: [userId] }
+      ]),
+      firstSafeRows('member_journey_post_likes', [
+        { sql: `SELECT r.id, r.post_id, p.author_id AS owner_user_id, ${dateText('r.created_at')} AS created_at, COALESCE(r.reaction_type, 'like') AS reaction_type, COALESCE(p.content, '') AS target_text FROM post_reactions r LEFT JOIN posts p ON p.id = r.post_id WHERE r.user_id = ? ORDER BY r.created_at DESC LIMIT 100`, params: [userId] },
+        { sql: `SELECT r.id, r.post_id, p.user_id AS owner_user_id, ${dateText('r.created_at')} AS created_at, 'like' AS reaction_type, COALESCE(p.content, '') AS target_text FROM post_likes r LEFT JOIN posts p ON p.id = r.post_id WHERE r.user_id = ? ORDER BY r.created_at DESC LIMIT 100`, params: [userId] }
+      ]),
+      firstSafeRows('member_journey_album_photos', [
+        { sql: `SELECT id, ${dateText('created_at')} AS created_at, COALESCE(title, '') AS title, COALESCE(description, '') AS description, COALESCE(file_name, '') AS file_name, COALESCE(view_count, 0) AS view_count FROM album_photos WHERE uploaded_by_user_id = ? ORDER BY created_at DESC LIMIT 80`, params: [userId] },
+        { sql: `SELECT id, ${dateText('tarih')} AS created_at, COALESCE(baslik, '') AS title, COALESCE(aciklama, '') AS description, COALESCE(dosyaadi, '') AS file_name, COALESCE(hit, 0) AS view_count FROM album_foto WHERE CAST(ekleyenid AS INTEGER) = CAST(? AS INTEGER) ORDER BY id DESC LIMIT 80`, params: [userId] }
+      ]),
+      firstSafeRows('member_journey_album_comments', [
+        { sql: `SELECT c.id, c.photo_id, ${dateText('c.created_at')} AS created_at, COALESCE(c.comment_body, '') AS text, COALESCE(p.title, '') AS target_text, COALESCE(p.file_name, '') AS file_name FROM album_photo_comments c LEFT JOIN album_photos p ON p.id = c.photo_id WHERE c.author_user_id = ? ORDER BY c.created_at DESC LIMIT 100`, params: [userId] },
+        { sql: `SELECT c.id, c.fotoid AS photo_id, ${dateText('c.tarih')} AS created_at, COALESCE(c.yorum, '') AS text, COALESCE(p.baslik, '') AS target_text, COALESCE(p.dosyaadi, '') AS file_name FROM album_fotoyorum c LEFT JOIN album_foto p ON p.id = c.fotoid WHERE CAST(c.uyeid AS INTEGER) = CAST(? AS INTEGER) ORDER BY c.id DESC LIMIT 100`, params: [userId] }
+      ]),
+      firstSafeRows('member_journey_album_likes', [
+        { sql: `SELECT l.id, l.photo_id, ${dateText('l.created_at')} AS created_at, COALESCE(p.title, '') AS target_text, COALESCE(p.file_name, '') AS file_name FROM album_photo_likes l LEFT JOIN album_photos p ON p.id = l.photo_id WHERE l.user_id = ? ORDER BY l.created_at DESC LIMIT 100`, params: [userId] },
+        { sql: `SELECT l.id, l.photo_id, ${dateText('l.created_at')} AS created_at, COALESCE(p.baslik, '') AS target_text, COALESCE(p.dosyaadi, '') AS file_name FROM album_photo_likes l LEFT JOIN album_foto p ON p.id = l.photo_id WHERE l.user_id = ? ORDER BY l.created_at DESC LIMIT 100`, params: [userId] }
+      ]),
+      firstSafeRows('member_journey_messages', [
+        { sql: `SELECT m.id, 'thread' AS source, m.conversation_id, m.sender_id, m.recipient_id, CASE WHEN m.sender_id = ? THEN m.recipient_id ELSE m.sender_id END AS peer_user_id, COALESCE(u.kadi, '') AS peer_handle, COALESCE(u.isim, '') AS peer_first_name, COALESCE(u.soyisim, '') AS peer_last_name, COALESCE(u.resim, '') AS peer_avatar, ${dateText('m.created_at')} AS created_at, COALESCE(m.body, '') AS body_text FROM conversation_messages m LEFT JOIN uyeler u ON u.id = CASE WHEN m.sender_id = ? THEN m.recipient_id ELSE m.sender_id END WHERE m.sender_id = ? OR m.recipient_id = ? ORDER BY m.created_at DESC LIMIT 120`, params: [userId, userId, userId, userId] },
+        { sql: `SELECT m.id, 'messenger' AS source, m.thread_id AS conversation_id, m.sender_id, m.receiver_id AS recipient_id, CASE WHEN CAST(m.sender_id AS INTEGER) = CAST(? AS INTEGER) THEN m.receiver_id ELSE m.sender_id END AS peer_user_id, COALESCE(u.kadi, '') AS peer_handle, COALESCE(u.isim, '') AS peer_first_name, COALESCE(u.soyisim, '') AS peer_last_name, COALESCE(u.resim, '') AS peer_avatar, ${dateText('m.created_at')} AS created_at, COALESCE(m.body, '') AS body_text FROM sdal_messenger_messages m LEFT JOIN uyeler u ON CAST(u.id AS INTEGER) = CAST(CASE WHEN CAST(m.sender_id AS INTEGER) = CAST(? AS INTEGER) THEN m.receiver_id ELSE m.sender_id END AS INTEGER) WHERE CAST(m.sender_id AS INTEGER) = CAST(? AS INTEGER) OR CAST(m.receiver_id AS INTEGER) = CAST(? AS INTEGER) ORDER BY m.created_at DESC LIMIT 120`, params: [userId, userId, userId, userId] }
+      ]),
+      safeAll('member_journey_direct_messages',
+        `SELECT m.id, 'direct' AS source, 0 AS conversation_id, m.sender_id, m.recipient_id,
+                CASE WHEN m.sender_id = ? THEN m.recipient_id ELSE m.sender_id END AS peer_user_id,
+                COALESCE(u.kadi, '') AS peer_handle, COALESCE(u.isim, '') AS peer_first_name,
+                COALESCE(u.soyisim, '') AS peer_last_name, COALESCE(u.resim, '') AS peer_avatar,
+                ${dateText('m.created_at')} AS created_at, COALESCE(m.body_html, '') AS body_text
+         FROM direct_messages m
+         LEFT JOIN uyeler u ON u.id = CASE WHEN m.sender_id = ? THEN m.recipient_id ELSE m.sender_id END
+         WHERE m.sender_id = ? OR m.recipient_id = ?
+         ORDER BY m.created_at DESC LIMIT 120`, [userId, userId, userId, userId]),
+      firstSafeRows('member_journey_follows', [
+        { sql: `SELECT f.id, f.following_id AS target_user_id, ${dateText('f.created_at')} AS created_at, COALESCE(u.kadi, '') AS target_handle, COALESCE(u.isim, '') AS target_first_name, COALESCE(u.soyisim, '') AS target_last_name, COALESCE(u.resim, '') AS target_avatar FROM user_follows f LEFT JOIN uyeler u ON u.id = f.following_id WHERE f.follower_id = ? ORDER BY f.created_at DESC LIMIT 100`, params: [userId] },
+        { sql: `SELECT f.id, f.following_id AS target_user_id, ${dateText('f.created_at')} AS created_at, COALESCE(u.kadi, '') AS target_handle, COALESCE(u.isim, '') AS target_first_name, COALESCE(u.soyisim, '') AS target_last_name, COALESCE(u.resim, '') AS target_avatar FROM follows f LEFT JOIN uyeler u ON u.id = f.following_id WHERE f.follower_id = ? ORDER BY f.created_at DESC LIMIT 100`, params: [userId] }
+      ]),
+      firstSafeRows('member_journey_followers', [
+        { sql: `SELECT f.id, f.follower_id AS source_user_id, ${dateText('f.created_at')} AS created_at, COALESCE(u.kadi, '') AS source_handle, COALESCE(u.isim, '') AS source_first_name, COALESCE(u.soyisim, '') AS source_last_name, COALESCE(u.resim, '') AS source_avatar FROM user_follows f LEFT JOIN uyeler u ON u.id = f.follower_id WHERE f.following_id = ? ORDER BY f.created_at DESC LIMIT 100`, params: [userId] },
+        { sql: `SELECT f.id, f.follower_id AS source_user_id, ${dateText('f.created_at')} AS created_at, COALESCE(u.kadi, '') AS source_handle, COALESCE(u.isim, '') AS source_first_name, COALESCE(u.soyisim, '') AS source_last_name, COALESCE(u.resim, '') AS source_avatar FROM follows f LEFT JOIN uyeler u ON u.id = f.follower_id WHERE f.following_id = ? ORDER BY f.created_at DESC LIMIT 100`, params: [userId] }
+      ]),
+      safeAll('member_journey_connection_requests',
+        `SELECT cr.id, cr.sender_id, cr.receiver_id, COALESCE(cr.status, 'pending') AS status,
+                ${dateText('cr.created_at')} AS created_at, ${dateText('cr.updated_at')} AS updated_at,
+                ${dateText('cr.responded_at')} AS responded_at,
+                CASE WHEN CAST(cr.sender_id AS INTEGER) = CAST(? AS INTEGER) THEN cr.receiver_id ELSE cr.sender_id END AS peer_user_id,
+                COALESCE(u.kadi, '') AS peer_handle, COALESCE(u.isim, '') AS peer_first_name,
+                COALESCE(u.soyisim, '') AS peer_last_name, COALESCE(u.resim, '') AS peer_avatar
+         FROM connection_requests cr
+         LEFT JOIN uyeler u ON CAST(u.id AS INTEGER) = CAST(CASE WHEN CAST(cr.sender_id AS INTEGER) = CAST(? AS INTEGER) THEN cr.receiver_id ELSE cr.sender_id END AS INTEGER)
+         WHERE CAST(cr.sender_id AS INTEGER) = CAST(? AS INTEGER) OR CAST(cr.receiver_id AS INTEGER) = CAST(? AS INTEGER)
+         ORDER BY COALESCE(cr.updated_at, cr.created_at) DESC LIMIT 100`, [userId, userId, userId, userId]),
+      safeAll('member_journey_mentorship_requests',
+        `SELECT mr.id, mr.requester_id, mr.mentor_id, COALESCE(mr.status, 'requested') AS status,
+                COALESCE(mr.focus_area, '') AS focus_area, COALESCE(mr.message, '') AS message,
+                ${dateText('mr.created_at')} AS created_at, ${dateText('mr.updated_at')} AS updated_at,
+                ${dateText('mr.responded_at')} AS responded_at,
+                CASE WHEN CAST(mr.requester_id AS INTEGER) = CAST(? AS INTEGER) THEN mr.mentor_id ELSE mr.requester_id END AS peer_user_id,
+                COALESCE(u.kadi, '') AS peer_handle, COALESCE(u.isim, '') AS peer_first_name,
+                COALESCE(u.soyisim, '') AS peer_last_name, COALESCE(u.resim, '') AS peer_avatar
+         FROM mentorship_requests mr
+         LEFT JOIN uyeler u ON CAST(u.id AS INTEGER) = CAST(CASE WHEN CAST(mr.requester_id AS INTEGER) = CAST(? AS INTEGER) THEN mr.mentor_id ELSE mr.requester_id END AS INTEGER)
+         WHERE CAST(mr.requester_id AS INTEGER) = CAST(? AS INTEGER) OR CAST(mr.mentor_id AS INTEGER) = CAST(? AS INTEGER)
+         ORDER BY COALESCE(mr.updated_at, mr.created_at) DESC LIMIT 100`, [userId, userId, userId, userId]),
+      safeAll('member_journey_teacher_links',
+        `SELECT l.id, l.teacher_user_id, l.alumni_user_id, COALESCE(l.relationship_type, '') AS relationship_type,
+                COALESCE(CAST(l.class_year AS TEXT), '') AS class_year, COALESCE(l.notes, '') AS notes,
+                COALESCE(l.confidence_score, 0) AS confidence_score, COALESCE(l.review_status, '') AS review_status,
+                ${dateText('l.created_at')} AS created_at,
+                CASE WHEN CAST(l.teacher_user_id AS INTEGER) = CAST(? AS INTEGER) THEN l.alumni_user_id ELSE l.teacher_user_id END AS peer_user_id,
+                COALESCE(u.kadi, '') AS peer_handle, COALESCE(u.isim, '') AS peer_first_name,
+                COALESCE(u.soyisim, '') AS peer_last_name, COALESCE(u.resim, '') AS peer_avatar
+         FROM teacher_alumni_links l
+         LEFT JOIN uyeler u ON CAST(u.id AS INTEGER) = CAST(CASE WHEN CAST(l.teacher_user_id AS INTEGER) = CAST(? AS INTEGER) THEN l.alumni_user_id ELSE l.teacher_user_id END AS INTEGER)
+         WHERE CAST(l.teacher_user_id AS INTEGER) = CAST(? AS INTEGER) OR CAST(l.alumni_user_id AS INTEGER) = CAST(? AS INTEGER)
+         ORDER BY l.created_at DESC LIMIT 100`, [userId, userId, userId, userId]),
+      safeAll('member_journey_networking_telemetry',
+        `SELECT id, COALESCE(event_name, '') AS event_name, COALESCE(source_surface, '') AS source_surface,
+                COALESCE(target_user_id, 0) AS target_user_id, COALESCE(entity_type, '') AS entity_type,
+                COALESCE(entity_id, 0) AS entity_id, metadata_json, ${dateText('created_at')} AS created_at
+         FROM networking_telemetry_events
+         WHERE user_id = ?
+         ORDER BY created_at DESC LIMIT 120`, [userId]),
+      firstSafeRows('member_journey_member_requests', [
+        { sql: `SELECT id, category_key, payload_json, status, ${dateText('created_at')} AS created_at, ${dateText('reviewed_at')} AS reviewed_at, COALESCE(resolution_note, '') AS resolution_note FROM member_requests WHERE user_id = ? ORDER BY created_at DESC LIMIT 80`, params: [userId] },
+        { sql: `SELECT id, category_key, payload_json, status, ${dateText('created_at')} AS created_at, ${dateText('reviewed_at')} AS reviewed_at, COALESCE(resolution_note, '') AS resolution_note FROM support_requests WHERE user_id = ? ORDER BY created_at DESC LIMIT 80`, params: [userId] }
+      ]),
+      firstSafeRows('member_journey_verification_requests', [
+        { sql: `SELECT id, COALESCE(request_type, 'member_verification') AS request_type, COALESCE(status, '') AS status, ${dateText('created_at')} AS created_at, ${dateText('reviewed_at')} AS reviewed_at, COALESCE(reviewer_note, '') AS reviewer_note FROM verification_requests WHERE user_id = ? ORDER BY created_at DESC LIMIT 80`, params: [userId] },
+        { sql: `SELECT id, COALESCE(request_type, 'member_verification') AS request_type, COALESCE(status, '') AS status, ${dateText('created_at')} AS created_at, ${dateText('reviewed_at')} AS reviewed_at, COALESCE(reviewer_note, '') AS reviewer_note FROM identity_verification_requests WHERE user_id = ? ORDER BY created_at DESC LIMIT 80`, params: [userId] },
+        { sql: `SELECT id, 'member_verification' AS request_type, COALESCE(status, '') AS status, ${dateText('created_at')} AS created_at, ${dateText('reviewed_at')} AS reviewed_at, '' AS reviewer_note FROM identity_verification_requests WHERE user_id = ? ORDER BY created_at DESC LIMIT 80`, params: [userId] }
+      ]),
+      safeAll('member_journey_notifications',
+        `SELECT id, COALESCE(type, '') AS type, COALESCE(source_user_id, 0) AS source_user_id, COALESCE(entity_id, 0) AS entity_id, COALESCE(message, '') AS message, ${dateText('created_at')} AS created_at, ${dateText('read_at')} AS read_at
+         FROM notifications
+         WHERE user_id = ?
+         ORDER BY id DESC LIMIT 100`, [userId]),
+      safeAll('member_journey_notification_telemetry',
+        `SELECT id, COALESCE(notification_id, 0) AS notification_id, COALESCE(event_name, '') AS event_name, COALESCE(notification_type, '') AS notification_type, COALESCE(surface, '') AS surface, COALESCE(action_kind, '') AS action_kind, ${dateText('created_at')} AS created_at
+         FROM notification_telemetry_events
+         WHERE user_id = ?
+         ORDER BY created_at DESC LIMIT 80`, [userId]),
+      firstSafeRows('member_journey_push_devices', [
+        { sql: `SELECT id, COALESCE(platform, '') AS platform, COALESCE(device_name, '') AS device_name, COALESCE(app_version, '') AS app_version, COALESCE(enabled, 0) AS enabled, ${dateText('created_at')} AS created_at, ${dateText('updated_at')} AS updated_at FROM notification_push_devices WHERE user_id = ? ORDER BY updated_at DESC LIMIT 20`, params: [userId] },
+        { sql: `SELECT id, COALESCE(platform, '') AS platform, COALESCE(installation_id, '') AS device_name, COALESCE(app_version, '') AS app_version, COALESCE(enabled, 0) AS enabled, ${dateText('created_at')} AS created_at, ${dateText('updated_at')} AS updated_at FROM notification_push_devices WHERE user_id = ? ORDER BY updated_at DESC LIMIT 20`, params: [userId] }
+      ]),
+      safeAll('member_journey_push_deliveries',
+        `SELECT id, COALESCE(notification_id, 0) AS notification_id, COALESCE(device_id, 0) AS device_id,
+                COALESCE(platform, '') AS platform, COALESCE(notification_type, '') AS notification_type,
+                COALESCE(delivery_status, '') AS delivery_status, COALESCE(skip_reason, '') AS skip_reason,
+                COALESCE(error_message, '') AS error_message, ${dateText('created_at')} AS created_at
+         FROM notification_push_delivery_audit
+         WHERE user_id = ?
+         ORDER BY created_at DESC LIMIT 80`, [userId]),
+      safeAll('member_journey_audit',
+        `SELECT id, COALESCE(actor_user_id, 0) AS actor_user_id, COALESCE(action, '') AS action, COALESCE(target_type, '') AS target_type, COALESCE(target_id, '') AS target_id, metadata, ${dateText('created_at')} AS created_at
+         FROM audit_log
+         WHERE target_type = 'user' AND CAST(target_id AS TEXT) = CAST(? AS TEXT)
+         ORDER BY id DESC LIMIT 100`, [userId]),
+      safeAll('member_journey_activity',
+        `SELECT id, COALESCE(event_type, '') AS event_type, COALESCE(target_type, '') AS target_type, COALESCE(target_id, '') AS target_id, metadata, ${dateText('occurred_at')} AS occurred_at
+         FROM user_activity_events
+         WHERE actor_user_id = ? AND event_type NOT IN ('session_start', 'session_end')
+         ORDER BY occurred_at DESC LIMIT 180`, [userId]),
+      safeAll('member_journey_sessions',
+        `SELECT id, COALESCE(event_type, '') AS event_type, COALESCE(target_type, '') AS target_type, COALESCE(target_id, '') AS target_id, metadata, ${dateText('occurred_at')} AS occurred_at
+         FROM user_activity_events
+         WHERE actor_user_id = ? AND event_type IN ('session_start', 'session_end')
+         ORDER BY occurred_at DESC LIMIT 120`, [userId])
+    ]);
+
+    const sections = {
+      registration: [
+        journeyEntry({
+          type: 'registration',
+          title: 'Kayıt oluşturuldu',
+          text: user.email,
+          createdAt: user.createdAt,
+          meta: user.activationToken ? 'Aktivasyon kodu var' : 'Aktivasyon kodu yok'
+        }),
+        journeyEntry({
+          type: 'profile',
+          title: user.profileInitialized ? 'Profil ilk kurulumu tamam' : 'Profil ilk kurulumu eksik',
+          text: [user.city, user.profession, user.university].filter(Boolean).join(' · '),
+          createdAt: user.lastSeenAt || user.createdAt,
+          meta: user.verificationStatus
+        })
+      ].filter((item) => item.createdAt || item.text || item.meta),
+      requests: [
+        ...memberRequests.map((row) => journeyEntry({
+          id: row.id,
+          type: 'member_request',
+          title: row.category_key || 'Üye talebi',
+          text: previewText(JSON.stringify(safeJsonParse(row.payload_json)), 240),
+          createdAt: row.created_at,
+          meta: [row.status, row.resolution_note].filter(Boolean).join(' · ')
+        })),
+        ...verificationRequests.map((row) => journeyEntry({
+          id: row.id,
+          type: 'verification',
+          title: row.request_type || 'Profil doğrulama',
+          text: row.reviewer_note || '',
+          createdAt: row.created_at,
+          meta: [row.status, row.reviewed_at].filter(Boolean).join(' · ')
+        }))
+      ],
+      content: [
+        ...posts.map((row) => journeyEntry({
+          id: row.id,
+          type: 'post',
+          title: 'Post',
+          text: row.text,
+          createdAt: row.created_at,
+          imageUrl: row.image_url,
+          lightboxUrl: row.image_url,
+          route: `/posts/${Number(row.id || 0)}`
+        })),
+        ...comments.map((row) => journeyEntry({
+          id: row.id,
+          type: 'comment',
+          title: `Post yorumu #${Number(row.post_id || 0)}`,
+          text: row.text,
+          createdAt: row.created_at,
+          meta: previewText(row.target_text, 140),
+          route: `/posts/${Number(row.post_id || 0)}`
+        })),
+        ...postLikes.map((row) => journeyEntry({
+          id: row.id,
+          type: 'post_like',
+          title: `Post beğenisi #${Number(row.post_id || 0)}`,
+          text: previewText(row.target_text, 180),
+          createdAt: row.created_at,
+          meta: row.reaction_type || 'like',
+          route: `/posts/${Number(row.post_id || 0)}`
+        }))
+      ],
+      media: [
+        ...albumPhotos.map((row) => journeyEntry({
+          id: row.id,
+          type: 'album_photo',
+          title: row.title || 'Albüm fotoğrafı',
+          text: row.description || row.file_name,
+          createdAt: row.created_at,
+          meta: `${Number(row.view_count || 0)} görüntüleme`,
+          imageUrl: albumMediaUrl(row.file_name, 700),
+          lightboxUrl: albumMediaUrl(row.file_name, 2200),
+          route: `/albums/photo/${Number(row.id || 0)}`
+        })),
+        ...albumComments.map((row) => journeyEntry({
+          id: row.id,
+          type: 'album_comment',
+          title: `Fotoğraf yorumu #${Number(row.photo_id || 0)}`,
+          text: row.text,
+          createdAt: row.created_at,
+          meta: previewText(row.target_text, 120),
+          imageUrl: albumMediaUrl(row.file_name, 700),
+          lightboxUrl: albumMediaUrl(row.file_name, 2200),
+          route: `/albums/photo/${Number(row.photo_id || 0)}`
+        })),
+        ...albumLikes.map((row) => journeyEntry({
+          id: row.id,
+          type: 'album_like',
+          title: `Fotoğraf beğenisi #${Number(row.photo_id || 0)}`,
+          text: previewText(row.target_text, 120),
+          createdAt: row.created_at,
+          imageUrl: albumMediaUrl(row.file_name, 700),
+          lightboxUrl: albumMediaUrl(row.file_name, 2200),
+          route: `/albums/photo/${Number(row.photo_id || 0)}`
+        }))
+      ],
+      messaging: [...messages, ...directMessages].map((row) => {
+        const peerLabel = [row.peer_first_name, row.peer_last_name].filter(Boolean).join(' ').trim() || (row.peer_handle ? `@${row.peer_handle}` : `Üye #${row.peer_user_id || 0}`);
+        const sent = Number(row.sender_id || 0) === Number(userId);
+        return journeyEntry({
+          id: row.id,
+          type: 'message',
+          title: peerLabel,
+          text: row.body_text,
+          createdAt: row.created_at,
+          meta: row.source || '',
+          imageUrl: row.peer_avatar,
+          actor: peerLabel,
+          direction: sent ? 'sent' : 'received'
+        });
+      }),
+      network: [
+        ...follows.map((row) => {
+          const label = [row.target_first_name, row.target_last_name].filter(Boolean).join(' ').trim() || (row.target_handle ? `@${row.target_handle}` : `Üye #${row.target_user_id || 0}`);
+          return journeyEntry({
+            id: row.id,
+            type: 'follow',
+            title: label,
+            text: 'Takip ediyor',
+            createdAt: row.created_at,
+            imageUrl: row.target_avatar,
+            route: `/members/${Number(row.target_user_id || 0)}`,
+            direction: 'out'
+          });
+        }),
+        ...followers.map((row) => {
+          const label = [row.source_first_name, row.source_last_name].filter(Boolean).join(' ').trim() || (row.source_handle ? `@${row.source_handle}` : `Üye #${row.source_user_id || 0}`);
+          return journeyEntry({
+            id: row.id,
+            type: 'follower',
+            title: label,
+            text: 'Bu üyeyi takip ediyor',
+            createdAt: row.created_at,
+            imageUrl: row.source_avatar,
+            route: `/members/${Number(row.source_user_id || 0)}`,
+            direction: 'in'
+          });
+        }),
+        ...connectionRequests.map((row) => {
+          const label = [row.peer_first_name, row.peer_last_name].filter(Boolean).join(' ').trim() || (row.peer_handle ? `@${row.peer_handle}` : `Üye #${row.peer_user_id || 0}`);
+          const sent = Number(row.sender_id || 0) === Number(userId);
+          return journeyEntry({
+            id: row.id,
+            type: 'connection_request',
+            title: label,
+            text: sent ? 'Bağlantı isteği gönderdi' : 'Bağlantı isteği aldı',
+            createdAt: row.updated_at || row.responded_at || row.created_at,
+            meta: row.status || 'pending',
+            imageUrl: row.peer_avatar,
+            route: `/members/${Number(row.peer_user_id || 0)}`,
+            direction: sent ? 'out' : 'in'
+          });
+        }),
+        ...mentorshipRequests.map((row) => {
+          const label = [row.peer_first_name, row.peer_last_name].filter(Boolean).join(' ').trim() || (row.peer_handle ? `@${row.peer_handle}` : `Üye #${row.peer_user_id || 0}`);
+          const sent = Number(row.requester_id || 0) === Number(userId);
+          return journeyEntry({
+            id: row.id,
+            type: 'mentorship_request',
+            title: label,
+            text: [sent ? 'Mentorluk talebi gönderdi' : 'Mentorluk talebi aldı', row.focus_area, row.message].filter(Boolean).join(' · '),
+            createdAt: row.updated_at || row.responded_at || row.created_at,
+            meta: row.status || 'requested',
+            imageUrl: row.peer_avatar,
+            route: `/members/${Number(row.peer_user_id || 0)}`,
+            direction: sent ? 'out' : 'in'
+          });
+        }),
+        ...teacherLinks.map((row) => {
+          const label = [row.peer_first_name, row.peer_last_name].filter(Boolean).join(' ').trim() || (row.peer_handle ? `@${row.peer_handle}` : `Üye #${row.peer_user_id || 0}`);
+          const asTeacher = Number(row.teacher_user_id || 0) === Number(userId);
+          return journeyEntry({
+            id: row.id,
+            type: 'teacher_link',
+            title: label,
+            text: [asTeacher ? 'Öğretmen ağı öğretmen tarafı' : 'Öğretmen ağı mezun tarafı', row.relationship_type, row.notes].filter(Boolean).join(' · '),
+            createdAt: row.created_at,
+            meta: [row.review_status, row.class_year ? `${row.class_year}. sınıf` : '', row.confidence_score ? `güven ${Math.round(Number(row.confidence_score || 0) * 100)}%` : ''].filter(Boolean).join(' · '),
+            imageUrl: row.peer_avatar,
+            route: `/members/${Number(row.peer_user_id || 0)}`,
+            direction: asTeacher ? 'teacher' : 'alumni'
+          });
+        }),
+        ...networkingTelemetry.map((row) => journeyEntry({
+          id: row.id,
+          type: 'networking_telemetry',
+          title: row.event_name || 'Networking olayı',
+          text: [row.source_surface, row.entity_type, row.entity_id ? `#${row.entity_id}` : ''].filter(Boolean).join(' · '),
+          createdAt: row.created_at,
+          meta: previewText(JSON.stringify(safeJsonParse(row.metadata_json)), 180),
+          route: row.target_user_id ? `/members/${Number(row.target_user_id || 0)}` : ''
+        }))
+      ],
+      notifications: [
+        ...notifications.map((row) => journeyEntry({
+          id: row.id,
+          type: 'notification',
+          title: row.type || 'Bildirim',
+          text: row.message,
+          createdAt: row.created_at,
+          meta: row.read_at ? `Okundu ${row.read_at}` : 'Okunmadı'
+        })),
+        ...notificationTelemetry.map((row) => journeyEntry({
+          id: row.id,
+          type: 'notification_telemetry',
+          title: row.event_name || 'Bildirim etkileşimi',
+          text: [row.notification_type, row.surface, row.action_kind].filter(Boolean).join(' · '),
+          createdAt: row.created_at,
+          meta: row.notification_id ? `Bildirim #${row.notification_id}` : ''
+        })),
+        ...pushDevices.map((row) => journeyEntry({
+          id: row.id,
+          type: 'push_device',
+          title: row.device_name || row.platform || 'Push cihazı',
+          text: [row.platform, row.app_version].filter(Boolean).join(' · '),
+          createdAt: row.updated_at || row.created_at,
+          meta: boolish(row.enabled) ? 'Aktif' : 'Pasif'
+        })),
+        ...pushDeliveries.map((row) => journeyEntry({
+          id: row.id,
+          type: 'push_delivery',
+          title: row.delivery_status || 'Push teslimatı',
+          text: [row.platform, row.notification_type, row.skip_reason, row.error_message].filter(Boolean).join(' · '),
+          createdAt: row.created_at,
+          meta: row.notification_id ? `Bildirim #${row.notification_id}` : ''
+        }))
+      ],
+      audit: audit.map((row) => journeyEntry({
+        id: row.id,
+        type: 'audit',
+        title: row.action || 'Admin işlemi',
+        text: previewText(JSON.stringify(safeJsonParse(row.metadata)), 240),
+        createdAt: row.created_at,
+        meta: row.actor_user_id ? `Admin #${row.actor_user_id}` : ''
+      })),
+      activity: [
+        ...activity.map((row) => journeyEntry({
+          id: row.id,
+          type: 'activity',
+          title: row.event_type || 'Aktivite',
+          text: [row.target_type, row.target_id].filter(Boolean).join(' #'),
+          createdAt: row.occurred_at,
+          meta: previewText(JSON.stringify(safeJsonParse(row.metadata)), 180)
+        })),
+        ...sessions.map((row) => journeyEntry({
+          id: row.id,
+          type: 'session',
+          title: row.event_type === 'session_end' ? 'Oturum kapandı' : 'Oturum başladı',
+          text: [row.target_type, row.target_id].filter(Boolean).join(' #'),
+          createdAt: row.occurred_at,
+          meta: previewText(JSON.stringify(safeJsonParse(row.metadata)), 180)
+        }))
+      ]
+    };
+
+    for (const key of Object.keys(sections)) {
+      sections[key] = sortEntriesDescending(sections[key]);
+    }
+
+    const timeline = sortEntriesDescending(Object.values(sections).flat()).slice(0, 260);
+    const media = sortEntriesDescending([
+      ...sections.media,
+      ...sections.content.filter((item) => item.imageUrl)
+    ]).filter((item) => item.imageUrl).slice(0, 80);
+
+    return {
+      user,
+      summary: {
+        posts: posts.length,
+        comments: comments.length + albumComments.length,
+        postLikes: postLikes.length,
+        albumPhotos: albumPhotos.length,
+        albumLikes: albumLikes.length,
+        messages: messages.length + directMessages.length,
+        follows: follows.length,
+        followers: followers.length,
+        connections: connectionRequests.length,
+        mentorship: mentorshipRequests.length,
+        teacherLinks: teacherLinks.length,
+        networkTelemetry: networkingTelemetry.length,
+        requests: memberRequests.length + verificationRequests.length,
+        notifications: notifications.length,
+        pushDevices: pushDevices.length,
+        pushDeliveries: pushDeliveries.length,
+        audit: audit.length,
+        activity: activity.length,
+        sessions: sessions.filter((row) => row.event_type === 'session_start').length,
+        media: media.length
+      },
+      sections,
+      timeline,
+      media
+    };
+  }
+
   async function handleMemberDelete(req, res) {
     try {
       const userId = Number(req.params.id || 0);
@@ -535,6 +1163,32 @@ export function registerAdminOperationsRoutes(app, deps) {
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
   });
+
+  async function handleMemberJourney(req, res) {
+    try {
+      const userId = Number(req.params.id || 0);
+      if (!userId) return res.status(400).send('Geçersiz kullanıcı ID.');
+      const target = await sqlGetAsync('SELECT id, role FROM uyeler WHERE id = ?', [userId]);
+      if (!target) return res.status(404).send('Böyle bir üye bulunmamaktadır.');
+      const actorRole = getUserRole(req.authUser || req.adminUser);
+      if (normalizeRole(target.role) === 'root' && actorRole !== 'root') {
+        return res.status(403).send('Root kullanıcı yolculuğuna erişemezsiniz.');
+      }
+      const snapshot = await readAdminMemberJourney(userId);
+      if (!snapshot) return res.status(404).send('Böyle bir üye bulunmamaktadır.');
+      logAdminAction(req, 'member_journey_viewed', {
+        targetType: 'user',
+        targetId: String(userId)
+      });
+      res.json(snapshot);
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  }
+
+  app.get('/api/admin/members/:id/journey', requireAdmin, handleMemberJourney);
+  app.get('/api/admin/users/:id/journey', requireAdmin, handleMemberJourney);
 
   app.get('/api/admin/users/:id', requireAdmin, async (req, res) => {
     try {

@@ -15,6 +15,8 @@ import '../../features/community/presentation/events_page.dart';
 import '../../features/community/presentation/events_create_page.dart';
 import '../../features/admin/presentation/admin_pages.dart';
 import '../../features/admin/presentation/admin_app_module_pages.dart';
+import '../../features/admin/presentation/admin_control_center_page.dart';
+import '../../features/admin/presentation/admin_member_journey_page.dart';
 import '../../features/admin/presentation/admin_root_pages.dart';
 import '../../features/admin/presentation/admin_workspace_pages.dart';
 import '../../presentation/admin/admin_panel_entry.dart';
@@ -653,7 +655,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/admin',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
-            _adminPanelPage(const SdalAdaptiveAdminPanel(), root: true),
+            _adminPanelPage(const AdminControlCenterPage(), root: true),
       ),
       GoRoute(
         path: '/moderation',
@@ -695,6 +697,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             _adminPanelPage(const AdminAuditLogPage()),
+      ),
+      GoRoute(
+        path: '/admin/member-journey',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _adminPanelPage(const AdminMemberJourneyPage()),
       ),
       GoRoute(
         path: '/admin/root',

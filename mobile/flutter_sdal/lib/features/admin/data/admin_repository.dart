@@ -1026,6 +1026,240 @@ class AdminRootMemberActivitySnapshot {
   }
 }
 
+class AdminMemberJourneyUser {
+  const AdminMemberJourneyUser({
+    required this.id,
+    required this.handle,
+    required this.name,
+    required this.email,
+    required this.avatar,
+    required this.role,
+    required this.graduationYear,
+    required this.university,
+    required this.city,
+    required this.profession,
+    required this.website,
+    required this.signature,
+    required this.active,
+    required this.banned,
+    required this.online,
+    required this.verified,
+    required this.profileInitialized,
+    required this.verificationStatus,
+    required this.activationToken,
+    required this.createdAt,
+    required this.lastSeenAt,
+    required this.lastActivityDate,
+    required this.lastActivityTime,
+    required this.profileViewCount,
+  });
+
+  final int id;
+  final String handle;
+  final String name;
+  final String email;
+  final String avatar;
+  final String role;
+  final String graduationYear;
+  final String university;
+  final String city;
+  final String profession;
+  final String website;
+  final String signature;
+  final bool active;
+  final bool banned;
+  final bool online;
+  final bool verified;
+  final bool profileInitialized;
+  final String verificationStatus;
+  final String activationToken;
+  final String createdAt;
+  final String lastSeenAt;
+  final String lastActivityDate;
+  final String lastActivityTime;
+  final int profileViewCount;
+
+  String get displayName {
+    if (name.trim().isNotEmpty) return name.trim();
+    if (handle.trim().isNotEmpty) return '@$handle';
+    return 'Üye #$id';
+  }
+
+  factory AdminMemberJourneyUser.fromMap(JsonMap map) {
+    return AdminMemberJourneyUser(
+      id:
+          asInt(map['id']) ??
+          asInt(map['userId']) ??
+          asInt(map['user_id']) ??
+          0,
+      handle: coalesceText([map['handle'], map['kadi']], fallback: ''),
+      name: coalesceText([map['name']], fallback: ''),
+      email: coalesceText([map['email']], fallback: ''),
+      avatar: coalesceText([map['avatar'], map['resim']], fallback: ''),
+      role: coalesceText([map['role']], fallback: 'user'),
+      graduationYear: coalesceText([
+        map['graduationYear'],
+        map['mezuniyetyili'],
+      ], fallback: ''),
+      university: coalesceText([
+        map['university'],
+        map['universite'],
+      ], fallback: ''),
+      city: coalesceText([map['city'], map['sehir']], fallback: ''),
+      profession: coalesceText([
+        map['profession'],
+        map['meslek'],
+      ], fallback: ''),
+      website: coalesceText([map['website'], map['websitesi']], fallback: ''),
+      signature: coalesceText([map['signature'], map['imza']], fallback: ''),
+      active: asBool(map['active']) ?? false,
+      banned: asBool(map['banned']) ?? false,
+      online: asBool(map['online']) ?? false,
+      verified: asBool(map['verified']) ?? false,
+      profileInitialized: asBool(map['profileInitialized']) ?? false,
+      verificationStatus: coalesceText([
+        map['verificationStatus'],
+        map['verification_status'],
+      ], fallback: ''),
+      activationToken: coalesceText([
+        map['activationToken'],
+        map['aktivasyon'],
+      ], fallback: ''),
+      createdAt: coalesceText([
+        map['createdAt'],
+        map['ilktarih'],
+      ], fallback: ''),
+      lastSeenAt: coalesceText([
+        map['lastSeenAt'],
+        map['sontarih'],
+      ], fallback: ''),
+      lastActivityDate: coalesceText([map['lastActivityDate']], fallback: ''),
+      lastActivityTime: coalesceText([map['lastActivityTime']], fallback: ''),
+      profileViewCount: asInt(map['profileViewCount']) ?? 0,
+    );
+  }
+}
+
+class AdminMemberJourneyEntry {
+  const AdminMemberJourneyEntry({
+    required this.id,
+    required this.type,
+    required this.title,
+    required this.text,
+    required this.createdAt,
+    required this.meta,
+    required this.route,
+    required this.imageUrl,
+    required this.lightboxUrl,
+    required this.actor,
+    required this.direction,
+  });
+
+  final int id;
+  final String type;
+  final String title;
+  final String text;
+  final String createdAt;
+  final String meta;
+  final String route;
+  final String imageUrl;
+  final String lightboxUrl;
+  final String actor;
+  final String direction;
+
+  bool get hasMedia => imageUrl.trim().isNotEmpty;
+
+  factory AdminMemberJourneyEntry.fromMap(JsonMap map) {
+    return AdminMemberJourneyEntry(
+      id: asInt(map['id']) ?? 0,
+      type: coalesceText([map['type']], fallback: ''),
+      title: coalesceText([map['title'], map['label']], fallback: ''),
+      text: coalesceText([map['text']], fallback: ''),
+      createdAt: coalesceText([
+        map['createdAt'],
+        map['created_at'],
+      ], fallback: ''),
+      meta: coalesceText([map['meta']], fallback: ''),
+      route: coalesceText([map['route']], fallback: ''),
+      imageUrl: coalesceText([map['imageUrl'], map['image_url']], fallback: ''),
+      lightboxUrl: coalesceText([
+        map['lightboxUrl'],
+        map['lightbox_url'],
+        map['imageUrl'],
+        map['image_url'],
+      ], fallback: ''),
+      actor: coalesceText([map['actor']], fallback: ''),
+      direction: coalesceText([map['direction']], fallback: ''),
+    );
+  }
+}
+
+class AdminMemberJourneySummary {
+  const AdminMemberJourneySummary({required this.counts});
+
+  final Map<String, int> counts;
+
+  int count(String key) => counts[key] ?? 0;
+
+  int get content => count('posts') + count('comments') + count('postLikes');
+  int get media => count('media');
+  int get messages => count('messages');
+  int get network =>
+      count('follows') +
+      count('followers') +
+      count('connections') +
+      count('mentorship') +
+      count('teacherLinks');
+  int get notifications =>
+      count('notifications') + count('pushDevices') + count('pushDeliveries');
+
+  factory AdminMemberJourneySummary.fromMap(JsonMap map) {
+    return AdminMemberJourneySummary(
+      counts: map.map((key, value) => MapEntry(key, asInt(value) ?? 0)),
+    );
+  }
+}
+
+class AdminMemberJourneySnapshot {
+  const AdminMemberJourneySnapshot({
+    required this.user,
+    required this.summary,
+    required this.sections,
+    required this.timeline,
+    required this.media,
+  });
+
+  final AdminMemberJourneyUser user;
+  final AdminMemberJourneySummary summary;
+  final Map<String, List<AdminMemberJourneyEntry>> sections;
+  final List<AdminMemberJourneyEntry> timeline;
+  final List<AdminMemberJourneyEntry> media;
+
+  List<AdminMemberJourneyEntry> entries(String key) =>
+      sections[key] ?? const <AdminMemberJourneyEntry>[];
+
+  factory AdminMemberJourneySnapshot.fromMap(JsonMap map) {
+    final rawSections = asJsonMap(map['sections']);
+    final parsedSections = <String, List<AdminMemberJourneyEntry>>{};
+    for (final entry in rawSections.entries) {
+      parsedSections[entry.key] = asJsonMapList(
+        entry.value,
+      ).map(AdminMemberJourneyEntry.fromMap).toList(growable: false);
+    }
+    return AdminMemberJourneySnapshot(
+      user: AdminMemberJourneyUser.fromMap(asJsonMap(map['user'])),
+      summary: AdminMemberJourneySummary.fromMap(asJsonMap(map['summary'])),
+      sections: parsedSections,
+      timeline: asJsonMapList(
+        map['timeline'],
+      ).map(AdminMemberJourneyEntry.fromMap).toList(growable: false),
+      media: asJsonMapList(
+        map['media'],
+      ).map(AdminMemberJourneyEntry.fromMap).toList(growable: false),
+    );
+  }
+}
+
 List<String> _readStringList(dynamic value) {
   if (value is! List) return const <String>[];
   return value
@@ -2126,7 +2360,11 @@ class AdminUserPreviewItem {
     final lastName = coalesceText([map['soyisim']], fallback: '');
     final fullName = '$firstName $lastName'.trim();
     return AdminUserPreviewItem(
-      id: asInt(map['id']) ?? 0,
+      id:
+          asInt(map['id']) ??
+          asInt(map['userId']) ??
+          asInt(map['user_id']) ??
+          0,
       name: fullName.isNotEmpty
           ? fullName
           : coalesceText([map['kadi']], fallback: 'SDAL Uyesi'),
@@ -3617,9 +3855,10 @@ class AdminRepository {
     final meta = asJsonMap(raw['meta']);
     return AdminPreviewList<AdminUserPreviewItem>(
       total: asInt(meta['total']) ?? asJsonMapList(raw['users']).length,
-      items: asJsonMapList(
-        raw['users'],
-      ).map(AdminUserPreviewItem.fromMap).toList(growable: false),
+      items: asJsonMapList(raw['users'])
+          .map(AdminUserPreviewItem.fromMap)
+          .where((item) => item.id > 0)
+          .toList(growable: false),
     );
   }
 
@@ -4062,6 +4301,17 @@ class AdminRepository {
       decoder: asJsonMap,
     );
     return AdminUserDetail.fromMap(asJsonMap(result.rawData));
+  }
+
+  Future<AdminMemberJourneySnapshot> fetchMemberJourney(int id) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/members/$id/journey',
+      decoder: asJsonMap,
+    );
+    final raw = asJsonMap(result.rawData);
+    final user = {...asJsonMap(raw['user'])};
+    user['id'] ??= id;
+    return AdminMemberJourneySnapshot.fromMap({...raw, 'user': user});
   }
 
   Future<void> updateUserDetail(AdminUserDetail detail) async {
@@ -4738,6 +4988,11 @@ final adminLanguageKeysProvider = FutureProvider<List<AdminLanguageKeyItem>>(
 final adminUserDetailProvider = FutureProvider.family<AdminUserDetail, int>(
   (ref, id) => ref.watch(adminRepositoryProvider).fetchUserDetail(id),
 );
+
+final adminMemberJourneyProvider = FutureProvider.autoDispose
+    .family<AdminMemberJourneySnapshot, int>(
+      (ref, id) => ref.watch(adminRepositoryProvider).fetchMemberJourney(id),
+    );
 
 final adminPermissionsProvider =
     FutureProvider<List<AdminPermissionDefinition>>(
