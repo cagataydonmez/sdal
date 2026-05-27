@@ -40,10 +40,10 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     return FeatureScaffold(
       title: 'Albümler',
       background: FeatureScaffoldBackground.immersive,
-      floatingActionButton: FloatingActionButton.extended(
+      primaryAction: FeaturePrimaryAction(
+        icon: Icons.add_photo_alternate_outlined,
+        label: 'Fotoğraf yükle',
         onPressed: () => context.push('/albums/upload'),
-        icon: const Icon(Icons.add_photo_alternate_outlined),
-        label: const Text('Fotoğraf yükle'),
       ),
       child: RefreshIndicator(
         onRefresh: _load,

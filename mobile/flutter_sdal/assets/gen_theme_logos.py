@@ -25,6 +25,19 @@ THEMES = {
     "flux":  (0x2D, 0xD4, 0xBF),  # vibrant teal
 }
 
+BACKGROUNDS = {
+    "kor":   (0xFF, 0xE3, 0xD3),
+    "atlas": (0xD8, 0xEC, 0xFF),
+    "vibe":  (0xEF, 0xD6, 0xFF),
+    "zinc":  (0xF3, 0xF4, 0xF6),
+    "ember": (0xFF, 0xE4, 0xA8),
+    "mist":  (0xD8, 0xF2, 0xE4),
+    "nova":  (0xDC, 0xE8, 0xFF),
+    "prism": (0xE6, 0xDD, 0xFF),
+    "dusk":  (0xFF, 0xDD, 0xA5),
+    "flux":  (0xCF, 0xF6, 0xEC),
+}
+
 img = Image.open(SRC).convert("RGBA")
 arr = np.array(img, dtype=np.float32)
 
@@ -43,14 +56,29 @@ orange_mask = (
 # Keep the green figure intact — green figure: high G, low R relative to G
 green_mask = (G > R * 1.1) & (G > B * 1.1) & (A > 30)
 
+# The source app icon has a full opaque white square background. Theme badges
+# provide their own frame, so tinting this area avoids white boxes in dark
+# themes and keeps each logo legible against its theme surface.
+white_mask = (
+    (R > 238) &
+    (G > 238) &
+    (B > 238) &
+    (A > 30)
+)
+
 # Refine: exclude pixels that are also green
 orange_only = orange_mask & ~green_mask
 
 print(f"Orange pixels detected: {orange_only.sum()}")
 print(f"Green pixels detected: {green_mask.sum()}")
+print(f"White background pixels detected: {white_mask.sum()}")
 
 for theme_name, (tr, tg, tb) in THEMES.items():
     out_arr = arr.copy()
+    br, bg, bb = BACKGROUNDS[theme_name]
+    out_arr[white_mask, 0] = br
+    out_arr[white_mask, 1] = bg
+    out_arr[white_mask, 2] = bb
 
     # For each orange pixel, replace hue with theme accent, preserve luminance ratio
     mask = orange_only
@@ -78,7 +106,7 @@ for theme_name, (tr, tg, tb) in THEMES.items():
     out_arr[mask, 1] = new_g
     out_arr[mask, 2] = new_b
 
-    out_img = Image.fromarray(out_arr.astype(np.uint8), "RGBA")
+    out_img = Image.fromarray(out_arr.astype(np.uint8))
     out_path = os.path.join(SCRIPT_DIR, f"logo_{theme_name}.png")
     out_img.save(out_path, "PNG")
     print(f"Saved: {out_path}")

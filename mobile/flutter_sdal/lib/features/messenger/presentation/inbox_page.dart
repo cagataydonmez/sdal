@@ -98,10 +98,10 @@ class _InboxPageState extends ConsumerState<InboxPage> {
           },
         ),
       ],
-      floatingActionButton: FloatingActionButton.extended(
+      primaryAction: FeaturePrimaryAction(
+        icon: Icons.edit_outlined,
+        label: l10n.newChatAction,
         onPressed: () => _openComposeSheet(context, ref),
-        icon: const Icon(Icons.edit_outlined),
-        label: Text(l10n.newChatAction),
       ),
       child: Column(
         children: [

@@ -24,20 +24,21 @@ ThemeData _buildSdalTheme({
   required SdalThemeTokens tokens,
   SdalAppTheme appTheme = SdalAppTheme.kor,
 }) {
-  final colorScheme = ColorScheme.fromSeed(
-    seedColor: tokens.accent,
-    brightness: brightness,
-  ).copyWith(
-    primary: tokens.accent,
-    secondary: tokens.info,
-    surface: tokens.panel,
-    onSurface: tokens.foreground,
-    onPrimary: tokens.foregroundOnAccent,
-    onSecondary: tokens.foregroundOnAccent,
-    outline: tokens.panelBorder,
-    error: tokens.danger,
-    onError: tokens.foregroundOnAccent,
-  );
+  final colorScheme =
+      ColorScheme.fromSeed(
+        seedColor: tokens.accent,
+        brightness: brightness,
+      ).copyWith(
+        primary: tokens.accent,
+        secondary: tokens.info,
+        surface: tokens.panel,
+        onSurface: tokens.foreground,
+        onPrimary: tokens.foregroundOnAccent,
+        onSecondary: tokens.foregroundOnAccent,
+        outline: tokens.panelBorder,
+        error: tokens.danger,
+        onError: tokens.foregroundOnAccent,
+      );
 
   // For Kor we use the local Manrope asset via fontFamily.
   // For all other themes Google Fonts handles font loading.
@@ -51,7 +52,10 @@ ThemeData _buildSdalTheme({
     scaffoldBackgroundColor: tokens.canvas,
     brightness: brightness,
     fontFamily: fontFamily,
-    extensions: <ThemeExtension<dynamic>>[tokens],
+    extensions: <ThemeExtension<dynamic>>[
+      tokens,
+      appTheme.experienceFor(brightness),
+    ],
   );
 
   // Apply the per-theme typeface across all text styles.
@@ -79,12 +83,12 @@ ThemeData _buildSdalTheme({
     textTheme: tt.copyWith(
       headlineMedium: tt.headlineMedium?.copyWith(
         fontWeight: FontWeight.w800,
-        letterSpacing: -0.8,
+        letterSpacing: 0,
         color: tokens.foreground,
       ),
       headlineSmall: tt.headlineSmall?.copyWith(
         fontWeight: FontWeight.w800,
-        letterSpacing: -0.4,
+        letterSpacing: 0,
         color: tokens.foreground,
       ),
       titleLarge: tt.titleLarge?.copyWith(

@@ -22,10 +22,10 @@ class GroupsPage extends ConsumerWidget {
     final l10n = context.l10n;
     return FeatureScaffold(
       title: l10n.groupsTitle,
-      floatingActionButton: FloatingActionButton.extended(
+      primaryAction: FeaturePrimaryAction(
+        icon: Icons.add,
+        label: l10n.groupsNewGroupAction,
         onPressed: () => _openCreateSheet(context, ref),
-        icon: const Icon(Icons.add),
-        label: Text(l10n.groupsNewGroupAction),
       ),
       child: groupsState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -78,7 +78,9 @@ class GroupsPage extends ConsumerWidget {
                                 Positioned(
                                   bottom: 8,
                                   right: 10,
-                                  child: _CohortYearListBadge(cohortYear: group.cohortYear),
+                                  child: _CohortYearListBadge(
+                                    cohortYear: group.cohortYear,
+                                  ),
                                 ),
                             ],
                           ),

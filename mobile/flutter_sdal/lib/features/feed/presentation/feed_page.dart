@@ -79,10 +79,10 @@ class _FeedPageState extends ConsumerState<FeedPage> {
     return FeatureScaffold(
       title: _feedPageTitle(context, query.feedType),
       background: FeatureScaffoldBackground.editorial,
-      floatingActionButton: FloatingActionButton.extended(
+      primaryAction: FeaturePrimaryAction(
+        icon: Icons.edit_outlined,
+        label: l10n.feedPostAction,
         onPressed: () => _openComposer(context, ref),
-        icon: const Icon(Icons.edit_outlined),
-        label: Text(l10n.feedPostAction),
       ),
       child: feedState.when(
         loading: () => _buildFeedList(
@@ -134,6 +134,9 @@ class _FeedPageState extends ConsumerState<FeedPage> {
     required dynamic session,
     bool isLoading = false,
   }) {
+    final tokens = Theme.of(context).sdal;
+    final horizontalPadding = tokens.contentPaddingH.clamp(12.0, 24.0);
+    final verticalGap = tokens.cardSpacing.clamp(6.0, 20.0);
     return RefreshIndicator(
       onRefresh: () async {
         ref.invalidate(feedItemsProvider);
@@ -145,9 +148,14 @@ class _FeedPageState extends ConsumerState<FeedPage> {
       },
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        padding: EdgeInsets.fromLTRB(
+          horizontalPadding,
+          verticalGap,
+          horizontalPadding,
+          24,
+        ),
         itemCount: (isLoading && _items.isEmpty) ? 6 : _items.length + 5,
-        separatorBuilder: (_, index) => const SizedBox(height: 12),
+        separatorBuilder: (_, index) => SizedBox(height: verticalGap),
         itemBuilder: (context, index) {
           if (index == 0) {
             return _FeedControlsCard(
@@ -206,7 +214,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
           final canOpenAuthorProfile =
               item.authorId != null && item.authorId! > 0;
           return InkWell(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(tokens.cardRadius),
             onTap: () => context.push(_routeForItem(item)),
             child: Tooltip(
               message: l10n.openPostByAuthor(item.authorName),

@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import '../theme/sdal_theme_experience.dart';
 import '../theme/sdal_theme_tokens.dart';
 import '../theme/sdal_ux_profile.dart';
 
@@ -50,18 +51,20 @@ class _SurfaceCardState extends State<SurfaceCard>
           duration: const Duration(milliseconds: 70),
           reverseDuration: const Duration(milliseconds: 130),
         );
-        _scale = Tween<double>(begin: 1.0, end: 0.975).animate(
-          CurvedAnimation(parent: _ctrl!, curve: Curves.easeOut),
-        );
+        _scale = Tween<double>(
+          begin: 1.0,
+          end: 0.975,
+        ).animate(CurvedAnimation(parent: _ctrl!, curve: Curves.easeOut));
       case SdalTapFeedback.lift:
         _ctrl = AnimationController(
           vsync: this,
           duration: const Duration(milliseconds: 100),
           reverseDuration: const Duration(milliseconds: 200),
         );
-        _scale = Tween<double>(begin: 1.0, end: 1.02).animate(
-          CurvedAnimation(parent: _ctrl!, curve: Curves.easeOut),
-        );
+        _scale = Tween<double>(
+          begin: 1.0,
+          end: 1.02,
+        ).animate(CurvedAnimation(parent: _ctrl!, curve: Curves.easeOut));
       case SdalTapFeedback.ripple:
       case SdalTapFeedback.highlight:
       case SdalTapFeedback.none:
@@ -84,7 +87,9 @@ class _SurfaceCardState extends State<SurfaceCard>
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).sdal;
-    final tapFeedback = widget.onTap != null ? tokens.tapFeedback : SdalTapFeedback.none;
+    final tapFeedback = widget.onTap != null
+        ? tokens.tapFeedback
+        : SdalTapFeedback.none;
     _ensureController(tapFeedback);
 
     final cardRadius = tokens.cardRadius.toDouble();
@@ -163,19 +168,46 @@ class _SurfaceCardState extends State<SurfaceCard>
       button: widget.onTap != null,
       container: widget.semanticContainer || widget.onTap != null,
       label: widget.semanticLabel,
-      child: widget.semanticLabel == null ? card : ExcludeSemantics(child: card),
+      child: widget.semanticLabel == null
+          ? card
+          : ExcludeSemantics(child: card),
     );
     return widget.onTap == null ? semantics : MergeSemantics(child: semantics);
   }
 
-  Widget _buildElevatedCard(
-    Widget content,
-    SdalThemeTokens tokens,
-  ) {
-    return Card(
+  Widget _buildElevatedCard(Widget content, SdalThemeTokens tokens) {
+    final material = Theme.of(
+      context,
+    ).sdalExperience.components.surfaceMaterial;
+    final radius = BorderRadius.circular(tokens.cardRadius);
+    final shadowColor = switch (material) {
+      SdalSurfaceMaterial.archive => tokens.warning.withValues(alpha: 0.16),
+      SdalSurfaceMaterial.social => tokens.accent.withValues(alpha: 0.14),
+      SdalSurfaceMaterial.organic => tokens.success.withValues(alpha: 0.12),
+      SdalSurfaceMaterial.paper => tokens.accent.withValues(alpha: 0.10),
+      SdalSurfaceMaterial.ink => Colors.black.withValues(alpha: 0.12),
+      _ => tokens.foreground.withValues(alpha: 0.08),
+    };
+    return Container(
       clipBehavior: Clip.antiAlias,
-      color: widget.color,
-      child: content,
+      decoration: BoxDecoration(
+        color: widget.color ?? tokens.panel,
+        borderRadius: radius,
+        border: tokens.panelBorderWidth > 0
+            ? Border.all(
+                color: tokens.panelBorder,
+                width: tokens.panelBorderWidth.clamp(0.5, 1.4),
+              )
+            : null,
+        boxShadow: [
+          BoxShadow(
+            color: shadowColor,
+            blurRadius: material == SdalSurfaceMaterial.archive ? 24 : 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Material(color: Colors.transparent, child: content),
     );
   }
 
@@ -203,11 +235,7 @@ class _SurfaceCardState extends State<SurfaceCard>
     );
   }
 
-  Widget _buildFlatCard(
-    Widget content,
-    SdalThemeTokens tokens,
-    double radius,
-  ) {
+  Widget _buildFlatCard(Widget content, SdalThemeTokens tokens, double radius) {
     return Container(
       decoration: BoxDecoration(
         color: widget.color ?? tokens.panel,
@@ -246,7 +274,9 @@ class _SurfaceCardState extends State<SurfaceCard>
       clipBehavior: Clip.antiAlias,
       color: widget.color ?? cs.surfaceContainerHigh,
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(radius),
+      ),
       child: content,
     );
   }
@@ -260,7 +290,9 @@ class _SurfaceCardState extends State<SurfaceCard>
       clipBehavior: Clip.antiAlias,
       color: widget.color,
       margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(radius),
+      ),
       child: content,
     );
   }
@@ -268,14 +300,16 @@ class _SurfaceCardState extends State<SurfaceCard>
   BoxBorder _buildBorder(SdalThemeTokens tokens) {
     return switch (tokens.borderStyle) {
       SdalBorderStyle.none => Border.all(color: Colors.transparent, width: 0),
-      SdalBorderStyle.hairline =>
-        Border.all(color: tokens.panelBorder, width: 0.5),
-      SdalBorderStyle.thin =>
-        Border.all(color: tokens.panelBorder, width: 1.0),
-      SdalBorderStyle.medium =>
-        Border.all(color: tokens.panelBorder, width: 2.0),
-      SdalBorderStyle.accent =>
-        Border.all(color: tokens.accent, width: 2.0),
+      SdalBorderStyle.hairline => Border.all(
+        color: tokens.panelBorder,
+        width: 0.5,
+      ),
+      SdalBorderStyle.thin => Border.all(color: tokens.panelBorder, width: 1.0),
+      SdalBorderStyle.medium => Border.all(
+        color: tokens.panelBorder,
+        width: 2.0,
+      ),
+      SdalBorderStyle.accent => Border.all(color: tokens.accent, width: 2.0),
     };
   }
 }

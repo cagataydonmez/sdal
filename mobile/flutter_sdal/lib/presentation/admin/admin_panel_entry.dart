@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/theme/sdal_theme_tokens.dart';
 import 'core/adaptive_admin_scaffold.dart';
 import 'core/admin_theme.dart';
 import 'modules/audit_logs/views/audit_logs_view.dart';
@@ -59,6 +60,8 @@ class _SdalAdaptiveAdminPanelState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = theme.sdal;
+    final dark = theme.brightness == Brightness.dark;
     final mobile = MediaQuery.sizeOf(context).width < 600;
     return Theme(
       data: theme.copyWith(
@@ -67,11 +70,11 @@ class _SdalAdaptiveAdminPanelState
             (extension) => extension is! AdminPanelTokens,
           ),
           AdminPanelTokens(
-            success: Colors.green.shade700,
-            warning: Colors.orange.shade800,
-            info: theme.colorScheme.primary,
-            danger: theme.colorScheme.error,
-            surfaceTint: theme.colorScheme.surfaceContainerHighest,
+            success: dark ? const Color(0xFF8BC49D) : const Color(0xFF276749),
+            warning: dark ? const Color(0xFFD2AF68) : const Color(0xFF8A5A14),
+            info: tokens.adminExperiment,
+            danger: dark ? const Color(0xFFE19A9A) : const Color(0xFF9E3430),
+            surfaceTint: tokens.panelMuted,
           ),
         ],
       ),

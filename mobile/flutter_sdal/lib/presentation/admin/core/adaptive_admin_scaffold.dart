@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/sdal_theme_tokens.dart';
 import 'admin_theme.dart';
 
 class AdaptiveAdminScaffold extends StatelessWidget {
@@ -20,6 +21,18 @@ class AdaptiveAdminScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    final background = BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          tokens.canvas,
+          Color.lerp(tokens.canvasSubtle, tokens.adminExperiment, 0.08)!,
+          tokens.canvasSubtle,
+        ],
+      ),
+    );
     return LayoutBuilder(
       builder: (context, constraints) {
         final breakpoint = adminBreakpointForWidth(constraints.maxWidth);
@@ -39,7 +52,7 @@ class AdaptiveAdminScaffold extends StatelessWidget {
               title: Text(adminDestinations[safeIndex].label),
               actions: actions,
             ),
-            body: body,
+            body: DecoratedBox(decoration: background, child: body),
             bottomNavigationBar: SafeArea(
               top: false,
               child: _AdminMobileModuleBar(
@@ -62,29 +75,34 @@ class AdaptiveAdminScaffold extends StatelessWidget {
             ),
             actions: actions,
           ),
-          body: Row(
-            children: [
-              NavigationRail(
-                extended: extended,
-                selectedIndex: safeIndex,
-                minExtendedWidth: 212,
-                labelType: extended
-                    ? NavigationRailLabelType.none
-                    : NavigationRailLabelType.selected,
-                onDestinationSelected: (index) =>
-                    onModuleSelected(adminDestinations[index].id),
-                destinations: [
-                  for (final destination in adminDestinations)
-                    NavigationRailDestination(
-                      icon: Icon(destination.icon),
-                      selectedIcon: Icon(destination.selectedIcon),
-                      label: Text(destination.label),
-                    ),
-                ],
-              ),
-              const VerticalDivider(width: 1),
-              Expanded(child: body),
-            ],
+          body: DecoratedBox(
+            decoration: background,
+            child: Row(
+              children: [
+                NavigationRail(
+                  backgroundColor: tokens.panel.withValues(alpha: 0.92),
+                  indicatorColor: tokens.accentMuted,
+                  extended: extended,
+                  selectedIndex: safeIndex,
+                  minExtendedWidth: 212,
+                  labelType: extended
+                      ? NavigationRailLabelType.none
+                      : NavigationRailLabelType.selected,
+                  onDestinationSelected: (index) =>
+                      onModuleSelected(adminDestinations[index].id),
+                  destinations: [
+                    for (final destination in adminDestinations)
+                      NavigationRailDestination(
+                        icon: Icon(destination.icon),
+                        selectedIcon: Icon(destination.selectedIcon),
+                        label: Text(destination.label),
+                      ),
+                  ],
+                ),
+                VerticalDivider(width: 1, color: tokens.panelBorder),
+                Expanded(child: body),
+              ],
+            ),
           ),
         );
       },
@@ -146,11 +164,11 @@ class _AdminMobileModuleBarState extends State<_AdminMobileModuleBar> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final tokens = Theme.of(context).sdal;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: scheme.surface,
-        border: Border(top: BorderSide(color: scheme.outlineVariant)),
+        color: tokens.panel.withValues(alpha: 0.96),
+        border: Border(top: BorderSide(color: tokens.panelBorder)),
       ),
       child: SizedBox(
         height: 72,
@@ -178,12 +196,10 @@ class _AdminMobileModuleBarState extends State<_AdminMobileModuleBar> {
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: selected
-                        ? scheme.primaryContainer
-                        : scheme.surfaceContainerHighest,
+                    color: selected ? tokens.accentMuted : tokens.panelRaised,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: selected ? scheme.primary : scheme.outlineVariant,
+                      color: selected ? tokens.accent : tokens.panelBorder,
                     ),
                   ),
                   child: Row(
@@ -193,8 +209,8 @@ class _AdminMobileModuleBarState extends State<_AdminMobileModuleBar> {
                         selected ? destination.selectedIcon : destination.icon,
                         size: 20,
                         color: selected
-                            ? scheme.onPrimaryContainer
-                            : scheme.onSurfaceVariant,
+                            ? tokens.foreground
+                            : tokens.foregroundMuted,
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -204,8 +220,8 @@ class _AdminMobileModuleBarState extends State<_AdminMobileModuleBar> {
                         style: Theme.of(context).textTheme.labelMedium
                             ?.copyWith(
                               color: selected
-                                  ? scheme.onPrimaryContainer
-                                  : scheme.onSurfaceVariant,
+                                  ? tokens.foreground
+                                  : tokens.foregroundMuted,
                               fontWeight: selected
                                   ? FontWeight.w700
                                   : FontWeight.w500,
@@ -518,8 +534,40 @@ class AdminPanelCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    final tokens = Theme.of(context).sdal;
+    return AnimatedContainer(
+      duration: Duration(
+        milliseconds: tokens.animationDurationMs.clamp(120, 260).toInt(),
+      ),
+      curve: Curves.easeOutCubic,
       clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: tokens.panel.withValues(alpha: 0.98),
+        borderRadius: BorderRadius.circular(tokens.cardRadius.clamp(8.0, 18.0)),
+        border: Border.all(
+          color: tokens.panelBorder.withValues(alpha: 0.82),
+          width: tokens.panelBorderWidth.clamp(0.7, 1.4),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(
+              alpha: Theme.of(context).brightness == Brightness.dark
+                  ? 0.18
+                  : 0.06,
+            ),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.lerp(tokens.panelRaised, tokens.adminExperiment, 0.05)!,
+            tokens.panel,
+          ],
+        ),
+      ),
       child: Padding(padding: padding, child: child),
     );
   }

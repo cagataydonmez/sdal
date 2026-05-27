@@ -1,26 +1,47 @@
 # Design System
 
 ## Overview
-SDAL offers **6 user-selectable themes**, each with distinct visual personality and semantic shape choices. Every theme has light and dark variants. Themes are defined in `lib/core/theme/sdal_app_theme.dart`.
+SDAL offers **10 user-selectable themes**. Themes are now micro-app experiences, not only palette swaps. Every theme has light and dark variants plus a theme experience profile that controls shell behavior, logo framing, content rhythm, surface material, motion, media treatment, and primary-action placement.
+
+Theme colors remain in `lib/core/theme/sdal_app_theme.dart` and `lib/core/theme/sdal_theme_tokens.dart`. Experience profiles live in `lib/core/theme/sdal_theme_experience.dart` and are attached to `ThemeData` alongside the existing token extension.
+
+---
+
+## Theme Engine v2
+
+Each theme defines these layers:
+
+- **Identity**: physical usage scene, product promise, color strategy, and micro-app mode.
+- **Palette**: semantic color tokens for surfaces, text, feedback, chat, stories, and media placeholders.
+- **Shell**: navigation style, header style, transparent overlay hit-testing, and primary-action placement.
+- **Composition**: feed/list rhythm, content breathing room, and control density.
+- **Components**: surface material, empty-state tone, inline guidance, and blur permissions.
+- **Motion**: route duration, press response, reduced-motion fallback, and tactile intensity.
+- **Media**: feed image aspect, avatar frame width, story ring width, and image overlay preference.
+- **Logo**: asset, frame, background, border, shadow, radius, and padding.
 
 ---
 
 ## Themes at a Glance
 
-| Theme | Tagline | Personality | Card Radius | Button Radius | Font | Accent Color |
-|-------|---------|-------------|------------|--------------|------|--------------|
-| **Kor** | Sıcak & samimi (Warm & intimate) | Approachable, community-focused | Default | Default | Manrope (local) | Rust (#B45637 light) / Warm Orange (#E99A73 dark) |
-| **Atlas** | Keskin & yapısal (Sharp & structural) | Professional, precise, data-focused | 10px | 8px | IBM Plex Sans | Steel Blue (#2478B0 light) / Light Blue (#82B8E0 dark) |
-| **Vibe** | Yuvarlak & enerjik (Round & energetic) | Playful, joyful, casual | 28px | 24px | Nunito | Violet (#7248C8 light) / Bright Violet (#BB96F5 dark) |
-| **Zinc** | Minimal & editoryal (Minimal & editorial) | Clean, focused, high-contrast | 6px | 4px | DM Sans | Dark Slate (#2D3540 light) / Light Gray (#C8CDD6 dark) |
-| **Ember** | Lüks & amber (Luxury & amber) | Premium, warm, sophisticated | 16px | 14px | Outfit | Amber Brown (#B88020 light) / Warm Gold (#F0C050 dark) |
-| **Mist** | Havadar & organik (Airy & organic) | Humanist, natural, calming | 24px | 20px | Jost | Forest Green (#3A7A58 light) / Sage Green (#80C89C dark) |
+| Theme | Tagline | Micro-app Mode | Shell/Composition | Font | Accent Direction |
+|-------|---------|----------------|-------------------|------|------------------|
+| **Kor** | Ocak ağı & sıcak akış | Hearth | Warm magazine feed, standard elevated nav, guided composer action | Manrope (local) | Terracotta + indigo + community green |
+| **Atlas** | Harita & yapı | Atlas | Structured controls, compact scan rhythm, precision outlined surfaces | IBM Plex Sans | Cobalt + chartreuse signal |
+| **Vibe** | Sosyal nabız | Pulse | Floating pill nav, social cards, energetic story/online rhythm | Nunito | Violet + cyan + grape |
+| **Zinc** | Ink & hızlı tarama | Ink | Compact header, icon nav, flat ink panels, command-like scanning | DM Sans | Graphite + cyan signal |
+| **Ember** | Arşiv & etkinlik salonu | Archive | Warm archive surfaces, event/album-friendly media rhythm | Outfit | Amber + clay + oxblood |
+| **Mist** | Bahçe & sakin okuma | Garden | Airy layout, calm tonal cards, profile/reading-friendly pacing | Jost | Sage + mint + coral |
+| **Nova** | Uzaysal cam & zerafet | Spatial | Frosted floating pill, glass chrome, spatial feed rhythm | Space Grotesk | Luminous blue |
+| **Prism** | Modüler bento & netlik | Bento | Drawer shell, bento grid, modular workspace hierarchy | Archivo | Violet workspace layers |
+| **Dusk** | Sinematik karanlık & dramatik | Cinema | Transparent pass-through chrome, cinematic full-bleed rhythm | Space Grotesk | Amber on cinematic dark |
+| **Flux** | Dinamik & uyarlanabilir | Adaptive | Route-aware shell FAB, compact Material tonal flow | Plus Jakarta Sans | Adaptive teal |
 
 ---
 
 ## Semantic Color Token Roles
 
-All 6 themes follow this token structure. Use tokens by role, not by name alone.
+All themes follow this token structure. Use tokens by role, not by name alone.
 
 ### Primary Colors
 
@@ -183,11 +204,11 @@ All themes use the same radius tokens (`cardRadius`, `buttonRadius`, `inputRadiu
 - **Border Width**: 0.5px (minimal, lets color shine)
 
 ### Warm & Community (Kor)
-- **Card Radius**: Default (matches Material 3 baseline)
-- **Button Radius**: Default (matches Material 3 baseline)
-- **Input Radius**: Default
-- **Intent**: Warm, approachable, community-focused. Kor is the "no theme override" baseline.
-- **Affordance**: Uses Flutter Material 3 defaults, familiar to most users.
+- **Card Radius**: 18px
+- **Button Radius**: 16px
+- **Input Radius**: 18px
+- **Intent**: Warm, approachable, community-focused. Kor is the default micro-app experience and should feel crafted, not neutral.
+- **Affordance**: Paper-like warm surfaces, clear composer action, and magazine pacing make the default theme feel like the SDAL home base.
 
 ---
 

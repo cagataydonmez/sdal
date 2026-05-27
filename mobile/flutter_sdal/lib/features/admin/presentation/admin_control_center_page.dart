@@ -360,8 +360,16 @@ class _CommandHeader extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: tokens.panel,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: tokens.panelBorder),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.lerp(tokens.panelRaised, tokens.adminExperiment, 0.08)!,
+            tokens.panel,
+          ],
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -374,12 +382,15 @@ class _CommandHeader extends StatelessWidget {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: tokens.accentMuted,
-                    borderRadius: BorderRadius.circular(8),
+                    color: tokens.adminExperiment.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: tokens.adminExperiment.withValues(alpha: 0.50),
+                    ),
                   ),
                   child: Icon(
                     Icons.admin_panel_settings_outlined,
-                    color: tokens.accent,
+                    color: tokens.adminExperiment,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -485,7 +496,7 @@ class _QuickAccessPanel extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: tokens.panelRaised,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: tokens.panelBorder),
       ),
       child: Padding(
@@ -658,47 +669,66 @@ class _SystemSnapshotPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final counts = summary?.counts ?? const <String, int>{};
     final system = summary?.system;
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: [
-        _MetricPill(
-          icon: Icons.groups_outlined,
-          label: 'Üye',
-          value: '${counts['users'] ?? 0}',
-          tone: AdminTone.info,
-        ),
-        _MetricPill(
-          icon: Icons.block_outlined,
-          label: 'Askıda',
-          value: '${counts['suspendedUsers'] ?? 0}',
-          tone: (counts['suspendedUsers'] ?? 0) > 0
-              ? AdminTone.danger
-              : AdminTone.success,
-        ),
-        _MetricPill(
-          icon: Icons.pending_actions_outlined,
-          label: 'Talep',
-          value: '${counts['requests'] ?? 0}',
-          tone: (counts['requests'] ?? 0) > 0
-              ? AdminTone.warning
-              : AdminTone.success,
-        ),
-        if (system != null && system.diskSupported)
-          _MetricPill(
-            icon: Icons.storage_outlined,
-            label: 'Disk',
-            value: '${system.diskUsedPct.toStringAsFixed(0)}%',
-            tone: system.diskUsedPct > 85 ? AdminTone.warning : AdminTone.info,
+    return _Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SectionTitle(
+            title: 'Operasyon panoraması',
+            subtitle: 'Canlı metrikler, kaynak yükü ve davranış sıcaklığı.',
+            compact: true,
           ),
-        if (system != null && system.cpuSupported)
-          _MetricPill(
-            icon: Icons.memory_outlined,
-            label: 'CPU',
-            value: '${system.cpuUsagePct.toStringAsFixed(0)}%',
-            tone: system.cpuUsagePct > 85 ? AdminTone.warning : AdminTone.info,
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _MetricPill(
+                icon: Icons.groups_outlined,
+                label: 'Üye',
+                value: '${counts['users'] ?? 0}',
+                tone: AdminTone.info,
+              ),
+              _MetricPill(
+                icon: Icons.block_outlined,
+                label: 'Askıda',
+                value: '${counts['suspendedUsers'] ?? 0}',
+                tone: (counts['suspendedUsers'] ?? 0) > 0
+                    ? AdminTone.danger
+                    : AdminTone.success,
+              ),
+              _MetricPill(
+                icon: Icons.pending_actions_outlined,
+                label: 'Talep',
+                value: '${counts['requests'] ?? 0}',
+                tone: (counts['requests'] ?? 0) > 0
+                    ? AdminTone.warning
+                    : AdminTone.success,
+              ),
+              if (system != null && system.diskSupported)
+                _MetricPill(
+                  icon: Icons.storage_outlined,
+                  label: 'Disk',
+                  value: '${system.diskUsedPct.toStringAsFixed(0)}%',
+                  tone: system.diskUsedPct > 85
+                      ? AdminTone.warning
+                      : AdminTone.info,
+                ),
+              if (system != null && system.cpuSupported)
+                _MetricPill(
+                  icon: Icons.memory_outlined,
+                  label: 'CPU',
+                  value: '${system.cpuUsagePct.toStringAsFixed(0)}%',
+                  tone: system.cpuUsagePct > 85
+                      ? AdminTone.warning
+                      : AdminTone.info,
+                ),
+            ],
           ),
-      ],
+          const SizedBox(height: 14),
+          _AdminCountHeatmap(counts: counts),
+        ],
+      ),
     );
   }
 }
@@ -785,16 +815,25 @@ class _ConsoleTile extends StatelessWidget {
     final tokens = Theme.of(context).sdal;
     final colors = AdminToneColors.from(context, item.tone);
     return Material(
-      color: tokens.panel,
-      borderRadius: BorderRadius.circular(10),
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         onTap: onOpen,
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
+            color: tokens.panel,
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(color: tokens.panelBorder),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color.lerp(tokens.panel, colors.muted, 0.28)!,
+                tokens.panel,
+              ],
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -954,6 +993,113 @@ class _MetricPill extends StatelessWidget {
   }
 }
 
+class _AdminCountHeatmap extends StatelessWidget {
+  const _AdminCountHeatmap({required this.counts});
+
+  final Map<String, int> counts;
+
+  @override
+  Widget build(BuildContext context) {
+    final cells = [
+      _HeatCellData('Üye', counts['users'] ?? 0, AdminTone.info),
+      _HeatCellData('Talep', counts['requests'] ?? 0, AdminTone.warning),
+      _HeatCellData(
+        'Doğrulama',
+        counts['verificationRequests'] ?? 0,
+        AdminTone.warning,
+      ),
+      _HeatCellData('İçerik', counts['posts'] ?? 0, AdminTone.accent),
+      _HeatCellData('Hikaye', counts['stories'] ?? 0, AdminTone.accent),
+      _HeatCellData('Askıda', counts['suspendedUsers'] ?? 0, AdminTone.danger),
+    ];
+    final maxValue = cells.fold<int>(
+      1,
+      (maxValue, cell) => cell.value > maxValue ? cell.value : maxValue,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Yoğunluk haritası',
+          style: Theme.of(
+            context,
+          ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 8),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 560 ? 6 : 3;
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: cells.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                mainAxisSpacing: 6,
+                crossAxisSpacing: 6,
+                mainAxisExtent: 54,
+              ),
+              itemBuilder: (context, index) {
+                final cell = cells[index];
+                final colors = AdminToneColors.from(context, cell.tone);
+                final intensity = (cell.value / maxValue).clamp(0.0, 1.0);
+                return DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colors.muted.withValues(
+                      alpha: 0.30 + (intensity * 0.44),
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: colors.foreground.withValues(alpha: 0.36),
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${cell.value}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(
+                                color: colors.foreground,
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          cell.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: colors.foreground,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _HeatCellData {
+  const _HeatCellData(this.label, this.value, this.tone);
+
+  final String label;
+  final int value;
+  final AdminTone tone;
+}
+
 class _Panel extends StatelessWidget {
   const _Panel({required this.child});
 
@@ -965,8 +1111,16 @@ class _Panel extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: tokens.panel,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: tokens.panelBorder),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.lerp(tokens.panelRaised, tokens.adminExperiment, 0.05)!,
+            tokens.panel,
+          ],
+        ),
       ),
       child: Padding(padding: const EdgeInsets.all(14), child: child),
     );

@@ -3,16 +3,20 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+export 'feature_primary_action.dart';
 import '../../features/messenger/data/messenger_repository.dart';
 import '../../features/notifications/data/notifications_repository.dart';
 import '../l10n/context_l10n.dart';
 import '../shell/shell_metadata_repository.dart';
 import '../session/session_controller.dart';
 import '../session/session_models.dart';
+import '../theme/sdal_theme_experience.dart';
 import '../theme/sdal_theme_tokens.dart';
 import '../theme/sdal_ux_profile.dart';
 import '../version/app_version.dart';
 import 'app_tab_shell.dart' show AppTabScaffoldKey;
+import 'feature_primary_action.dart';
 import 'remote_avatar.dart';
 import 'sdal_logo_badge.dart';
 
@@ -25,6 +29,7 @@ class FeatureScaffold extends ConsumerWidget {
     required this.child,
     this.actions,
     this.floatingActionButton,
+    this.primaryAction,
     this.background = FeatureScaffoldBackground.neutral,
     this.showAppMenu = true,
   });
@@ -33,6 +38,7 @@ class FeatureScaffold extends ConsumerWidget {
   final Widget child;
   final List<Widget>? actions;
   final Widget? floatingActionButton;
+  final FeaturePrimaryAction? primaryAction;
   final FeatureScaffoldBackground background;
   final bool showAppMenu;
 
@@ -60,12 +66,24 @@ class FeatureScaffold extends ConsumerWidget {
     final headerBg = tokens.headerBackground;
     final headerStyle = tokens.headerStyle;
     final navStyle = tokens.navStyle;
+    final experience = Theme.of(context).sdalExperience;
+    final shellConsumesPrimaryAction =
+        experience.shell.primaryActionPlacement ==
+        SdalPrimaryActionPlacement.shellFab;
 
-    final isTransparentHeader = headerStyle == SdalHeaderStyle.transparent ||
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FeaturePrimaryActionRegistry.update(location, primaryAction);
+    });
+
+    final isTransparentHeader =
+        headerStyle == SdalHeaderStyle.transparent ||
         headerBg == SdalHeaderBackground.transparent;
     final toolbarH = headerStyle == SdalHeaderStyle.minimal
         ? tokens.appBarHeight
         : null; // null = M3 default
+    final transparentHeaderInset = isTransparentHeader
+        ? MediaQuery.paddingOf(context).top + (toolbarH ?? kToolbarHeight)
+        : 0.0;
 
     // ── Build leading widget ─────────────────────────────────────────────
     Widget? leading;
@@ -131,11 +149,11 @@ class FeatureScaffold extends ConsumerWidget {
     // ── Build trailing actions ───────────────────────────────────────────
     final trailingAvatar =
         session?.user != null && avatarPos == SdalAvatarPosition.trailing
-            ? Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: _TrailingAvatar(session: session!),
-              )
-            : null;
+        ? Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: _TrailingAvatar(session: session!),
+          )
+        : null;
 
     final resolvedActions = <Widget>[
       ...?actions,
@@ -168,10 +186,7 @@ class FeatureScaffold extends ConsumerWidget {
         );
       }
     } else if (logoPos == SdalLogoPosition.leading) {
-      titleWidget = Text(
-        title,
-        overflow: TextOverflow.ellipsis,
-      );
+      titleWidget = Text(title, overflow: TextOverflow.ellipsis);
     } else if (logoPos == SdalLogoPosition.hidden) {
       titleWidget = Text(title, overflow: TextOverflow.ellipsis);
     } else {
@@ -237,6 +252,17 @@ class FeatureScaffold extends ConsumerWidget {
       backgroundColor: appBarBgColor,
       flexibleSpace: flexibleSpace,
     );
+    final transparentHeaderOverlay = isTransparentHeader
+        ? _TransparentHeaderOverlay(
+            leading: leading,
+            leadingWidth: leadingWidth,
+            title: titleWidget,
+            actions: resolvedActions,
+            centerTitle: titleAlign == SdalTitleAlignment.center,
+            toolbarHeight: toolbarH ?? kToolbarHeight,
+            flexibleSpace: flexibleSpace,
+          )
+        : null;
 
     // ── Assemble scaffold ────────────────────────────────────────────────
     final bodyDecoration = switch (background) {
@@ -276,7 +302,13 @@ class FeatureScaffold extends ConsumerWidget {
           : null,
       child: Container(
         decoration: bodyDecoration,
-        child: SafeArea(top: false, child: child),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.only(top: transparentHeaderInset),
+            child: child,
+          ),
+        ),
       ),
     );
 
@@ -292,6 +324,15 @@ class FeatureScaffold extends ConsumerWidget {
         ],
       );
     }
+
+    final scaffoldBody = transparentHeaderOverlay == null
+        ? bodyContent
+        : Stack(
+            children: [
+              Positioned.fill(child: bodyContent),
+              transparentHeaderOverlay,
+            ],
+          );
 
     return PopScope<Object?>(
       canPop: !showAdminBack || canPop,
@@ -309,8 +350,18 @@ class FeatureScaffold extends ConsumerWidget {
       },
       child: Scaffold(
         extendBodyBehindAppBar: isTransparentHeader,
-        appBar: appBar,
-        floatingActionButton: floatingActionButton,
+        appBar: isTransparentHeader ? null : appBar,
+        floatingActionButton: shellConsumesPrimaryAction
+            ? null
+            : floatingActionButton ??
+                  (primaryAction == null
+                      ? null
+                      : FloatingActionButton.extended(
+                          onPressed: primaryAction!.onPressed,
+                          icon: Icon(primaryAction!.icon),
+                          label: Text(primaryAction!.label),
+                          tooltip: primaryAction!.semanticLabel,
+                        )),
         bottomNavigationBar: showAdminBack
             ? _AdminSurfaceNavigationBar(
                 session: session!,
@@ -318,7 +369,7 @@ class FeatureScaffold extends ConsumerWidget {
                 shellMenu: shellMenu,
               )
             : null,
-        body: bodyContent,
+        body: scaffoldBody,
       ),
     );
   }
@@ -385,6 +436,69 @@ class FeatureScaffold extends ConsumerWidget {
       return;
     }
     context.go(fallbackLocation);
+  }
+}
+
+class _TransparentHeaderOverlay extends StatelessWidget {
+  const _TransparentHeaderOverlay({
+    required this.leading,
+    required this.leadingWidth,
+    required this.title,
+    required this.actions,
+    required this.centerTitle,
+    required this.toolbarHeight,
+    required this.flexibleSpace,
+  });
+
+  final Widget? leading;
+  final double? leadingWidth;
+  final Widget title;
+  final List<Widget> actions;
+  final bool centerTitle;
+  final double toolbarHeight;
+  final Widget? flexibleSpace;
+
+  @override
+  Widget build(BuildContext context) {
+    final top = MediaQuery.paddingOf(context).top;
+    final height = top + toolbarHeight;
+    return Positioned(
+      left: 0,
+      right: 0,
+      top: 0,
+      height: height,
+      child: Stack(
+        children: [
+          if (flexibleSpace != null)
+            Positioned.fill(child: IgnorePointer(child: flexibleSpace)),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: toolbarHeight,
+            child: NavigationToolbar(
+              leading: leading == null
+                  ? null
+                  : SizedBox(
+                      width: leadingWidth ?? kToolbarHeight,
+                      child: leading,
+                    ),
+              middle: DefaultTextStyle(
+                style:
+                    Theme.of(context).textTheme.titleLarge ?? const TextStyle(),
+                overflow: TextOverflow.ellipsis,
+                child: title,
+              ),
+              trailing: actions.isEmpty
+                  ? null
+                  : Row(mainAxisSize: MainAxisSize.min, children: actions),
+              centerMiddle: centerTitle,
+              middleSpacing: 16,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

@@ -14,6 +14,7 @@ import '../session/session_models.dart';
 import '../shell/shell_metadata_repository.dart';
 import '../theme/sdal_theme_tokens.dart';
 import '../theme/sdal_ux_profile.dart';
+import 'feature_primary_action.dart';
 import '../../l10n/generated/app_localizations.dart';
 
 // ── Inherited widgets ──────────────────────────────────────────────────────
@@ -52,10 +53,9 @@ class AppTabScaffoldKey extends InheritedWidget {
   bool updateShouldNotify(AppTabScaffoldKey old) =>
       scaffoldKey != old.scaffoldKey;
 
-  static GlobalKey<ScaffoldState>? maybeOf(BuildContext context) =>
-      context
-          .dependOnInheritedWidgetOfExactType<AppTabScaffoldKey>()
-          ?.scaffoldKey;
+  static GlobalKey<ScaffoldState>? maybeOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<AppTabScaffoldKey>()
+      ?.scaffoldKey;
 }
 
 // ── Tab container builder ──────────────────────────────────────────────────
@@ -211,62 +211,56 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
           NavigationDestinationLabelBehavior.alwaysShow,
         SdalNavLabelMode.selectedOnly =>
           NavigationDestinationLabelBehavior.onlyShowSelected,
-        SdalNavLabelMode.never =>
-          NavigationDestinationLabelBehavior.alwaysHide,
+        SdalNavLabelMode.never => NavigationDestinationLabelBehavior.alwaysHide,
       };
 
   List<NavigationDestination> _buildDestinations(
     AppLocalizations l10n,
     int unreadMessages,
     int unreadNotifications,
-  ) =>
-      [
-        NavigationDestination(
-          icon: const Icon(Icons.dynamic_feed_outlined),
-          selectedIcon: const Icon(Icons.dynamic_feed),
-          label: l10n.tabFeed,
-        ),
-        NavigationDestination(
-          icon: const Icon(Icons.explore_outlined),
-          selectedIcon: const Icon(Icons.explore),
-          label: l10n.tabExplore,
-        ),
-        NavigationDestination(
-          icon: _NavBadgeIcon(
-            icon: Icons.chat_bubble_outline,
-            count: unreadMessages,
-            unreadSemanticLabel: l10n.messagesUnreadCount(unreadMessages),
-          ),
-          selectedIcon: _NavBadgeIcon(
-            icon: Icons.chat_bubble,
-            count: unreadMessages,
-            unreadSemanticLabel: l10n.messagesUnreadCount(unreadMessages),
-          ),
-          label: l10n.messagesTitle,
-        ),
-        NavigationDestination(
-          icon: _NavBadgeIcon(
-            icon: Icons.notifications_outlined,
-            count: unreadNotifications,
-            unreadSemanticLabel: l10n.notificationsUnreadCount(
-              unreadNotifications,
-            ),
-          ),
-          selectedIcon: _NavBadgeIcon(
-            icon: Icons.notifications,
-            count: unreadNotifications,
-            unreadSemanticLabel: l10n.notificationsUnreadCount(
-              unreadNotifications,
-            ),
-          ),
-          label: l10n.tabNotifications,
-        ),
-        NavigationDestination(
-          icon: const Icon(Icons.person_outline),
-          selectedIcon: const Icon(Icons.person),
-          label: l10n.tabProfile,
-        ),
-      ];
+  ) => [
+    NavigationDestination(
+      icon: const Icon(Icons.dynamic_feed_outlined),
+      selectedIcon: const Icon(Icons.dynamic_feed),
+      label: l10n.tabFeed,
+    ),
+    NavigationDestination(
+      icon: const Icon(Icons.explore_outlined),
+      selectedIcon: const Icon(Icons.explore),
+      label: l10n.tabExplore,
+    ),
+    NavigationDestination(
+      icon: _NavBadgeIcon(
+        icon: Icons.chat_bubble_outline,
+        count: unreadMessages,
+        unreadSemanticLabel: l10n.messagesUnreadCount(unreadMessages),
+      ),
+      selectedIcon: _NavBadgeIcon(
+        icon: Icons.chat_bubble,
+        count: unreadMessages,
+        unreadSemanticLabel: l10n.messagesUnreadCount(unreadMessages),
+      ),
+      label: l10n.messagesTitle,
+    ),
+    NavigationDestination(
+      icon: _NavBadgeIcon(
+        icon: Icons.notifications_outlined,
+        count: unreadNotifications,
+        unreadSemanticLabel: l10n.notificationsUnreadCount(unreadNotifications),
+      ),
+      selectedIcon: _NavBadgeIcon(
+        icon: Icons.notifications,
+        count: unreadNotifications,
+        unreadSemanticLabel: l10n.notificationsUnreadCount(unreadNotifications),
+      ),
+      label: l10n.tabNotifications,
+    ),
+    NavigationDestination(
+      icon: const Icon(Icons.person_outline),
+      selectedIcon: const Icon(Icons.person),
+      label: l10n.tabProfile,
+    ),
+  ];
 
   Widget _buildBody({
     required BuildContext context,
@@ -281,12 +275,15 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
           dragOffset: _horizontalDragDistance,
           child: GestureDetector(
             behavior: HitTestBehavior.translucent,
-            onHorizontalDragStart:
-                canSwipeBetweenTabs ? _onHorizontalDragStart : null,
-            onHorizontalDragUpdate:
-                canSwipeBetweenTabs ? _onHorizontalDragUpdate : null,
-            onHorizontalDragEnd:
-                canSwipeBetweenTabs ? _onHorizontalDragEnd : null,
+            onHorizontalDragStart: canSwipeBetweenTabs
+                ? _onHorizontalDragStart
+                : null,
+            onHorizontalDragUpdate: canSwipeBetweenTabs
+                ? _onHorizontalDragUpdate
+                : null,
+            onHorizontalDragEnd: canSwipeBetweenTabs
+                ? _onHorizontalDragEnd
+                : null,
             child: widget.navigationShell,
           ),
         ),
@@ -345,8 +342,8 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
         body: body,
         bottomNavigationBar: _FrostedNavBarWrapper(
           blurSigma: tokens.blurSigma,
-          glassOpacity: tokens.navBarBackground ==
-                  SdalNavBarBackground.transparentBlur
+          glassOpacity:
+              tokens.navBarBackground == SdalNavBarBackground.transparentBlur
               ? 0.0
               : 0.72,
           tokens: tokens,
@@ -445,9 +442,7 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
           Positioned.fill(
             child: MediaQuery(
               data: mq.copyWith(
-                padding: mq.padding.copyWith(
-                  bottom: mq.padding.bottom + navH,
-                ),
+                padding: mq.padding.copyWith(bottom: mq.padding.bottom + navH),
               ),
               child: body,
             ),
@@ -478,27 +473,41 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
     required SdalThemeTokens tokens,
     required Widget body,
     required List<NavigationDestination> destinations,
+    required String location,
   }) {
-    return Scaffold(
-      body: body,
-      bottomNavigationBar: NavigationBarTheme(
-        data: NavigationBarThemeData(
-          labelBehavior: _labelBehavior(tokens.navLabelMode),
-        ),
-        child: NavigationBar(
-          selectedIndex: widget.navigationShell.currentIndex,
-          onDestinationSelected: _onTap,
-          destinations: destinations,
-        ),
+    final navBar = NavigationBarTheme(
+      data: NavigationBarThemeData(
+        labelBehavior: _labelBehavior(tokens.navLabelMode),
       ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'sdal_nav_fab',
-        backgroundColor: tokens.accent,
-        foregroundColor: tokens.foregroundOnAccent,
-        onPressed: () => _onTap(widget.navigationShell.currentIndex),
-        child: const Icon(Icons.add_rounded),
+      child: NavigationBar(
+        selectedIndex: widget.navigationShell.currentIndex,
+        onDestinationSelected: _onTap,
+        destinations: destinations,
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endContained,
+    );
+
+    return ValueListenableBuilder<FeaturePrimaryActionSnapshot?>(
+      valueListenable: FeaturePrimaryActionRegistry.notifier,
+      builder: (context, snapshot, _) {
+        final action = FeaturePrimaryActionRegistry.actionFor(location);
+        return Scaffold(
+          body: body,
+          bottomNavigationBar: navBar,
+          floatingActionButton: action == null
+              ? null
+              : FloatingActionButton(
+                  heroTag: 'sdal_nav_fab_$location',
+                  backgroundColor: tokens.accent,
+                  foregroundColor: tokens.foregroundOnAccent,
+                  tooltip: action.semanticLabel,
+                  onPressed: () => FeaturePrimaryActionRegistry.actionFor(
+                    location,
+                  )?.onPressed(),
+                  child: Icon(action.icon),
+                ),
+          floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+        );
+      },
     );
   }
 
@@ -597,6 +606,7 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
         tokens: tokens,
         body: body,
         destinations: destinations,
+        location: location,
       ),
       SdalNavStyle.bottomBar => _buildStandardBar(
         context: context,
@@ -626,8 +636,7 @@ class _SlidingTabBranchContainer extends StatefulWidget {
       _SlidingTabBranchContainerState();
 }
 
-class _SlidingTabBranchContainerState
-    extends State<_SlidingTabBranchContainer>
+class _SlidingTabBranchContainerState extends State<_SlidingTabBranchContainer>
     with SingleTickerProviderStateMixin {
   static const _duration = Duration(milliseconds: 220);
   late final AnimationController _controller;
@@ -759,10 +768,7 @@ class _FadeTabContainerState extends State<_FadeTabContainer>
       vsync: this,
       duration: Duration(milliseconds: widget.durationMs),
     )..value = 1;
-    _animation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOut,
-    );
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
   }
 
   @override
@@ -842,10 +848,7 @@ class _BlurFadeTabContainerState extends State<_BlurFadeTabContainer>
       vsync: this,
       duration: Duration(milliseconds: widget.durationMs),
     )..value = 1;
-    _animation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOut,
-    );
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
   }
 
   @override
@@ -943,9 +946,10 @@ class _ScaleTabContainerState extends State<_ScaleTabContainer>
       duration: Duration(milliseconds: widget.durationMs),
     )..value = 1;
     _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    _scale = Tween<double>(begin: 0.94, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
-    );
+    _scale = Tween<double>(
+      begin: 0.94,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
   }
 
   @override
@@ -990,8 +994,11 @@ class _ScaleTabContainerState extends State<_ScaleTabContainer>
     return FadeTransition(
       opacity: isCurrent ? _fade : ReverseAnimation(_fade),
       child: ScaleTransition(
-        scale: isCurrent ? _scale : Tween<double>(begin: 1.0, end: 0.94)
-            .animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn)),
+        scale: isCurrent
+            ? _scale
+            : Tween<double>(begin: 1.0, end: 0.94).animate(
+                CurvedAnimation(parent: _controller, curve: Curves.easeIn),
+              ),
         child: IgnorePointer(
           ignoring: !isCurrent,
           child: TickerMode(enabled: isCurrent, child: child),
@@ -1090,9 +1097,7 @@ class _FloatingPillNav extends StatelessWidget {
             children: List.generate(5, (index) {
               final isSelected = index == currentIndex;
               final icon = isSelected ? _selectedIcons[index] : _icons[index];
-              final color = isSelected
-                  ? tokens.accent
-                  : tokens.foregroundMuted;
+              final color = isSelected ? tokens.accent : tokens.foregroundMuted;
               final badge = badges[index];
               return Expanded(
                 child: Material(
@@ -1211,50 +1216,81 @@ class _TransparentNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sigma = blurSigma.clamp(0.1, 50.0);
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-        child: Container(
-          color: Colors.black.withValues(alpha: 0.30),
-          child: Padding(
-            padding: EdgeInsets.only(bottom: bottomPadding),
-            child: SizedBox(
-              height: navH,
-              child: NavigationBarTheme(
-                data: NavigationBarThemeData(
-                  backgroundColor: Colors.transparent,
-                  surfaceTintColor: Colors.transparent,
-                  indicatorColor: tokens.accent.withValues(alpha: 0.25),
-                  iconTheme: WidgetStateProperty.resolveWith((states) {
-                    return IconThemeData(
-                      color: states.contains(WidgetState.selected)
-                          ? tokens.accent
-                          : Colors.white70,
-                    );
-                  }),
-                  labelTextStyle: WidgetStateProperty.resolveWith((states) {
-                    return TextStyle(
-                      color: states.contains(WidgetState.selected)
-                          ? tokens.accent
-                          : Colors.white70,
-                      fontSize: 11,
-                    );
-                  }),
-                  labelBehavior:
-                      NavigationDestinationLabelBehavior.alwaysHide,
-                ),
-                child: NavigationBar(
-                  selectedIndex: currentIndex,
-                  onDestinationSelected: onTap,
-                  backgroundColor: Colors.transparent,
-                  surfaceTintColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  destinations: destinations,
+    final height = navH + bottomPadding;
+    return SizedBox(
+      height: height,
+      child: Stack(
+        alignment: Alignment.bottomCenter,
+        children: [
+          Positioned.fill(
+            child: IgnorePointer(
+              child: ClipRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.40),
+                          Colors.black.withValues(alpha: 0.12),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
-        ),
+          Padding(
+            padding: EdgeInsets.only(bottom: bottomPadding + 8),
+            child: Material(
+              color: Colors.transparent,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(destinations.length, (index) {
+                  final destination = destinations[index];
+                  final selected = index == currentIndex;
+                  final icon = selected
+                      ? destination.selectedIcon ?? destination.icon
+                      : destination.icon;
+                  return Semantics(
+                    selected: selected,
+                    button: true,
+                    label: destination.label,
+                    child: SizedBox(
+                      width: 58,
+                      height: 56,
+                      child: IconButton(
+                        tooltip: destination.label,
+                        onPressed: () => onTap(index),
+                        color: selected ? tokens.accent : Colors.white70,
+                        style: IconButton.styleFrom(
+                          backgroundColor: selected
+                              ? tokens.accent.withValues(alpha: 0.18)
+                              : Colors.black.withValues(alpha: 0.14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              SdalThemeTokens.radiusPill,
+                            ),
+                          ),
+                        ),
+                        icon: IconTheme(
+                          data: IconThemeData(
+                            color: selected ? tokens.accent : Colors.white70,
+                          ),
+                          child: icon,
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
