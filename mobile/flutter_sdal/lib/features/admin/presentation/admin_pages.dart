@@ -15,6 +15,7 @@ import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
+import 'admin_media_preview.dart';
 
 String _adminTimestamp(BuildContext context, String raw) =>
     raw.isEmpty ? '' : formatSdalTimestamp(context, raw);
@@ -1017,8 +1018,16 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                 ? '@${item.requesterHandle}'
                                 : item.requesterName,
                             subtitle:
-                                '${item.isTeacherVerification ? 'Öğretmen doğrulaması' : 'Üye doğrulaması'} · ${_formatGraduationYear(item.graduationYear)}${item.hasProof ? ' · kanıt yüklendi' : ' · kanıt yok'}${item.proofPath.isEmpty ? '' : ' · ${item.proofPath}'}',
+                                '${item.isTeacherVerification ? 'Öğretmen doğrulaması' : 'Üye doğrulaması'} · ${_formatGraduationYear(item.graduationYear)}${item.hasProof ? ' · kanıt yüklendi' : ' · kanıt yok'}',
                             trailing: _adminTimestamp(context, item.createdAt),
+                            media: item.proofPath.isEmpty
+                                ? null
+                                : AdminMediaPreview(
+                                    mediaUrl: item.proofPath,
+                                    label: 'Kanıt medyası',
+                                    semanticLabel:
+                                        '${item.requesterName} kanıt medyası',
+                                  ),
                             action: Wrap(
                               spacing: 6,
                               children: [
@@ -5672,6 +5681,7 @@ class _AdminPreviewLine extends StatelessWidget {
     required this.subtitle,
     required this.trailing,
     this.leading,
+    this.media,
     this.action,
     this.onTap,
   });
@@ -5680,6 +5690,7 @@ class _AdminPreviewLine extends StatelessWidget {
   final String subtitle;
   final String trailing;
   final Widget? leading;
+  final Widget? media;
   final Widget? action;
   final VoidCallback? onTap;
 
@@ -5783,6 +5794,7 @@ class _AdminPreviewLine extends StatelessWidget {
                   const SizedBox(height: 10),
                   metaRow,
                 ],
+                if (media != null) ...[const SizedBox(height: 12), media!],
                 const SizedBox(height: 14),
                 Divider(height: 1, color: theme.sdal.panelBorder),
               ],

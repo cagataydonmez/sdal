@@ -8,10 +8,10 @@ import '../../../core/text/sdal_date_time.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
-import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../admin/application/admin_action_controller.dart';
 import '../../admin/data/admin_repository.dart';
+import 'admin_media_preview.dart';
 import 'widgets/admin_mobile_widgets.dart';
 
 String _workspaceTimestamp(BuildContext context, String raw) =>
@@ -2640,11 +2640,9 @@ class _QueueMediaPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SdalNetworkImage(
-      imageUrl: imageUrl,
-      height: 132,
-      width: double.infinity,
-      borderRadius: BorderRadius.circular(SdalThemeTokens.radiusMd),
+    return AdminMediaPreview(
+      mediaUrl: imageUrl,
+      label: 'Medya',
       semanticLabel: semanticLabel,
     );
   }
