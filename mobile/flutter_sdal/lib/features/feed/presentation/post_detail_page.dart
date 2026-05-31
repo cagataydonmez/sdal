@@ -13,6 +13,8 @@ import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../explore/data/explore_repository.dart';
+import '../../safety/data/safety_repository.dart';
+import '../../safety/presentation/safety_actions.dart';
 import '../application/feed_action_controller.dart';
 import '../data/feed_repository.dart';
 import 'feed_edit_text_dialog.dart';
@@ -581,11 +583,13 @@ class _CommentCard extends ConsumerWidget {
       onAuthorTap: comment.userId != null && comment.userId! > 0
           ? () => context.push('/members/${comment.userId}')
           : null,
-      trailing: canDelete
+      trailing: currentUserId != null
           ? _CommentMenuButton(
               comment: comment,
               postId: postId,
               canEdit: canEdit,
+              canDelete: canDelete,
+              isOwn: isCommentAuthor,
               onEdited: onEdited,
             )
           : null,
@@ -602,12 +606,16 @@ class _CommentMenuButton extends ConsumerStatefulWidget {
     required this.comment,
     required this.postId,
     required this.canEdit,
+    required this.canDelete,
+    required this.isOwn,
     required this.onEdited,
   });
 
   final FeedComment comment;
   final int postId;
   final bool canEdit;
+  final bool canDelete;
+  final bool isOwn;
   final void Function(int commentId, String content) onEdited;
 
   @override
@@ -620,12 +628,41 @@ class _CommentMenuButtonState extends ConsumerState<_CommentMenuButton> {
     final l10n = context.l10n;
     return SocialCommentActionMenuButton(
       canEdit: widget.canEdit,
+      canDelete: widget.canDelete,
       onEdit: _showEditDialog,
       onDelete: _confirmDelete,
+      onReport: widget.isOwn ? null : _reportComment,
+      onBlock: widget.isOwn ? null : _blockAuthor,
       editLabel: l10n.feedCommentEditTitle,
       deleteLabel: l10n.deleteAction,
+      reportLabel: l10n.reportAction,
+      blockLabel: l10n.blockUserAction,
       tooltip: l10n.moreActions,
     );
+  }
+
+  Future<void> _reportComment() async {
+    await SafetyActions.reportContent(
+      context,
+      ref,
+      submit: (reason) => ref
+          .read(safetyRepositoryProvider)
+          .reportComment(widget.postId, widget.comment.id, reason),
+    );
+  }
+
+  Future<void> _blockAuthor() async {
+    final userId = widget.comment.userId;
+    if (userId == null || userId <= 0) return;
+    final blocked = await SafetyActions.blockUser(
+      context,
+      ref,
+      userId: userId,
+      displayName: widget.comment.authorName,
+    );
+    if (blocked && mounted) {
+      ref.invalidate(postCommentsProvider(widget.postId));
+    }
   }
 
   Future<void> _showEditDialog() async {

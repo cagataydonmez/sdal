@@ -177,16 +177,26 @@ class SocialCommentActionMenuButton extends StatelessWidget {
     required this.canEdit,
     required this.onEdit,
     required this.onDelete,
+    this.canDelete = true,
+    this.onReport,
+    this.onBlock,
     this.editLabel = 'Yorumu düzenle',
     this.deleteLabel = 'Sil',
+    this.reportLabel = 'Şikayet et',
+    this.blockLabel = 'Kullanıcıyı engelle',
     this.tooltip = 'Daha fazla işlem',
   });
 
   final bool canEdit;
+  final bool canDelete;
   final Future<void> Function() onEdit;
   final Future<void> Function() onDelete;
+  final Future<void> Function()? onReport;
+  final Future<void> Function()? onBlock;
   final String editLabel;
   final String deleteLabel;
+  final String reportLabel;
+  final String blockLabel;
   final String tooltip;
 
   @override
@@ -198,12 +208,21 @@ class SocialCommentActionMenuButton extends StatelessWidget {
           await onEdit();
         } else if (value == 'delete') {
           await onDelete();
+        } else if (value == 'report') {
+          await onReport?.call();
+        } else if (value == 'block') {
+          await onBlock?.call();
         }
       },
       itemBuilder: (context) => [
         if (canEdit)
           PopupMenuItem<String>(value: 'edit', child: Text(editLabel)),
-        PopupMenuItem<String>(value: 'delete', child: Text(deleteLabel)),
+        if (canDelete)
+          PopupMenuItem<String>(value: 'delete', child: Text(deleteLabel)),
+        if (onReport != null)
+          PopupMenuItem<String>(value: 'report', child: Text(reportLabel)),
+        if (onBlock != null)
+          PopupMenuItem<String>(value: 'block', child: Text(blockLabel)),
       ],
     );
   }

@@ -321,18 +321,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'Create an account from the new Flutter client for V1.';
 
   @override
-  String get activationTitle => 'Activation';
+  String get activationTitle => 'Email verification';
 
   @override
   String get activationSubtitle =>
-      'Complete the flow here if the e-mail link opened the iOS app.';
+      'Complete email verification here if the e-mail link opened the iOS app.';
 
   @override
-  String get resendActivationTitle => 'Resend activation';
+  String get resendActivationTitle => 'Resend verification email';
 
   @override
   String get resendActivationSubtitle =>
-      'Support screen for the legacy membership activation flow.';
+      'Support screen for the legacy membership email verification flow.';
 
   @override
   String get resetPasswordTitle => 'Reset password';
@@ -355,7 +355,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get register => 'Create account';
 
   @override
-  String get resendActivation => 'Resend activation';
+  String get resendActivation => 'Resend verification email';
 
   @override
   String get resetPassword => 'Reset password';
@@ -382,7 +382,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get memberId => 'Member ID';
 
   @override
-  String get activationCode => 'Activation code';
+  String get activationCode => 'Email verification code';
 
   @override
   String get captchaCode => 'Captcha code';
@@ -524,7 +524,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get passwordResetSubmitAction => 'Send reset request';
 
   @override
-  String get activationSubmitAction => 'Complete activation';
+  String get activationSubmitAction => 'Verify my email';
 
   @override
   String get activationChecking => 'Checking...';
@@ -1770,4 +1770,96 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get oauthTokenMissing => 'No session token was returned from OAuth.';
+
+  @override
+  String get reportContentTitle => 'Report content';
+
+  @override
+  String get reportContentSubtitle =>
+      'Why are you reporting this? Reports are reviewed within 24 hours.';
+
+  @override
+  String get reportReasonSpam => 'Spam or misleading';
+
+  @override
+  String get reportReasonHarassment => 'Harassment or bullying';
+
+  @override
+  String get reportReasonHate => 'Hate speech';
+
+  @override
+  String get reportReasonExplicit => 'Explicit content';
+
+  @override
+  String get reportReasonViolence => 'Violence or threats';
+
+  @override
+  String get reportReasonOther => 'Other';
+
+  @override
+  String get reportSubmittedMessage =>
+      'Thanks — your report was received and we\'ll review it shortly.';
+
+  @override
+  String get reportFailedMessage =>
+      'Couldn\'t send the report. Please try again.';
+
+  @override
+  String get reportAction => 'Report';
+
+  @override
+  String get blockUserAction => 'Block user';
+
+  @override
+  String blockUserConfirm(Object name) {
+    return 'Block $name? Their content will be removed from your feed immediately and our team will be notified.';
+  }
+
+  @override
+  String get blockUserConfirmAction => 'Block';
+
+  @override
+  String userBlockedMessage(Object name) {
+    return '$name has been blocked.';
+  }
+
+  @override
+  String get blockFailedMessage =>
+      'Couldn\'t block the user. Please try again.';
+
+  @override
+  String userUnblockedMessage(Object name) {
+    return '$name has been unblocked.';
+  }
+
+  @override
+  String get unblockFailedMessage => 'Couldn\'t unblock. Please try again.';
+
+  @override
+  String get eulaPageTitle => 'Terms of Use';
+
+  @override
+  String get eulaGateHeadline => 'Before you continue';
+
+  @override
+  String get eulaGateIntro =>
+      'To use SDAL Sosyal you must accept the Terms of Use (EULA). We have zero tolerance for objectionable content and abusive users.';
+
+  @override
+  String get eulaAcceptAction => 'I have read and accept';
+
+  @override
+  String get eulaAcceptFailedMessage =>
+      'Couldn\'t save your acceptance. Please try again.';
+
+  @override
+  String get registerEulaConsentTitle => 'Terms of Use (EULA)';
+
+  @override
+  String get registerEulaConsentLabel =>
+      'I have read and accept the Terms of Use. I understand there is zero tolerance for objectionable content and abusive users.';
+
+  @override
+  String get registerEulaConsentError =>
+      'You must read and accept the Terms of Use (EULA).';
 }

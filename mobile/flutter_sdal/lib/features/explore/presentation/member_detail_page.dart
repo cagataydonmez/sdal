@@ -13,6 +13,7 @@ import '../../../core/widgets/surface_card.dart';
 import '../../albums/data/albums_repository.dart';
 import '../../following/application/following_action_controller.dart';
 import '../../profile/presentation/profile_album_section.dart';
+import '../../safety/presentation/safety_actions.dart';
 import '../../stories/presentation/stories_rail.dart';
 import '../data/explore_repository.dart';
 
@@ -37,6 +38,14 @@ class MemberDetailPage extends ConsumerWidget {
 
     return FeatureScaffold(
       title: 'Üye detayı',
+      actions: isSelf
+          ? null
+          : [
+              _MemberSafetyMenu(
+                memberId: memberId,
+                memberName: detailState.value?.summary.name ?? '',
+              ),
+            ],
       child: detailState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(
@@ -535,6 +544,41 @@ class _InfoRow extends StatelessWidget {
           Expanded(child: Text(value)),
         ],
       ),
+    );
+  }
+}
+
+/// App Store 1.2: block (and report) menu shown on other members' profiles.
+class _MemberSafetyMenu extends ConsumerWidget {
+  const _MemberSafetyMenu({required this.memberId, required this.memberName});
+
+  final int memberId;
+  final String memberName;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    return PopupMenuButton<String>(
+      tooltip: l10n.moreActions,
+      icon: const Icon(Icons.more_vert),
+      onSelected: (value) async {
+        if (value != 'block') return;
+        final blocked = await SafetyActions.blockUser(
+          context,
+          ref,
+          userId: memberId,
+          displayName: memberName,
+        );
+        if (blocked && context.mounted) {
+          Navigator.of(context).maybePop();
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem<String>(
+          value: 'block',
+          child: Text(l10n.blockUserAction),
+        ),
+      ],
     );
   }
 }

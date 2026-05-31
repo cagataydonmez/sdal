@@ -131,6 +131,7 @@ class SessionSnapshot {
     required this.user,
     this.menuVisibility = const <String, bool>{},
     this.moduleMenuOrder = const <String>[],
+    this.eulaAccepted = true,
   });
 
   final AppConfig config;
@@ -139,7 +140,13 @@ class SessionSnapshot {
   final Map<String, bool> menuVisibility;
   final List<String> moduleMenuOrder;
 
+  /// App Store 1.2: whether the user has accepted the zero-tolerance EULA.
+  final bool eulaAccepted;
+
   bool get isAuthenticated => user != null;
+
+  /// Gate users who have not yet accepted the EULA (existing accounts).
+  bool get requiresEulaAcceptance => isAuthenticated && !eulaAccepted;
   bool get isBanned => user?.isBanned ?? false;
   bool get hasAdminAccess => user?.hasAdminAccess ?? false;
   bool get isModerator => user?.isModerator ?? false;

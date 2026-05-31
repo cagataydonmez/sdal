@@ -37,6 +37,7 @@ import '../../features/networking/presentation/networking_pages.dart';
 import '../../features/networking/presentation/teacher_network_map_page.dart';
 import '../../features/notifications/presentation/notifications_page.dart';
 import '../../features/legal/presentation/legal_content_page.dart';
+import '../../features/legal/presentation/eula_acceptance_page.dart';
 import '../../features/profile/presentation/profile_page.dart';
 import '../../features/profile/presentation/profile_edit_page.dart';
 import '../../features/profile/presentation/email_change_verify_page.dart';
@@ -149,6 +150,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ),
           );
         },
+      ),
+      GoRoute(
+        path: '/eula',
+        pageBuilder: (context, state) => _slidePage(const EulaAcceptancePage()),
       ),
       GoRoute(
         path: '/profile/email-change/verify',
@@ -790,6 +795,15 @@ String? redirectForSessionState(SessionSnapshot snapshot, Uri uri) {
   }
 
   if (location == '/phone-verification') {
+    return snapshot.defaultHomePath;
+  }
+
+  // App Store 1.2: require EULA acceptance before the user can use the app.
+  if (snapshot.requiresEulaAcceptance) {
+    return location == '/eula' ? null : '/eula';
+  }
+
+  if (location == '/eula') {
     return snapshot.defaultHomePath;
   }
 

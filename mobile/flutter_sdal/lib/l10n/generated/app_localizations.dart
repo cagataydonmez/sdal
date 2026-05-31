@@ -671,25 +671,25 @@ abstract class AppLocalizations {
   /// No description provided for @activationTitle.
   ///
   /// In tr, this message translates to:
-  /// **'Aktivasyon'**
+  /// **'E-posta doğrulama'**
   String get activationTitle;
 
   /// No description provided for @activationSubtitle.
   ///
   /// In tr, this message translates to:
-  /// **'E-posta bağlantınız iOS uygulamasını açtıysa burada tamamlayın.'**
+  /// **'E-posta doğrulama bağlantınız iOS uygulamasını açtıysa burada tamamlayın.'**
   String get activationSubtitle;
 
   /// No description provided for @resendActivationTitle.
   ///
   /// In tr, this message translates to:
-  /// **'Aktivasyon tekrar gönder'**
+  /// **'Doğrulama e-postasını tekrar gönder'**
   String get resendActivationTitle;
 
   /// No description provided for @resendActivationSubtitle.
   ///
   /// In tr, this message translates to:
-  /// **'Eski üyelik aktivasyon akışı için destek ekranı.'**
+  /// **'Eski üyelik e-posta doğrulama akışı için destek ekranı.'**
   String get resendActivationSubtitle;
 
   /// No description provided for @resetPasswordTitle.
@@ -731,7 +731,7 @@ abstract class AppLocalizations {
   /// No description provided for @resendActivation.
   ///
   /// In tr, this message translates to:
-  /// **'Aktivasyon tekrar gönder'**
+  /// **'Doğrulama e-postasını tekrar gönder'**
   String get resendActivation;
 
   /// No description provided for @resetPassword.
@@ -785,7 +785,7 @@ abstract class AppLocalizations {
   /// No description provided for @activationCode.
   ///
   /// In tr, this message translates to:
-  /// **'Aktivasyon kodu'**
+  /// **'E-posta doğrulama kodu'**
   String get activationCode;
 
   /// No description provided for @captchaCode.
@@ -1037,7 +1037,7 @@ abstract class AppLocalizations {
   /// No description provided for @activationSubmitAction.
   ///
   /// In tr, this message translates to:
-  /// **'Aktivasyonu tamamla'**
+  /// **'E-postamı doğrula'**
   String get activationSubmitAction;
 
   /// No description provided for @activationChecking.
@@ -3337,6 +3337,162 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'OAuth dönüşünde oturum jetonu bulunamadı.'**
   String get oauthTokenMissing;
+
+  /// No description provided for @reportContentTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'İçeriği bildir'**
+  String get reportContentTitle;
+
+  /// No description provided for @reportContentSubtitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu içeriği neden bildiriyorsun? Bildirimler 24 saat içinde incelenir.'**
+  String get reportContentSubtitle;
+
+  /// No description provided for @reportReasonSpam.
+  ///
+  /// In tr, this message translates to:
+  /// **'Spam veya yanıltıcı'**
+  String get reportReasonSpam;
+
+  /// No description provided for @reportReasonHarassment.
+  ///
+  /// In tr, this message translates to:
+  /// **'Taciz veya zorbalık'**
+  String get reportReasonHarassment;
+
+  /// No description provided for @reportReasonHate.
+  ///
+  /// In tr, this message translates to:
+  /// **'Nefret söylemi'**
+  String get reportReasonHate;
+
+  /// No description provided for @reportReasonExplicit.
+  ///
+  /// In tr, this message translates to:
+  /// **'Müstehcen içerik'**
+  String get reportReasonExplicit;
+
+  /// No description provided for @reportReasonViolence.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şiddet veya tehdit'**
+  String get reportReasonViolence;
+
+  /// No description provided for @reportReasonOther.
+  ///
+  /// In tr, this message translates to:
+  /// **'Diğer'**
+  String get reportReasonOther;
+
+  /// No description provided for @reportSubmittedMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bildirimin alındı. Teşekkürler, en kısa sürede inceleyeceğiz.'**
+  String get reportSubmittedMessage;
+
+  /// No description provided for @reportFailedMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bildirim gönderilemedi. Lütfen tekrar dene.'**
+  String get reportFailedMessage;
+
+  /// No description provided for @reportAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şikayet et'**
+  String get reportAction;
+
+  /// No description provided for @blockUserAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kullanıcıyı engelle'**
+  String get blockUserAction;
+
+  /// No description provided for @blockUserConfirm.
+  ///
+  /// In tr, this message translates to:
+  /// **'{name} adlı kullanıcıyı engellemek istiyor musun? İçerikleri akışından anında kaldırılacak ve durum yöneticilere bildirilecek.'**
+  String blockUserConfirm(Object name);
+
+  /// No description provided for @blockUserConfirmAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Engelle'**
+  String get blockUserConfirmAction;
+
+  /// No description provided for @userBlockedMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'{name} engellendi.'**
+  String userBlockedMessage(Object name);
+
+  /// No description provided for @blockFailedMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kullanıcı engellenemedi. Lütfen tekrar dene.'**
+  String get blockFailedMessage;
+
+  /// No description provided for @userUnblockedMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'{name} için engel kaldırıldı.'**
+  String userUnblockedMessage(Object name);
+
+  /// No description provided for @unblockFailedMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Engel kaldırılamadı. Lütfen tekrar dene.'**
+  String get unblockFailedMessage;
+
+  /// No description provided for @eulaPageTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kullanım Koşulları'**
+  String get eulaPageTitle;
+
+  /// No description provided for @eulaGateHeadline.
+  ///
+  /// In tr, this message translates to:
+  /// **'Devam etmeden önce'**
+  String get eulaGateHeadline;
+
+  /// No description provided for @eulaGateIntro.
+  ///
+  /// In tr, this message translates to:
+  /// **'SDAL Sosyal’ı kullanmak için Kullanım Koşulları’nı (EULA) kabul etmen gerekir. Uygunsuz içeriğe ve kötüye kullanıma sıfır tolerans politikamız vardır.'**
+  String get eulaGateIntro;
+
+  /// No description provided for @eulaAcceptAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Okudum, kabul ediyorum'**
+  String get eulaAcceptAction;
+
+  /// No description provided for @eulaAcceptFailedMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Onay kaydedilemedi. Lütfen tekrar dene.'**
+  String get eulaAcceptFailedMessage;
+
+  /// No description provided for @registerEulaConsentTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kullanım Koşulları (EULA)'**
+  String get registerEulaConsentTitle;
+
+  /// No description provided for @registerEulaConsentLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kullanım Koşulları’nı okudum ve kabul ediyorum. Uygunsuz içeriğe ve kötüye kullanıma sıfır tolerans politikasını anlıyorum.'**
+  String get registerEulaConsentLabel;
+
+  /// No description provided for @registerEulaConsentError.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kullanım Koşulları’nı (EULA) okuyup kabul etmeniz gerekir.'**
+  String get registerEulaConsentError;
 }
 
 class _AppLocalizationsDelegate

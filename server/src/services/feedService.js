@@ -93,6 +93,12 @@ export class FeedService {
       whereParams.push(viewerId, viewerId);
     }
 
+    // App Store 1.2: hide content from users the viewer has blocked.
+    if (viewerId) {
+      whereSql += ' AND p.user_id NOT IN (SELECT blocked_id FROM user_blocks WHERE blocker_id = ?)';
+      whereParams.push(viewerId);
+    }
+
     const items = await this.feedRepository.findFeedPage({
       whereSql,
       whereParams,

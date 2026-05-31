@@ -66,7 +66,8 @@ export function registerAccountRoutes(app, deps) {
     requireAdmin,
     mailTestRateLimit,
     rbacService,
-    authSecurity
+    authSecurity,
+    recordEulaAcceptance
   } = deps;
   const validateMail = validateEmail;
 
@@ -459,6 +460,13 @@ export function registerAccountRoutes(app, deps) {
 
       if (newId && rbacService?.assignDefaultUserGroup) {
         await rbacService.assignDefaultUserGroup(newId, newId);
+      }
+
+      // App Store 1.2: record acceptance of the zero-tolerance EULA at signup.
+      if (newId && typeof recordEulaAcceptance === 'function') {
+        await recordEulaAcceptance(Number(newId)).catch((err) => {
+          console.error('register eula acceptance failed:', err);
+        });
       }
 
       if (e2eMode && e2eRole === 'mod' && newId) {

@@ -169,7 +169,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             child: OutlinedButton.icon(
               onPressed: () => context.push('/activate'),
               icon: const Icon(Icons.mark_email_read_outlined),
-              label: const Text('Aktivasyon Kodu Gir'),
+              label: const Text('Doğrulama Kodu Gir'),
             ),
           ),
           if (_showPasswordReset)
@@ -347,6 +347,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   String? _inactiveActivationEmail;
   bool _kvkkConsent = false;
   bool _directoryConsent = false;
+  bool _eulaConsent = false;
   int _currentStep = 0;
 
   @override
@@ -431,6 +432,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             'gkodu': _captchaController.text.trim(),
             'kvkk_consent': _kvkkConsent,
             'directory_consent': _directoryConsent,
+            'eula_consent': _eulaConsent,
           },
           decoder: asJsonMap,
         );
@@ -472,6 +474,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           captcha: _captchaController.text.trim(),
           kvkkConsent: _kvkkConsent,
           directoryConsent: _directoryConsent,
+          eulaConsent: _eulaConsent,
         );
     if (!mounted) return;
     final actionState = ref.read(authActionControllerProvider);
@@ -607,7 +610,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       _checkingAvailability = false;
       _availabilityError = usernameExists || emailExists
           ? inactiveExists
-                ? '${parts.join(' ')} Aktivasyonu tamamlayarak devam edebilirsiniz.'
+                ? '${parts.join(' ')} E-posta doğrulamasını tamamlayarak devam edebilirsiniz.'
                 : parts.join(' ')
           : null;
       _availabilityMessage = usernameExists || emailExists
@@ -666,7 +669,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                     email: _inactiveActivationEmail,
                   ),
                   icon: const Icon(Icons.mark_email_read_outlined),
-                  label: const Text('Aktivasyon sayfasına git'),
+                  label: const Text('Doğrulama sayfasına git'),
                 ),
               ],
             ],
@@ -696,7 +699,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           children: [
             _RegisterStepDescription(
               text:
-                  'Önce seni tanıyalım. Ad, soyad, kullanıcı adı ve e-posta bilgilerini ayrı tutuyoruz; e-posta aktivasyon ve güvenlik bildirimleri için kullanılır.',
+                  'Önce seni tanıyalım. Ad, soyad, kullanıcı adı ve e-posta bilgilerini ayrı tutuyoruz; e-posta doğrulama ve güvenlik bildirimleri için kullanılır.',
             ),
             const SizedBox(height: 14),
             _twoColumn(
@@ -860,6 +863,21 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   controlAffinity: ListTileControlAffinity.leading,
                   title: Text(l10n.registerDirectoryConsentLabel),
                 ),
+                CheckboxListTile(
+                  value: _eulaConsent,
+                  onChanged: submitting
+                      ? null
+                      : (value) => _handleConsentToggle(
+                          value: value ?? false,
+                          title: l10n.registerEulaConsentTitle,
+                          path: '/kullanim-kosullari',
+                          onApproved: () => _eulaConsent = true,
+                          onRejected: () => _eulaConsent = false,
+                        ),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: Text(l10n.registerEulaConsentLabel),
+                ),
               ],
             ),
           ),
@@ -990,6 +1008,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       });
       return false;
     }
+    if (!_eulaConsent) {
+      setState(() {
+        _previewError = l10n.registerEulaConsentError;
+      });
+      return false;
+    }
     if (_captchaLoading) {
       setState(() {
         _previewError = l10n.registerCaptchaLoading;
@@ -1082,7 +1106,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
         _repeatPasswordValidator(_repeatPasswordController.text) == null;
   }
 
-  bool _isConsentSectionValid() => _kvkkConsent && _directoryConsent;
+  bool _isConsentSectionValid() =>
+      _kvkkConsent && _directoryConsent && _eulaConsent;
 
   void _goToActivation({String? username, String? email}) {
     context.go(
@@ -1689,8 +1714,8 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
           : activationComplete && isRegistrationActivation
           ? 'E-posta doğrulaması tamamlandı. Şimdi hesabını birkaç kısa adımla hazırlayalım.'
           : isRegistrationActivation
-          ? 'E-postadaki aktivasyon kodunu girin.'
-          : 'Kullanıcı adı, şifre ve aktivasyon kodunu girin.',
+          ? 'E-postadaki doğrulama kodunu girin.'
+          : 'Kullanıcı adı, şifre ve e-posta doğrulama kodunu girin.',
       child: AutofillGroup(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2645,7 +2670,7 @@ class _RegisterAvailabilityStatus extends StatelessWidget {
               child: OutlinedButton.icon(
                 onPressed: onActivationTap,
                 icon: const Icon(Icons.mark_email_read_outlined),
-                label: const Text('Aktivasyon sayfasına git'),
+                label: const Text('Doğrulama sayfasına git'),
               ),
             ),
           ],

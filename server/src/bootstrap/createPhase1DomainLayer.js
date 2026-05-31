@@ -159,7 +159,8 @@ export function createPhase1DomainLayer(deps) {
       notifyMentions: deps.notifyMentions,
       addNotification: deps.addNotification,
       scheduleEngagementRecalculation: deps.scheduleEngagementRecalculation,
-      invalidateFeedCache: deps.invalidateFeedCache
+      invalidateFeedCache: deps.invalidateFeedCache,
+      sqlAllAsync: deps.sqlAllAsync
     }),
     chat: createChatController({
       chatService: services.chat,

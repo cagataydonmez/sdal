@@ -319,18 +319,18 @@ class AppLocalizationsTr extends AppLocalizations {
   String get registerSubtitle => 'Yeni SDAL Sosyal hesabı oluştur.';
 
   @override
-  String get activationTitle => 'Aktivasyon';
+  String get activationTitle => 'E-posta doğrulama';
 
   @override
   String get activationSubtitle =>
-      'E-posta bağlantınız iOS uygulamasını açtıysa burada tamamlayın.';
+      'E-posta doğrulama bağlantınız iOS uygulamasını açtıysa burada tamamlayın.';
 
   @override
-  String get resendActivationTitle => 'Aktivasyon tekrar gönder';
+  String get resendActivationTitle => 'Doğrulama e-postasını tekrar gönder';
 
   @override
   String get resendActivationSubtitle =>
-      'Eski üyelik aktivasyon akışı için destek ekranı.';
+      'Eski üyelik e-posta doğrulama akışı için destek ekranı.';
 
   @override
   String get resetPasswordTitle => 'Şifre sıfırla';
@@ -353,7 +353,7 @@ class AppLocalizationsTr extends AppLocalizations {
   String get register => 'Kaydol';
 
   @override
-  String get resendActivation => 'Aktivasyon tekrar gönder';
+  String get resendActivation => 'Doğrulama e-postasını tekrar gönder';
 
   @override
   String get resetPassword => 'Şifre sıfırla';
@@ -380,7 +380,7 @@ class AppLocalizationsTr extends AppLocalizations {
   String get memberId => 'Üye kimliği';
 
   @override
-  String get activationCode => 'Aktivasyon kodu';
+  String get activationCode => 'E-posta doğrulama kodu';
 
   @override
   String get captchaCode => 'Güvenlik Kodu';
@@ -520,7 +520,7 @@ class AppLocalizationsTr extends AppLocalizations {
   String get passwordResetSubmitAction => 'Sıfırlama isteği gönder';
 
   @override
-  String get activationSubmitAction => 'Aktivasyonu tamamla';
+  String get activationSubmitAction => 'E-postamı doğrula';
 
   @override
   String get activationChecking => 'Kontrol ediliyor...';
@@ -1767,4 +1767,96 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get oauthTokenMissing => 'OAuth dönüşünde oturum jetonu bulunamadı.';
+
+  @override
+  String get reportContentTitle => 'İçeriği bildir';
+
+  @override
+  String get reportContentSubtitle =>
+      'Bu içeriği neden bildiriyorsun? Bildirimler 24 saat içinde incelenir.';
+
+  @override
+  String get reportReasonSpam => 'Spam veya yanıltıcı';
+
+  @override
+  String get reportReasonHarassment => 'Taciz veya zorbalık';
+
+  @override
+  String get reportReasonHate => 'Nefret söylemi';
+
+  @override
+  String get reportReasonExplicit => 'Müstehcen içerik';
+
+  @override
+  String get reportReasonViolence => 'Şiddet veya tehdit';
+
+  @override
+  String get reportReasonOther => 'Diğer';
+
+  @override
+  String get reportSubmittedMessage =>
+      'Bildirimin alındı. Teşekkürler, en kısa sürede inceleyeceğiz.';
+
+  @override
+  String get reportFailedMessage =>
+      'Bildirim gönderilemedi. Lütfen tekrar dene.';
+
+  @override
+  String get reportAction => 'Şikayet et';
+
+  @override
+  String get blockUserAction => 'Kullanıcıyı engelle';
+
+  @override
+  String blockUserConfirm(Object name) {
+    return '$name adlı kullanıcıyı engellemek istiyor musun? İçerikleri akışından anında kaldırılacak ve durum yöneticilere bildirilecek.';
+  }
+
+  @override
+  String get blockUserConfirmAction => 'Engelle';
+
+  @override
+  String userBlockedMessage(Object name) {
+    return '$name engellendi.';
+  }
+
+  @override
+  String get blockFailedMessage =>
+      'Kullanıcı engellenemedi. Lütfen tekrar dene.';
+
+  @override
+  String userUnblockedMessage(Object name) {
+    return '$name için engel kaldırıldı.';
+  }
+
+  @override
+  String get unblockFailedMessage => 'Engel kaldırılamadı. Lütfen tekrar dene.';
+
+  @override
+  String get eulaPageTitle => 'Kullanım Koşulları';
+
+  @override
+  String get eulaGateHeadline => 'Devam etmeden önce';
+
+  @override
+  String get eulaGateIntro =>
+      'SDAL Sosyal’ı kullanmak için Kullanım Koşulları’nı (EULA) kabul etmen gerekir. Uygunsuz içeriğe ve kötüye kullanıma sıfır tolerans politikamız vardır.';
+
+  @override
+  String get eulaAcceptAction => 'Okudum, kabul ediyorum';
+
+  @override
+  String get eulaAcceptFailedMessage =>
+      'Onay kaydedilemedi. Lütfen tekrar dene.';
+
+  @override
+  String get registerEulaConsentTitle => 'Kullanım Koşulları (EULA)';
+
+  @override
+  String get registerEulaConsentLabel =>
+      'Kullanım Koşulları’nı okudum ve kabul ediyorum. Uygunsuz içeriğe ve kötüye kullanıma sıfır tolerans politikasını anlıyorum.';
+
+  @override
+  String get registerEulaConsentError =>
+      'Kullanım Koşulları’nı (EULA) okuyup kabul etmeniz gerekir.';
 }

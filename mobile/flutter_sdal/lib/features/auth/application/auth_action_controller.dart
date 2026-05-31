@@ -201,6 +201,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
     required String captcha,
     required bool kvkkConsent,
     required bool directoryConsent,
+    bool eulaConsent = false,
   }) async {
     state = const AsyncActionState.loading(scope: 'register');
     final device = await ref.read(deviceIdentityServiceProvider).metadata();
@@ -226,6 +227,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
             'gkodu': captcha,
             'kvkk_consent': kvkkConsent,
             'directory_consent': directoryConsent,
+            'eula_consent': eulaConsent,
             ...device.toJson(),
           },
           decoder: asJsonMap,
@@ -234,7 +236,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
     if (result.ok) {
       state = const AsyncActionState.success(
         message:
-            'Kayıt isteği gönderildi. Aktivasyon e-postasını kontrol edin.',
+            'Kayıt isteği gönderildi. Doğrulama e-postasını kontrol edin.',
         scope: 'register',
       );
       return asJsonMap(result.rawData);
@@ -283,7 +285,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
       state = AsyncActionState.success(
         message: result.message.isNotEmpty
             ? result.message
-            : 'Aktivasyon tamamlandı.',
+            : 'E-posta doğrulama tamamlandı.',
         scope: 'activate',
       );
       return asBool(asJsonMap(result.rawData)['phoneVerificationRequired']) ??
@@ -292,7 +294,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
     state = AsyncActionState.error(
       message: result.message.isNotEmpty
           ? result.message
-          : 'Aktivasyon başarısız.',
+          : 'E-posta doğrulama başarısız.',
       scope: 'activate',
     );
     return false;
@@ -404,7 +406,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
         ? AsyncActionState.success(
             message: result.message.isNotEmpty
                 ? result.message
-                : 'Aktivasyon e-postası yeniden gönderildi.',
+                : 'Doğrulama e-postası yeniden gönderildi.',
             scope: 'resendActivation',
           )
         : AsyncActionState.error(
