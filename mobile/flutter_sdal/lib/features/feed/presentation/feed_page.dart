@@ -22,6 +22,8 @@ import '../../stories/presentation/stories_rail.dart';
 import '../../community/data/community_repository.dart';
 import '../../groups/data/groups_repository.dart';
 import '../../opportunities/data/opportunities_repository.dart';
+import '../../safety/data/safety_repository.dart';
+import '../../safety/presentation/safety_actions.dart';
 import '../application/feed_action_controller.dart';
 import '../data/feed_repository.dart';
 import 'feed_edit_text_dialog.dart';
@@ -439,6 +441,24 @@ class _FeedPageState extends ConsumerState<FeedPage> {
                                     ),
                                   );
                                 }
+                              },
+                            )
+                          else if (session?.user != null &&
+                              item.authorId != null &&
+                              item.authorId! > 0 &&
+                              item.authorId != session!.user!.id)
+                            _OtherPostMenuButton(
+                              postId: item.id,
+                              authorId: item.authorId!,
+                              authorName: item.authorName,
+                              onBlocked: () async {
+                                if (!mounted) return;
+                                setState(() {
+                                  _items.removeWhere(
+                                    (i) => i.authorId == item.authorId,
+                                  );
+                                });
+                                await _refreshCurrentFeed();
                               },
                             ),
                         ],
@@ -860,6 +880,54 @@ class _FeedPostMenuButton extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Report/Block menu shown on posts authored by other users (App Store 1.2).
+class _OtherPostMenuButton extends ConsumerWidget {
+  const _OtherPostMenuButton({
+    required this.postId,
+    required this.authorId,
+    required this.authorName,
+    required this.onBlocked,
+  });
+
+  final int postId;
+  final int authorId;
+  final String authorName;
+  final Future<void> Function() onBlocked;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    return PopupMenuButton<String>(
+      tooltip: l10n.moreActions,
+      onSelected: (value) async {
+        if (value == 'report') {
+          await SafetyActions.reportContent(
+            context,
+            ref,
+            submit: (reason) =>
+                ref.read(safetyRepositoryProvider).reportPost(postId, reason),
+          );
+        } else if (value == 'block') {
+          final blocked = await SafetyActions.blockUser(
+            context,
+            ref,
+            userId: authorId,
+            displayName: authorName,
+          );
+          if (blocked) await onBlocked();
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem<String>(value: 'report', child: Text(l10n.reportAction)),
+        PopupMenuItem<String>(
+          value: 'block',
+          child: Text(l10n.blockUserAction),
+        ),
+      ],
     );
   }
 }

@@ -35,6 +35,7 @@ import { registerAdminMobileRoutes } from './routes/adminMobileRoutes.js';
 import { registerAdminNetworkingRoutes } from './routes/adminNetworkingRoutes.js';
 import { registerAccountRoutes } from './routes/accountRoutes.js';
 import { createAuthSecurityRuntime } from './routes/authSecurityRoutes.js';
+import { createUserSafetyRuntime } from './routes/userSafetyRoutes.js';
 import { registerEventJobRoutes } from './routes/eventJobRoutes.js';
 import { registerGroupRoutes } from './routes/groupRoutes.js';
 import { registerMemberCommunicationRoutes } from './routes/memberCommunicationRoutes.js';
@@ -4222,6 +4223,18 @@ app.post('/api/auth/logout', (req, res, next) => {
 
 authSecurity.registerRoutes(app);
 
+const userSafety = createUserSafetyRuntime({
+  dbDriver,
+  sqlGetAsync,
+  sqlAllAsync,
+  sqlRunAsync,
+  requireAuth,
+  requireAdmin,
+  writeAppLog,
+  invalidateFeedCache: () => invalidateCacheNamespace(cacheNamespaces.feed)
+});
+userSafety.registerRoutes(app);
+
 registerAdminModerationRoutes(app, {
   sqlGet,
   sqlAll,
@@ -4438,7 +4451,8 @@ registerAccountRoutes(app, {
   requireAdmin,
   mailTestRateLimit,
   rbacService,
-  authSecurity
+  authSecurity,
+  recordEulaAcceptance: userSafety.recordEulaAcceptance
 });
 registerProfileSelfServiceRoutes(app, {
   requireAuth,
@@ -6087,6 +6101,7 @@ const { attachWebSocketServers } = createWebSocketRuntime({
 async function onServerStarted() {
   await ensureRuntimeDefaults();
   await authSecurity.ensureSchema();
+  await userSafety.ensureSchema();
   ensureEntityInteractionsSchema();
   ensureContentPublicationSchema();
   ensureCohortGroupsOnStartup();

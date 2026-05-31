@@ -13,8 +13,18 @@ export function createPostController({
   notifyMentions,
   addNotification,
   scheduleEngagementRecalculation,
-  invalidateFeedCache
+  invalidateFeedCache,
+  sqlAllAsync
 }) {
+  async function getBlockedAuthorIds(viewerId) {
+    if (!viewerId || typeof sqlAllAsync !== 'function') return new Set();
+    try {
+      const rows = await sqlAllAsync('SELECT blocked_id FROM user_blocks WHERE blocker_id = ?', [viewerId]);
+      return new Set(rows.map((row) => Number(row.blocked_id)).filter(Boolean));
+    } catch {
+      return new Set();
+    }
+  }
   async function createPost(req, res) {
     try {
       const content = formatUserText(req.body?.content || '');
@@ -65,7 +75,12 @@ export function createPostController({
         beforeId
       });
       res.setHeader('X-Has-More', page.hasMore ? '1' : '0');
-      return res.json({ items: page.items.map((comment) => toLegacyCommentItem(comment)) });
+      // App Store 1.2: hide comments from users the viewer has blocked.
+      const blockedAuthorIds = await getBlockedAuthorIds(req.session.userId);
+      const visibleItems = blockedAuthorIds.size
+        ? page.items.filter((comment) => !blockedAuthorIds.has(Number(comment.authorId)))
+        : page.items;
+      return res.json({ items: visibleItems.map((comment) => toLegacyCommentItem(comment)) });
     } catch (err) {
       if (isHttpError(err)) return res.status(err.statusCode).send(err.message);
       console.error('posts.listComments failed:', err);

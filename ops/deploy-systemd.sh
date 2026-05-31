@@ -46,6 +46,34 @@ else
   log "env file not found yet: $ENV_FILE"
 fi
 
+# --- App Store review: device-verification bypass -------------------------
+# Apple's review test account ("test") could not receive the new-device email
+# verification code. Idempotently keep it in TEST_BYPASS_DEVICE_CHECK_USERNAMES
+# so it logs in without the email challenge. Safe to remove after approval.
+REVIEW_BYPASS_USER="test"
+if [[ -f "$ENV_FILE" && -w "$ENV_FILE" ]]; then
+  current_bypass="${TEST_BYPASS_DEVICE_CHECK_USERNAMES:-}"
+  if [[ ",${current_bypass}," != *",${REVIEW_BYPASS_USER},"* ]]; then
+    if grep -q '^TEST_BYPASS_DEVICE_CHECK_USERNAMES=' "$ENV_FILE"; then
+      if [[ -n "$current_bypass" ]]; then
+        new_bypass="${current_bypass},${REVIEW_BYPASS_USER}"
+      else
+        new_bypass="$REVIEW_BYPASS_USER"
+      fi
+      esc_bypass="$(printf '%s' "$new_bypass" | sed -e 's/[&/\]/\\&/g')"
+      sed -i "s/^TEST_BYPASS_DEVICE_CHECK_USERNAMES=.*/TEST_BYPASS_DEVICE_CHECK_USERNAMES=${esc_bypass}/" "$ENV_FILE"
+    else
+      printf '\nTEST_BYPASS_DEVICE_CHECK_USERNAMES=%s\n' "$REVIEW_BYPASS_USER" >>"$ENV_FILE"
+    fi
+    log "ensured review device-check bypass for: $REVIEW_BYPASS_USER"
+  else
+    log "review device-check bypass already present"
+  fi
+elif [[ -f "$ENV_FILE" ]]; then
+  log "env file not writable; skipping review device-check bypass: $ENV_FILE"
+fi
+# --------------------------------------------------------------------------
+
 mkdir -p logs
 if [[ -n "${SDAL_UPLOADS_DIR:-}" ]]; then
   mkdir -p "$SDAL_UPLOADS_DIR"

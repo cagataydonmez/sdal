@@ -140,17 +140,17 @@
   "loginSubtitle": "SDAL Sosyal uygulamasına giriş yapın.",
   "registerTitle": "Kaydol",
   "registerSubtitle": "Yeni SDAL Sosyal hesabı oluştur.",
-  "activationTitle": "Aktivasyon",
-  "activationSubtitle": "E-posta bağlantınız iOS uygulamasını açtıysa burada tamamlayın.",
-  "resendActivationTitle": "Aktivasyon tekrar gönder",
-  "resendActivationSubtitle": "Eski üyelik aktivasyon akışı için destek ekranı.",
+  "activationTitle": "E-posta doğrulama",
+  "activationSubtitle": "E-posta doğrulama bağlantınız iOS uygulamasını açtıysa burada tamamlayın.",
+  "resendActivationTitle": "Doğrulama e-postasını tekrar gönder",
+  "resendActivationSubtitle": "Eski üyelik e-posta doğrulama akışı için destek ekranı.",
   "resetPasswordTitle": "Şifre sıfırla",
   "resetPasswordSubtitle": "Eski SDAL hesap kurtarma uç noktasını kullanır.",
   "oauthTitle": "OAuth",
   "oauthSubtitle": "Bu ekran genellikle kısa süreliğine görünür.",
   "oauthInfoMessage": "Tarayıcı akışı uygulamaya geri döndüğünde oturum otomatik açılır.",
   "register": "Kaydol",
-  "resendActivation": "Aktivasyon tekrar gönder",
+  "resendActivation": "Doğrulama e-postasını tekrar gönder",
   "resetPassword": "Şifre sıfırla",
   "username": "Kullanıcı adı",
   "password": "Şifre",
@@ -159,7 +159,7 @@
   "lastName": "Soyad",
   "captionLabel": "Açıklama",
   "memberId": "Üye kimliği",
-  "activationCode": "Aktivasyon kodu",
+  "activationCode": "E-posta doğrulama kodu",
   "captchaCode": "Güvenlik Kodu",
   "graduationYear": "Mezuniyet yılı / Öğretmen",
   "passwordRepeat": "Şifre tekrar",
@@ -212,7 +212,7 @@
   "registerSubmitAction": "Kaydol",
   "resendAction": "Tekrar gönder",
   "passwordResetSubmitAction": "Sıfırlama isteği gönder",
-  "activationSubmitAction": "Aktivasyonu tamamla",
+  "activationSubmitAction": "E-postamı doğrula",
   "activationChecking": "Kontrol ediliyor...",
   "feedTitle": "Ana Akış",
   "feedRefresh": "Yenile",
@@ -723,5 +723,46 @@
       "reason": {}
     }
   },
-  "oauthTokenMissing": "OAuth dönüşünde oturum jetonu bulunamadı."
+  "oauthTokenMissing": "OAuth dönüşünde oturum jetonu bulunamadı.",
+  "reportContentTitle": "İçeriği bildir",
+  "reportContentSubtitle": "Bu içeriği neden bildiriyorsun? Bildirimler 24 saat içinde incelenir.",
+  "reportReasonSpam": "Spam veya yanıltıcı",
+  "reportReasonHarassment": "Taciz veya zorbalık",
+  "reportReasonHate": "Nefret söylemi",
+  "reportReasonExplicit": "Müstehcen içerik",
+  "reportReasonViolence": "Şiddet veya tehdit",
+  "reportReasonOther": "Diğer",
+  "reportSubmittedMessage": "Bildirimin alındı. Teşekkürler, en kısa sürede inceleyeceğiz.",
+  "reportFailedMessage": "Bildirim gönderilemedi. Lütfen tekrar dene.",
+  "reportAction": "Şikayet et",
+  "blockUserAction": "Kullanıcıyı engelle",
+  "blockUserConfirm": "{name} adlı kullanıcıyı engellemek istiyor musun? İçerikleri akışından anında kaldırılacak ve durum yöneticilere bildirilecek.",
+  "@blockUserConfirm": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "blockUserConfirmAction": "Engelle",
+  "userBlockedMessage": "{name} engellendi.",
+  "@userBlockedMessage": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "blockFailedMessage": "Kullanıcı engellenemedi. Lütfen tekrar dene.",
+  "userUnblockedMessage": "{name} için engel kaldırıldı.",
+  "@userUnblockedMessage": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "unblockFailedMessage": "Engel kaldırılamadı. Lütfen tekrar dene.",
+  "eulaPageTitle": "Kullanım Koşulları",
+  "eulaGateHeadline": "Devam etmeden önce",
+  "eulaGateIntro": "SDAL Sosyal’ı kullanmak için Kullanım Koşulları’nı (EULA) kabul etmen gerekir. Uygunsuz içeriğe ve kötüye kullanıma sıfır tolerans politikamız vardır.",
+  "eulaAcceptAction": "Okudum, kabul ediyorum",
+  "eulaAcceptFailedMessage": "Onay kaydedilemedi. Lütfen tekrar dene.",
+  "registerEulaConsentTitle": "Kullanım Koşulları (EULA)",
+  "registerEulaConsentLabel": "Kullanım Koşulları’nı okudum ve kabul ediyorum. Uygunsuz içeriğe ve kötüye kullanıma sıfır tolerans politikasını anlıyorum.",
+  "registerEulaConsentError": "Kullanım Koşulları’nı (EULA) okuyup kabul etmeniz gerekir."
 }

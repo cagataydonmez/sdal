@@ -27,6 +27,19 @@ class SessionRepository {
     final siteAccess = SiteAccessSnapshot.fromMap(siteAccessPayload);
     final userMap = asJsonMap(sessionPayload['user']);
     final user = userMap.isEmpty ? null : SessionUser.fromMap(userMap);
+
+    // App Store 1.2: determine whether the authenticated user has accepted the
+    // zero-tolerance EULA so the router can gate them until they do.
+    var eulaAccepted = true;
+    if (user != null) {
+      final eulaResult = await apiClient.get<JsonMap>(
+        '/api/legal/eula/status',
+        decoder: (raw) => asJsonMap(raw),
+      );
+      if (eulaResult.ok) {
+        eulaAccepted = asBool(asJsonMap(eulaResult.rawData)['accepted']) ?? false;
+      }
+    }
     final menuVisibility = asJsonMap(
       siteAccessPayload['menuVisibility'],
     ).map((key, value) => MapEntry(key, asBool(value) ?? true));
@@ -43,6 +56,7 @@ class SessionRepository {
       user: user,
       menuVisibility: menuVisibility,
       moduleMenuOrder: moduleMenuOrder,
+      eulaAccepted: eulaAccepted,
     );
   }
 

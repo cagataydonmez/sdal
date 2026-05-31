@@ -12,6 +12,26 @@ const LoginSchema = z.object({
   app_version: z.string().max(64).optional().default(''),
 });
 
+// App Review / QA accounts that skip the new-device email verification
+// challenge. Configure via TEST_BYPASS_DEVICE_CHECK_USERNAMES as a
+// comma-separated list of usernames and/or e-mails (case-insensitive).
+const _deviceCheckBypassValues = new Set(
+  String(process.env.TEST_BYPASS_DEVICE_CHECK_USERNAMES || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+);
+
+function _isDeviceCheckBypassed(username, email) {
+  if (_deviceCheckBypassValues.size === 0) return false;
+  const normalizedUsername = String(username || '').trim().toLowerCase();
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  return (
+    (normalizedUsername && _deviceCheckBypassValues.has(normalizedUsername)) ||
+    (normalizedEmail && _deviceCheckBypassValues.has(normalizedEmail))
+  );
+}
+
 export function createAuthController({ authService, applyUserSession, authSecurity }) {
   async function login(req, res) {
     const parsed = LoginSchema.safeParse(req.body);
@@ -48,7 +68,11 @@ export function createAuthController({ authService, applyUserSession, authSecuri
         platform: parsed.data.platform,
         app_version: parsed.data.app_version
       };
-      if (authSecurity && device.device_id) {
+      const skipDeviceCheck = _isDeviceCheckBypassed(
+        username,
+        result.user.email || result.user.legacy?.email
+      );
+      if (authSecurity && device.device_id && !skipDeviceCheck) {
         const trusted = await authSecurity.isDeviceTrusted(result.user.id, device.device_id, req, device);
         if (!trusted) {
           const challenge = await authSecurity.createEmailChallenge({ req, user: result.user.legacy || result.user, device });
