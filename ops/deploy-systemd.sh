@@ -74,6 +74,28 @@ elif [[ -f "$ENV_FILE" ]]; then
 fi
 # --------------------------------------------------------------------------
 
+# --- Sync privacy policy into the nginx web root --------------------------
+# The privacy policy is served as a static file by nginx (not the app). Keep
+# the version-controlled copy in sync wherever an existing privacy_policy.html
+# is found under an nginx root or the common defaults. Best-effort, idempotent.
+SRC_PRIVACY="$APP_DIR/frontend-classic/public/privacy_policy.html"
+if [[ -f "$SRC_PRIVACY" ]]; then
+  nginx_roots=""
+  if command -v nginx >/dev/null 2>&1; then
+    nginx_roots="$(nginx -T 2>/dev/null | awk '$1=="root"{gsub(/;/,"",$2); print $2}' | sort -u || true)"
+  fi
+  for web_root in $nginx_roots /var/www/html /usr/share/nginx/html; do
+    [[ -d "$web_root" ]] || continue
+    while IFS= read -r target; do
+      [[ -n "$target" ]] || continue
+      if cp "$SRC_PRIVACY" "$target" 2>/dev/null; then
+        log "synced privacy_policy.html -> $target"
+      fi
+    done < <(find "$web_root" -maxdepth 4 -name privacy_policy.html 2>/dev/null || true)
+  done
+fi
+# --------------------------------------------------------------------------
+
 mkdir -p logs
 if [[ -n "${SDAL_UPLOADS_DIR:-}" ]]; then
   mkdir -p "$SDAL_UPLOADS_DIR"
