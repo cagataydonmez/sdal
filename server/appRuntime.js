@@ -78,6 +78,7 @@ import { createRateLimitMiddleware } from './src/http/middleware/rateLimit.js';
 import { createIdempotencyMiddleware } from './src/http/middleware/idempotency.js';
 import { pgQuery, getPostgresPool } from './src/infra/postgresPool.js';
 import { resolveFeedPostGroupId } from './src/shared/feedPostGroupResolver.js';
+import { DEFAULT_BANNED_WORDS, normalizeForMatch } from './src/shared/bannedWords.js';
 import {
   buildMemberTrustBadges,
   buildScoredNetworkSuggestion,
@@ -3582,17 +3583,22 @@ function normalizeBannedWord(word) {
 function getBannedWords() {
   const now = Date.now();
   if (bannedWordsCache.expiresAt > now) return bannedWordsCache.words;
+  const unique = new Set();
+  // Always-on baseline denylist (covers obfuscations/inflections via matcher).
+  for (const word of DEFAULT_BANNED_WORDS) {
+    if (word) unique.add(word);
+  }
   try {
     const rows = sqlAll('SELECT kufur FROM filtre');
-    const unique = new Set();
     for (const row of rows) {
-      const normalized = normalizeBannedWord(row?.kufur);
-      if (normalized) unique.add(normalized);
+      // Normalize DB entries the same way so matching is consistent.
+      const normalized = normalizeForMatch(row?.kufur);
+      if (normalized && normalized.length >= 2) unique.add(normalized);
     }
-    bannedWordsCache.words = Array.from(unique).sort((a, b) => b.length - a.length);
   } catch {
-    bannedWordsCache.words = [];
+    // keep baseline list even if the filtre table is unavailable
   }
+  bannedWordsCache.words = Array.from(unique).sort((a, b) => b.length - a.length);
   bannedWordsCache.expiresAt = now + 30 * 1000;
   return bannedWordsCache.words;
 }
@@ -3606,19 +3612,32 @@ function escapeRegExp(value) {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function isBannedToken(normalizedToken, words) {
+  if (!normalizedToken) return false;
+  for (const banned of words) {
+    if (normalizedToken === banned) return true;
+    // Inflection-tolerant: token starts with the root (e.g. "aptalsin").
+    if (banned.length >= 4 && normalizedToken.startsWith(banned)) return true;
+    // Embedded match for longer roots (e.g. "xorospux").
+    if (banned.length >= 5 && normalizedToken.includes(banned)) return true;
+  }
+  return false;
+}
+
 function censorBannedWords(text) {
-  let value = String(text ?? '');
+  const value = String(text ?? '');
   if (!value) return value;
   const words = getBannedWords();
   if (!words.length) return value;
-  for (const word of words) {
-    const pattern = new RegExp(`(^|[^\\p{L}\\p{N}_])(${escapeRegExp(word)})(?=[^\\p{L}\\p{N}_]|$)`, 'giu');
-    value = value.replace(pattern, (_full, prefix, matched) => {
-      const stars = '*'.repeat(Array.from(String(matched || '')).length);
-      return `${prefix}${stars}`;
-    });
-  }
-  return value;
+  // Tokenize on word-ish runs (letters/digits + a few in-word marks) and mask
+  // any token whose normalized form matches the denylist.
+  return value.replace(/[\p{L}\p{N}][\p{L}\p{N}'’._*@$£€!|-]*/gu, (token) => {
+    const normalized = normalizeForMatch(token);
+    if (isBannedToken(normalized, words)) {
+      return '*'.repeat(Array.from(token).length);
+    }
+    return token;
+  });
 }
 
 function formatUserText(text) {
@@ -3635,13 +3654,16 @@ function filterKufur(text) {
   try {
     const bannedWords = getBannedWords();
     if (!bannedWords.length) return null;
-    const words = String(text || '')
-      .toLocaleLowerCase('tr-TR')
-      .split(/\\s+/)
+    // Normalize each whitespace-separated token (handles leetspeak) and match
+    // exactly against the denylist — conservative to avoid blocking real names.
+    const tokens = String(text || '')
+      .split(/\s+/)
+      .map(normalizeForMatch)
       .filter(Boolean);
-    for (const banned of bannedWords) {
-      if (words.includes(banned)) {
-        return banned;
+    const bannedSet = new Set(bannedWords);
+    for (const token of tokens) {
+      if (bannedSet.has(token)) {
+        return token;
       }
     }
     return null;
