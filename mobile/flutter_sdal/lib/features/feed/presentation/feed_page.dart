@@ -813,6 +813,8 @@ class _FeedPostMenuButton extends StatelessWidget {
     final l10n = context.l10n;
     return PopupMenuButton<String>(
       tooltip: l10n.moreActions,
+      icon: const Icon(Icons.more_vert),
+      position: PopupMenuPosition.under,
       onSelected: (value) async {
         if (value == 'edit') {
           await onEdit();
@@ -903,6 +905,8 @@ class _OtherPostMenuButton extends ConsumerWidget {
     final l10n = context.l10n;
     return PopupMenuButton<String>(
       tooltip: l10n.moreActions,
+      icon: const Icon(Icons.more_vert),
+      position: PopupMenuPosition.under,
       onSelected: (value) async {
         if (value == 'report') {
           await SafetyActions.reportContent(

@@ -203,6 +203,8 @@ class SocialCommentActionMenuButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return PopupMenuButton<String>(
       tooltip: tooltip,
+      icon: const Icon(Icons.more_vert),
+      position: PopupMenuPosition.under,
       onSelected: (value) async {
         if (value == 'edit') {
           await onEdit();
