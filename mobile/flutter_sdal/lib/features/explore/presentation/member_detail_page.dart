@@ -561,6 +561,7 @@ class _MemberSafetyMenu extends ConsumerWidget {
     return PopupMenuButton<String>(
       tooltip: l10n.moreActions,
       icon: const Icon(Icons.more_vert),
+      position: PopupMenuPosition.under,
       onSelected: (value) async {
         if (value != 'block') return;
         final blocked = await SafetyActions.blockUser(
