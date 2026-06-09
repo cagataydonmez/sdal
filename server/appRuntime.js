@@ -38,6 +38,7 @@ import { createAuthSecurityRuntime } from './routes/authSecurityRoutes.js';
 import { createUserSafetyRuntime } from './routes/userSafetyRoutes.js';
 import { registerEventJobRoutes } from './routes/eventJobRoutes.js';
 import { registerGroupRoutes } from './routes/groupRoutes.js';
+import { registerGameHubBridgeRoutes } from './routes/gameHubBridgeRoutes.js';
 import { registerMemberCommunicationRoutes } from './routes/memberCommunicationRoutes.js';
 import { registerMiscAppRoutes } from './routes/miscAppRoutes.js';
 import { registerNetworkDiscoveryRoutes } from './routes/networkDiscoveryRoutes.js';
@@ -4207,6 +4208,8 @@ registerSystemRoutes(app, {
   getModeratorPermissionSummary,
   authSecurity
 });
+
+registerGameHubBridgeRoutes(app, { sqlGetAsync });
 
 registerOAuthRoutes(app, {
   sqlGet,
