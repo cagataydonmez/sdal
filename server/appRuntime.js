@@ -3223,6 +3223,7 @@ function withOAuthError(pathname, code) {
 
 function oauthLoginToSuccessPath(loginPath) {
   const safePath = sanitizeOAuthReturnTo(loginPath, '/new/login');
+  if (safePath.startsWith('/new/login?')) return safePath;
   if (safePath.endsWith('/login')) {
     const root = safePath.slice(0, -'/login'.length);
     return root || '/';

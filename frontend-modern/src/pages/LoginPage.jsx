@@ -13,6 +13,31 @@ const LoginSchema = z.object({
   sifre: z.string().min(1, 'auth_password_required').max(20),
 });
 
+function safeLoginReturnTo() {
+  const params = new URLSearchParams(window.location.search);
+  const raw = String(params.get('returnTo') || '').trim();
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return '/new';
+  if (/[\r\n]/.test(raw)) return '/new';
+  if (raw.startsWith('/api/gamehub/authorize?')) return raw;
+  if (raw.startsWith('/new/') || raw === '/new') return raw;
+  return '/new';
+}
+
+function currentLoginPathWithReturnTo() {
+  const target = safeLoginReturnTo();
+  if (target === '/new') return '/new/login';
+  return `/new/login?returnTo=${encodeURIComponent(target)}`;
+}
+
+function navigateAfterLogin(navigate) {
+  const target = safeLoginReturnTo();
+  if (target.startsWith('/api/gamehub/authorize?')) {
+    window.location.assign(target);
+    return;
+  }
+  navigate(target);
+}
+
 export default function LoginPage() {
   const { t } = useI18n();
   const welcomePoints = [
@@ -20,12 +45,13 @@ export default function LoginPage() {
     t('login_welcome_step_people'),
     t('login_welcome_step_groups')
   ];
+  const oauthReturnTo = currentLoginPathWithReturnTo();
   const fallbackProviders = [
-    { provider: 'google', title: 'Google', enabled: true, startUrl: '/api/auth/oauth/google/start?returnTo=/new/login' },
-    { provider: 'x', title: 'X', enabled: true, startUrl: '/api/auth/oauth/x/start?returnTo=/new/login' }
+    { provider: 'google', title: 'Google', enabled: true, startUrl: `/api/auth/oauth/google/start?returnTo=${encodeURIComponent(oauthReturnTo)}` },
+    { provider: 'x', title: 'X', enabled: true, startUrl: `/api/auth/oauth/x/start?returnTo=${encodeURIComponent(oauthReturnTo)}` }
   ];
   const [oauthProviders, setOauthProviders] = useState(fallbackProviders);
-  const { refresh } = useAuth();
+  const { refresh, user } = useAuth();
   const navigate = useNavigate();
 
   const {
@@ -55,7 +81,7 @@ export default function LoginPage() {
             provider: String(item?.provider || ''),
             title: String(item?.title || ''),
             enabled: item?.enabled !== false,
-            startUrl: String(item?.startUrl || `/api/auth/oauth/${item?.provider}/start?returnTo=/new/login`),
+            startUrl: `/api/auth/oauth/${item?.provider}/start?returnTo=${encodeURIComponent(oauthReturnTo)}`,
           }))
           .filter((item) => item.provider);
         if (mounted) setOauthProviders(mapped.length ? mapped : fallbackProviders);
@@ -64,13 +90,19 @@ export default function LoginPage() {
       }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [oauthReturnTo]);
+
+  useEffect(() => {
+    if (user && safeLoginReturnTo() !== '/new') {
+      navigateAfterLogin(navigate);
+    }
+  }, [navigate, user]);
 
   async function onSubmit({ kadi, sifre }) {
     try {
       await api.post('/api/auth/login', { kadi, sifre });
       await refresh();
-      navigate('/new');
+      navigateAfterLogin(navigate);
     } catch (err) {
       setError('root', { message: err.message || t('login_error_failed') });
     }
