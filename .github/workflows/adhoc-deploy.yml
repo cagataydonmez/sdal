@@ -54,11 +54,8 @@ jobs:
           if [[ "$APP" == "all" || "$APP" == "cdcleaner" ]]; then
             $SCP adhoc-static/cdcleaner/manifest.plist "${DO_USER}@${DO_HOST}:${WEB_ROOT}/cdcleaner/manifest.plist"
             $SCP adhoc-static/cdcleaner/index.html "${DO_USER}@${DO_HOST}:${WEB_ROOT}/cdcleaner/index.html"
-            echo "CDCleaner pages deployed"
-            curl -L -o /tmp/CDCleanerIOS.ipa \
-              "https://github.com/DKNeural/CDCleaner/releases/download/v0.2.0/CDCleanerIOS.ipa"
-            $SCP /tmp/CDCleanerIOS.ipa "${DO_USER}@${DO_HOST}:${WEB_ROOT}/cdcleaner/CDCleanerIOS.ipa"
-            echo "IPA uploaded ($(du -sh /tmp/CDCleanerIOS.ipa | cut -f1))"
+            $SCP adhoc-static/cdcleaner/CDCleanerIOS.ipa "${DO_USER}@${DO_HOST}:${WEB_ROOT}/cdcleaner/CDCleanerIOS.ipa"
+            echo "CDCleaner deployed ($(du -sh adhoc-static/cdcleaner/CDCleanerIOS.ipa | cut -f1))"
           fi
 
           if [[ "$APP" == "all" || "$APP" == "adhoc-index" ]]; then
