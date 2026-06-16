@@ -7,6 +7,10 @@ on:
         description: 'Versiyon adı (örn. 1.2.0)'
         required: true
         default: '1.0.0'
+      build_number:
+        description: 'Android versionCode / Flutter build number'
+        required: true
+        default: '142'
       release_notes:
         description: 'Sürüm notları (release açıklaması)'
         required: false
@@ -14,7 +18,7 @@ on:
 
 jobs:
   build:
-    name: APK Derle
+    name: Android Derle
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -52,23 +56,30 @@ jobs:
         working-directory: mobile/flutter_sdal
         run: flutter pub get
 
-      - name: Release APK derle
+      - name: Release AAB ve APK derle
         working-directory: mobile/flutter_sdal
         run: |
+          flutter build appbundle --release \
+            --build-name="${{ inputs.version_name }}" \
+            --build-number="${{ inputs.build_number }}"
           flutter build apk --release \
             --build-name="${{ inputs.version_name }}" \
-            --build-number="${{ github.run_number }}"
+            --build-number="${{ inputs.build_number }}"
 
-      - name: APK'yı yeniden adlandır
+      - name: Paketleri yeniden adlandır
         run: |
+          mv mobile/flutter_sdal/build/app/outputs/bundle/release/app-release.aab \
+             sdal-sosyal-v${{ inputs.version_name }}+${{ inputs.build_number }}.aab
           mv mobile/flutter_sdal/build/app/outputs/flutter-apk/app-release.apk \
-             sdal-sosyal-v${{ inputs.version_name }}.apk
+             sdal-sosyal-v${{ inputs.version_name }}+${{ inputs.build_number }}.apk
 
-      - name: APK artifact olarak yükle
+      - name: Release paketlerini artifact olarak yükle
         uses: actions/upload-artifact@v4
         with:
-          name: release-apk
-          path: sdal-sosyal-v${{ inputs.version_name }}.apk
+          name: android-release-packages
+          path: |
+            sdal-sosyal-v${{ inputs.version_name }}+${{ inputs.build_number }}.aab
+            sdal-sosyal-v${{ inputs.version_name }}+${{ inputs.build_number }}.apk
           retention-days: 7
 
   publish:
@@ -81,16 +92,18 @@ jobs:
       - name: APK artifact'ı indir
         uses: actions/download-artifact@v4
         with:
-          name: release-apk
+          name: android-release-packages
 
-      - name: GitHub Release oluştur ve APK yükle
+      - name: GitHub Release oluştur ve paketleri yükle
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: android-v${{ inputs.version_name }}
-          name: "SDAL Sosyal Android v${{ inputs.version_name }}"
+          tag_name: android-v${{ inputs.version_name }}-${{ inputs.build_number }}
+          name: "SDAL Sosyal Android v${{ inputs.version_name }} (${{ inputs.build_number }})"
           body: ${{ inputs.release_notes }}
           draft: false
           prerelease: true
-          files: sdal-sosyal-v${{ inputs.version_name }}.apk
+          files: |
+            sdal-sosyal-v${{ inputs.version_name }}+${{ inputs.build_number }}.aab
+            sdal-sosyal-v${{ inputs.version_name }}+${{ inputs.build_number }}.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
