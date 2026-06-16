@@ -12,6 +12,7 @@ on:
           - all
           - cdcleaner
           - adhoc-index
+          - nginx-check
 
 permissions:
   contents: read
@@ -24,7 +25,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy over SSH
+      - name: Run over SSH
         env:
           DO_HOST: ${{ secrets.DO_HOST }}
           DO_USER: ${{ secrets.DO_USER }}
@@ -41,6 +42,11 @@ jobs:
 
           SSH="ssh -i $KEY_FILE -p $DO_PORT -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
           SCP="scp -i $KEY_FILE -P $DO_PORT -o BatchMode=yes -o StrictHostKeyChecking=accept-new"
+
+          if [[ "$APP" == "nginx-check" ]]; then
+            $SSH "${DO_USER}@${DO_HOST}" "nginx -T 2>/dev/null | head -200"
+            exit 0
+          fi
 
           $SSH "${DO_USER}@${DO_HOST}" "mkdir -p /var/www/html/cdcleaner /var/www/html/adhoc && echo 'Directories ready'"
 
