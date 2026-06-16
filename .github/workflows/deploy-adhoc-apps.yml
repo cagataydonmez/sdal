@@ -39,20 +39,14 @@ jobs:
           SSH="ssh -i $KEY_FILE -p $DO_PORT -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
           SCP="scp -i $KEY_FILE -P $DO_PORT -o BatchMode=yes -o StrictHostKeyChecking=accept-new"
 
-          # Create directories on server
-          $SSH "${DO_USER}@${DO_HOST}" "
-            mkdir -p /var/www/html/cdcleaner
-            mkdir -p /var/www/html/adhoc
-            echo 'Directories ready'
-          "
+          $SSH "${DO_USER}@${DO_HOST}" "mkdir -p /var/www/html/cdcleaner /var/www/html/adhoc && echo 'Directories ready'"
 
-          # Deploy CDCleaner IPA page
           if [[ "$APP" == "all" || "$APP" == "cdcleaner" ]]; then
-            # manifest.plist
-            cat > /tmp/cdcleaner_manifest.plist << 'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
+            python3 -c "
+import base64, sys
+manifest = '''<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
+<plist version=\"1.0\">
 <dict>
   <key>items</key>
   <array>
@@ -75,12 +69,14 @@ jobs:
   </array>
 </dict>
 </plist>
-PLIST
-
-            # index.html
-            cat > /tmp/cdcleaner_index.html << 'HTML'
-<!DOCTYPE html><html lang="tr"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+'''
+with open('/tmp/cdcleaner_manifest.plist', 'w') as f:
+    f.write(manifest)
+print('manifest.plist written')
+"
+            python3 -c "
+html = '''<!DOCTYPE html><html lang=\"tr\"><head><meta charset=\"utf-8\">
+<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
 <title>CDCleaner iOS Kurulum</title>
 <style>
 body{font-family:-apple-system,sans-serif;background:#0f172a;color:#e2e8f0;text-align:center;padding:48px 20px}
@@ -91,35 +87,31 @@ a.btn{display:inline-block;margin-top:24px;padding:16px 32px;background:#10b981;
 </style></head>
 <body>
 <h1>CDCleaner iOS</h1>
-<div class="v">Sürüm 0.2.0 · iOS</div>
-<div class="desc">Depolama analiz ve temizleme asistanı</div>
-<a class="btn" href="itms-services://?action=download-manifest&url=https://sdalsosyal.mywire.org/cdcleaner/manifest.plist">Uygulamayı Yükle</a>
-<p class="n">Safari ile aç. "Yükle"ye dokun → "Yükle" onayı.<br>
-Ardından Ayarlar → Genel → VPN ve Cihaz Yönetimi'nden<br>geliştiriciye güven ver.</p>
-</body></html>
-HTML
-
+<div class=\"v\">Surum 0.2.0 - iOS</div>
+<div class=\"desc\">Depolama analiz ve temizleme asistani</div>
+<a class=\"btn\" href=\"itms-services://?action=download-manifest&url=https://sdalsosyal.mywire.org/cdcleaner/manifest.plist\">Uygulamayi Yukle</a>
+<p class=\"n\">Safari ile ac. Yukle ye dokun - Yukle onayi.<br>
+Ardindan Ayarlar - Genel - VPN ve Cihaz Yonetimi nden<br>gelistiriciye guven ver.</p>
+</body></html>'''
+with open('/tmp/cdcleaner_index.html', 'w') as f:
+    f.write(html)
+print('index.html written')
+"
             $SCP /tmp/cdcleaner_manifest.plist "${DO_USER}@${DO_HOST}:/var/www/html/cdcleaner/manifest.plist"
             $SCP /tmp/cdcleaner_index.html "${DO_USER}@${DO_HOST}:/var/www/html/cdcleaner/index.html"
             echo "CDCleaner pages deployed"
 
-            # Download IPA from GitHub Release and upload
-            echo "Downloading CDCleanerIOS.ipa from GitHub..."
+            echo "Downloading CDCleanerIOS.ipa from GitHub Release..."
             curl -L -o /tmp/CDCleanerIOS.ipa \
-              "https://github.com/DKNeural/CDCleaner/releases/download/v0.2.0/CDCleanerIOS.ipa" || \
-              echo "Warning: IPA not on GitHub release, skipping IPA upload"
-
-            if [ -f /tmp/CDCleanerIOS.ipa ] && [ -s /tmp/CDCleanerIOS.ipa ]; then
-              $SCP /tmp/CDCleanerIOS.ipa "${DO_USER}@${DO_HOST}:/var/www/html/cdcleaner/CDCleanerIOS.ipa"
-              echo "IPA uploaded ($(du -sh /tmp/CDCleanerIOS.ipa | cut -f1))"
-            fi
+              "https://github.com/DKNeural/CDCleaner/releases/download/v0.2.0/CDCleanerIOS.ipa" && \
+            $SCP /tmp/CDCleanerIOS.ipa "${DO_USER}@${DO_HOST}:/var/www/html/cdcleaner/CDCleanerIOS.ipa" && \
+            echo "IPA uploaded" || echo "Warning: IPA upload failed"
           fi
 
-          # Deploy /adhoc/ index page
           if [[ "$APP" == "all" || "$APP" == "adhoc-index" ]]; then
-            cat > /tmp/adhoc_index.html << 'HTML'
-<!DOCTYPE html><html lang="tr"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+            python3 -c "
+html = '''<!DOCTYPE html><html lang=\"tr\"><head><meta charset=\"utf-8\">
+<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
 <title>Ad Hoc Uygulamalar</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -140,32 +132,34 @@ h1{text-align:center;font-size:26px;font-weight:700;margin-bottom:8px}
 </style></head>
 <body>
 <h1>Ad Hoc Uygulamalar</h1>
-<p class="sub">Safari ile aç · Yükleme için geliştiriciye güven ver</p>
-<div class="grid">
-  <a class="card" href="/cdiptv/">
-    <div class="icon icon-tv">📺</div>
-    <div class="info">
-      <div class="name">CDIPTv</div>
-      <div class="ver">Sürüm 1.3.2 · iOS</div>
-      <div class="desc">IPTV oynatıcı ve torrent destekli medya merkezi</div>
+<p class=\"sub\">Safari ile ac - Yukleme icin gelistiriciye guven ver</p>
+<div class=\"grid\">
+  <a class=\"card\" href=\"/cdiptv/\">
+    <div class=\"icon icon-tv\">&#x1F4FA;</div>
+    <div class=\"info\">
+      <div class=\"name\">CDIPTv</div>
+      <div class=\"ver\">Surum 1.3.2 - iOS</div>
+      <div class=\"desc\">IPTV oynatici ve torrent destekli medya merkezi</div>
     </div>
-    <div class="arrow">›</div>
+    <div class=\"arrow\">&#x203A;</div>
   </a>
-  <a class="card" href="/cdcleaner/">
-    <div class="icon icon-clean">🧹</div>
-    <div class="info">
-      <div class="name">CDCleaner iOS</div>
-      <div class="ver">Sürüm 0.2.0 · iOS</div>
-      <div class="desc">Depolama analiz ve temizleme asistanı</div>
+  <a class=\"card\" href=\"/cdcleaner/\">
+    <div class=\"icon icon-clean\">&#x1F9F9;</div>
+    <div class=\"info\">
+      <div class=\"name\">CDCleaner iOS</div>
+      <div class=\"ver\">Surum 0.2.0 - iOS</div>
+      <div class=\"desc\">Depolama analiz ve temizleme asistani</div>
     </div>
-    <div class="arrow">›</div>
+    <div class=\"arrow\">&#x203A;</div>
   </a>
 </div>
-</body></html>
-HTML
-
+</body></html>'''
+with open('/tmp/adhoc_index.html', 'w') as f:
+    f.write(html)
+print('adhoc index.html written')
+"
             $SCP /tmp/adhoc_index.html "${DO_USER}@${DO_HOST}:/var/www/html/adhoc/index.html"
             echo "/adhoc/ index deployed"
           fi
 
-          echo "Deployment complete"
+          echo "All done"
