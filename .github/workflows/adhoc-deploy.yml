@@ -42,29 +42,31 @@ jobs:
 
           SSH="ssh -i $KEY_FILE -p $DO_PORT -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
           SCP="scp -i $KEY_FILE -P $DO_PORT -o BatchMode=yes -o StrictHostKeyChecking=accept-new"
+          WEB_ROOT=/var/www/sdal
 
           if [[ "$APP" == "nginx-check" ]]; then
             $SSH "${DO_USER}@${DO_HOST}" "nginx -T 2>/dev/null | head -200"
             exit 0
           fi
 
-          $SSH "${DO_USER}@${DO_HOST}" "mkdir -p /var/www/html/cdcleaner /var/www/html/adhoc && echo 'Directories ready'"
+          $SSH "${DO_USER}@${DO_HOST}" "mkdir -p ${WEB_ROOT}/cdcleaner ${WEB_ROOT}/adhoc"
 
           if [[ "$APP" == "all" || "$APP" == "cdcleaner" ]]; then
-            $SCP adhoc-static/cdcleaner/manifest.plist "${DO_USER}@${DO_HOST}:/var/www/html/cdcleaner/manifest.plist"
-            $SCP adhoc-static/cdcleaner/index.html "${DO_USER}@${DO_HOST}:/var/www/html/cdcleaner/index.html"
+            $SCP adhoc-static/cdcleaner/manifest.plist "${DO_USER}@${DO_HOST}:${WEB_ROOT}/cdcleaner/manifest.plist"
+            $SCP adhoc-static/cdcleaner/index.html "${DO_USER}@${DO_HOST}:${WEB_ROOT}/cdcleaner/index.html"
             echo "CDCleaner pages deployed"
-
-            echo "Downloading CDCleanerIOS.ipa from GitHub Release..."
             curl -L -o /tmp/CDCleanerIOS.ipa \
               "https://github.com/DKNeural/CDCleaner/releases/download/v0.2.0/CDCleanerIOS.ipa"
-            $SCP /tmp/CDCleanerIOS.ipa "${DO_USER}@${DO_HOST}:/var/www/html/cdcleaner/CDCleanerIOS.ipa"
+            $SCP /tmp/CDCleanerIOS.ipa "${DO_USER}@${DO_HOST}:${WEB_ROOT}/cdcleaner/CDCleanerIOS.ipa"
             echo "IPA uploaded ($(du -sh /tmp/CDCleanerIOS.ipa | cut -f1))"
           fi
 
           if [[ "$APP" == "all" || "$APP" == "adhoc-index" ]]; then
-            $SCP adhoc-static/adhoc/index.html "${DO_USER}@${DO_HOST}:/var/www/html/adhoc/index.html"
+            $SCP adhoc-static/adhoc/index.html "${DO_USER}@${DO_HOST}:${WEB_ROOT}/adhoc/index.html"
             echo "/adhoc/ index deployed"
           fi
+
+          $SCP adhoc-static/patch-nginx.sh "${DO_USER}@${DO_HOST}:/tmp/patch-nginx.sh"
+          $SSH "${DO_USER}@${DO_HOST}" "bash /tmp/patch-nginx.sh && rm /tmp/patch-nginx.sh"
 
           echo "All done"
