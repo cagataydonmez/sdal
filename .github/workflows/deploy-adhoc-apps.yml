@@ -1,0 +1,171 @@
+name: Deploy Ad Hoc Static Files
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: 'Which app to deploy'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - cdcleaner
+          - adhoc-index
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Deploy static files over SSH
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+          DO_PORT: ${{ secrets.DO_PORT }}
+          APP: ${{ github.event.inputs.app }}
+        run: |
+          set -euo pipefail
+
+          KEY_FILE="$(mktemp)"
+          trap 'rm -f "$KEY_FILE"' EXIT
+          printf '%s\n' "$DO_SSH_KEY" > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+
+          SSH="ssh -i $KEY_FILE -p $DO_PORT -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
+          SCP="scp -i $KEY_FILE -P $DO_PORT -o BatchMode=yes -o StrictHostKeyChecking=accept-new"
+
+          # Create directories on server
+          $SSH "${DO_USER}@${DO_HOST}" "
+            mkdir -p /var/www/html/cdcleaner
+            mkdir -p /var/www/html/adhoc
+            echo 'Directories ready'
+          "
+
+          # Deploy CDCleaner IPA page
+          if [[ "$APP" == "all" || "$APP" == "cdcleaner" ]]; then
+            # manifest.plist
+            cat > /tmp/cdcleaner_manifest.plist << 'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>items</key>
+  <array>
+    <dict>
+      <key>assets</key>
+      <array>
+        <dict>
+          <key>kind</key><string>software-package</string>
+          <key>url</key><string>https://sdalsosyal.mywire.org/cdcleaner/CDCleanerIOS.ipa</string>
+        </dict>
+      </array>
+      <key>metadata</key>
+      <dict>
+        <key>bundle-identifier</key><string>com.dkneural.cdcleaner.ios</string>
+        <key>bundle-version</key><string>0.2.0</string>
+        <key>kind</key><string>software</string>
+        <key>title</key><string>CDCleaner iOS</string>
+      </dict>
+    </dict>
+  </array>
+</dict>
+</plist>
+PLIST
+
+            # index.html
+            cat > /tmp/cdcleaner_index.html << 'HTML'
+<!DOCTYPE html><html lang="tr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CDCleaner iOS Kurulum</title>
+<style>
+body{font-family:-apple-system,sans-serif;background:#0f172a;color:#e2e8f0;text-align:center;padding:48px 20px}
+a.btn{display:inline-block;margin-top:24px;padding:16px 32px;background:#10b981;color:#fff;text-decoration:none;border-radius:12px;font-size:18px;font-weight:600}
+.v{color:#94a3b8;font-size:14px;margin-top:8px}
+.n{color:#64748b;font-size:13px;margin-top:32px;line-height:1.6}
+.desc{color:#94a3b8;font-size:15px;margin-top:16px;max-width:400px;margin-left:auto;margin-right:auto}
+</style></head>
+<body>
+<h1>CDCleaner iOS</h1>
+<div class="v">Sürüm 0.2.0 · iOS</div>
+<div class="desc">Depolama analiz ve temizleme asistanı</div>
+<a class="btn" href="itms-services://?action=download-manifest&url=https://sdalsosyal.mywire.org/cdcleaner/manifest.plist">Uygulamayı Yükle</a>
+<p class="n">Safari ile aç. "Yükle"ye dokun → "Yükle" onayı.<br>
+Ardından Ayarlar → Genel → VPN ve Cihaz Yönetimi'nden<br>geliştiriciye güven ver.</p>
+</body></html>
+HTML
+
+            $SCP /tmp/cdcleaner_manifest.plist "${DO_USER}@${DO_HOST}:/var/www/html/cdcleaner/manifest.plist"
+            $SCP /tmp/cdcleaner_index.html "${DO_USER}@${DO_HOST}:/var/www/html/cdcleaner/index.html"
+            echo "CDCleaner pages deployed"
+
+            # Download IPA from GitHub Release and upload
+            echo "Downloading CDCleanerIOS.ipa from GitHub..."
+            curl -L -o /tmp/CDCleanerIOS.ipa \
+              "https://github.com/DKNeural/CDCleaner/releases/download/v0.2.0/CDCleanerIOS.ipa" || \
+              echo "Warning: IPA not on GitHub release, skipping IPA upload"
+
+            if [ -f /tmp/CDCleanerIOS.ipa ] && [ -s /tmp/CDCleanerIOS.ipa ]; then
+              $SCP /tmp/CDCleanerIOS.ipa "${DO_USER}@${DO_HOST}:/var/www/html/cdcleaner/CDCleanerIOS.ipa"
+              echo "IPA uploaded ($(du -sh /tmp/CDCleanerIOS.ipa | cut -f1))"
+            fi
+          fi
+
+          # Deploy /adhoc/ index page
+          if [[ "$APP" == "all" || "$APP" == "adhoc-index" ]]; then
+            cat > /tmp/adhoc_index.html << 'HTML'
+<!DOCTYPE html><html lang="tr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ad Hoc Uygulamalar</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh;padding:48px 20px}
+h1{text-align:center;font-size:26px;font-weight:700;margin-bottom:8px}
+.sub{text-align:center;color:#64748b;font-size:14px;margin-bottom:48px}
+.grid{display:flex;flex-direction:column;gap:16px;max-width:480px;margin:0 auto}
+.card{background:#1e293b;border:1px solid #334155;border-radius:16px;padding:24px;display:flex;align-items:center;gap:20px;text-decoration:none;color:inherit;transition:border-color 0.2s,background 0.2s}
+.card:hover{border-color:#475569;background:#263349}
+.icon{width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0}
+.icon-tv{background:#1d3a6e}
+.icon-clean{background:#064e3b}
+.info{flex:1}
+.name{font-size:18px;font-weight:600;margin-bottom:4px}
+.ver{font-size:13px;color:#94a3b8;margin-bottom:6px}
+.desc{font-size:13px;color:#64748b;line-height:1.4}
+.arrow{color:#475569;font-size:20px;flex-shrink:0}
+</style></head>
+<body>
+<h1>Ad Hoc Uygulamalar</h1>
+<p class="sub">Safari ile aç · Yükleme için geliştiriciye güven ver</p>
+<div class="grid">
+  <a class="card" href="/cdiptv/">
+    <div class="icon icon-tv">📺</div>
+    <div class="info">
+      <div class="name">CDIPTv</div>
+      <div class="ver">Sürüm 1.3.2 · iOS</div>
+      <div class="desc">IPTV oynatıcı ve torrent destekli medya merkezi</div>
+    </div>
+    <div class="arrow">›</div>
+  </a>
+  <a class="card" href="/cdcleaner/">
+    <div class="icon icon-clean">🧹</div>
+    <div class="info">
+      <div class="name">CDCleaner iOS</div>
+      <div class="ver">Sürüm 0.2.0 · iOS</div>
+      <div class="desc">Depolama analiz ve temizleme asistanı</div>
+    </div>
+    <div class="arrow">›</div>
+  </a>
+</div>
+</body></html>
+HTML
+
+            $SCP /tmp/adhoc_index.html "${DO_USER}@${DO_HOST}:/var/www/html/adhoc/index.html"
+            echo "/adhoc/ index deployed"
+          fi
+
+          echo "Deployment complete"
